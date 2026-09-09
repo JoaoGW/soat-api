@@ -1,0 +1,2251 @@
+{
+  "vulnerabilities": [
+    {
+      "id": "SNYK-JS-EFFECT-15746380",
+      "title": "Race Condition",
+      "CVSSv3": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:H/I:H/A:N/E:P",
+      "credit": [
+        "James Wainwright"
+      ],
+      "semver": {
+        "vulnerable": [
+          "<3.20.0"
+        ]
+      },
+      "exploit": "Proof of Concept",
+      "fixedIn": [
+        "3.20.0"
+      ],
+      "patches": [],
+      "insights": {
+        "triageAdvice": null
+      },
+      "language": "js",
+      "severity": "critical",
+      "cvssScore": 9.1,
+      "functions": [],
+      "malicious": false,
+      "isDisputed": false,
+      "moduleName": "effect",
+      "references": [
+        {
+          "url": "https://github.com/Effect-TS/effect/security/advisories/GHSA-38f7-945m-qr2g",
+          "title": "GitHub Advisory"
+        },
+        {
+          "url": "https://github.com/Effect-TS/effect/commit/8798a843218e6c0c0d3a8eee83360880e370b4da",
+          "title": "GitHub Commit"
+        }
+      ],
+      "cvssDetails": [],
+      "cvssSources": [
+        {
+          "type": "primary",
+          "vector": "CVSS:4.0/AV:N/AC:H/AT:N/PR:N/UI:N/VC:H/VI:H/VA:N/SC:N/SI:N/SA:N/E:P",
+          "assigner": "Snyk",
+          "severity": "critical",
+          "baseScore": 9.1,
+          "cvssVersion": "4.0",
+          "modificationTime": "2026-03-24T07:20:03.959954Z"
+        },
+        {
+          "type": "secondary",
+          "vector": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:H/I:H/A:N/E:P",
+          "assigner": "Snyk",
+          "severity": "high",
+          "baseScore": 7.4,
+          "cvssVersion": "3.1",
+          "modificationTime": "2026-03-24T07:20:03.959954Z"
+        }
+      ],
+      "description": "## Overview\n[effect](https://www.npmjs.com/package/effect) is a node package that allows you to add effects on images.\n\nAffected versions of this package are vulnerable to Race Condition in the `MixedScheduler` class, where the `AsyncLocalStorage` context is not properly isolated between concurrent fiber executions. An attacker can access or manipulate another user's session data by triggering concurrent requests, causing the context from one request to be visible to another. This can result in authentication bypass or data leakage, such as reading another user's session or request headers. \r\n\r\n## Workaround \r\n\r\nThis vulnerability can be mitigated by capturing ALS-dependent values before entering the runtime and passing them via the internal context system, such as injecting user identifiers into request headers and reading them from there within handlers.\n## Remediation\nUpgrade `effect` to version 3.20.0 or higher.\n## References\n- [GitHub Advisory](https://github.com/Effect-TS/effect/security/advisories/GHSA-38f7-945m-qr2g)\n- [GitHub Commit](https://github.com/Effect-TS/effect/commit/8798a843218e6c0c0d3a8eee83360880e370b4da)\n",
+      "epssDetails": {
+        "percentile": "0.03816",
+        "probability": "0.00016",
+        "modelVersion": "v2025.03.14"
+      },
+      "identifiers": {
+        "CVE": [
+          "CVE-2026-32887"
+        ],
+        "CWE": [
+          "CWE-362"
+        ],
+        "GHSA": [
+          "GHSA-38f7-945m-qr2g"
+        ]
+      },
+      "packageName": "effect",
+      "proprietary": false,
+      "creationTime": "2026-03-22T11:02:56.577473Z",
+      "functions_new": [],
+      "alternativeIds": [],
+      "disclosureTime": "2026-03-20T20:34:06Z",
+      "exploitDetails": {
+        "sources": [
+          "Snyk"
+        ],
+        "maturityLevels": [
+          {
+            "type": "secondary",
+            "level": "Proof of Concept",
+            "format": "CVSSv3"
+          },
+          {
+            "type": "primary",
+            "level": "Proof of Concept",
+            "format": "CVSSv4"
+          }
+        ]
+      },
+      "packageManager": "npm",
+      "publicationTime": "2026-03-22T11:08:14.479422Z",
+      "severityBasedOn": "CVSS",
+      "modificationTime": "2026-03-24T07:20:03.959954Z",
+      "socialTrendAlert": false,
+      "severityWithCritical": "critical",
+      "from": [
+        "nest-typescript-starter@1.0.0",
+        "prisma@6.17.1",
+        "@prisma/config@6.17.1",
+        "effect@3.16.12"
+      ],
+      "upgradePath": [
+        false,
+        "prisma@6.19.3",
+        "@prisma/config@6.19.3",
+        "effect@3.21.0"
+      ],
+      "isUpgradable": true,
+      "isPatchable": false,
+      "name": "effect",
+      "version": "3.16.12"
+    },
+    {
+      "id": "SNYK-JS-MULTER-15365916",
+      "title": "Missing Release of Resource after Effective Lifetime",
+      "CVSSv3": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
+      "credit": [
+        "nawin23"
+      ],
+      "semver": {
+        "vulnerable": [
+          "<2.1.0"
+        ]
+      },
+      "exploit": "Not Defined",
+      "fixedIn": [
+        "2.1.0"
+      ],
+      "patches": [],
+      "insights": {
+        "triageAdvice": null
+      },
+      "language": "js",
+      "severity": "high",
+      "cvssScore": 8.7,
+      "functions": [],
+      "malicious": false,
+      "isDisputed": false,
+      "moduleName": "multer",
+      "references": [
+        {
+          "url": "https://github.com/expressjs/multer/commit/cccf0fe0e64150c4f42ccf6654165c0d66b9adab",
+          "title": "GitHub Commit"
+        },
+        {
+          "url": "https://cna.openjsf.org/security-advisories.html",
+          "title": "Vendor Advisory"
+        }
+      ],
+      "cvssDetails": [
+        {
+          "assigner": "Red Hat",
+          "severity": "high",
+          "cvssV3Vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
+          "cvssV3BaseScore": 7.5,
+          "modificationTime": "2026-03-03T05:26:49.585216Z"
+        },
+        {
+          "assigner": "NVD",
+          "severity": "high",
+          "cvssV3Vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
+          "cvssV3BaseScore": 7.5,
+          "modificationTime": "2026-03-20T01:23:24.258319Z"
+        }
+      ],
+      "cvssSources": [
+        {
+          "type": "primary",
+          "vector": "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:N/VI:N/VA:H/SC:N/SI:N/SA:N",
+          "assigner": "Snyk",
+          "severity": "high",
+          "baseScore": 8.7,
+          "cvssVersion": "4.0",
+          "modificationTime": "2026-05-06T14:03:44.602581Z"
+        },
+        {
+          "type": "secondary",
+          "vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
+          "assigner": "Snyk",
+          "severity": "high",
+          "baseScore": 7.5,
+          "cvssVersion": "3.1",
+          "modificationTime": "2026-05-06T14:03:44.602581Z"
+        },
+        {
+          "type": "secondary",
+          "vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
+          "assigner": "Red Hat",
+          "severity": "high",
+          "baseScore": 7.5,
+          "cvssVersion": "3.1",
+          "modificationTime": "2026-03-03T05:26:49.585216Z"
+        },
+        {
+          "type": "secondary",
+          "vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
+          "assigner": "NVD",
+          "severity": "high",
+          "baseScore": 7.5,
+          "cvssVersion": "3.1",
+          "modificationTime": "2026-03-20T01:23:24.258319Z"
+        }
+      ],
+      "description": "## Overview\n\nAffected versions of this package are vulnerable to Missing Release of Resource after Effective Lifetime in the `makeMiddleware()` function, when dropping a connection during file upload. An attacker can cause resource exhaustion.\n\n## Details\n\nDenial of Service (DoS) describes a family of attacks, all aimed at making a system inaccessible to its intended and legitimate users.\n\nUnlike other vulnerabilities, DoS attacks usually do not aim at breaching security. Rather, they are focused on making websites and services unavailable to genuine users resulting in downtime.\n\nOne popular Denial of Service vulnerability is DDoS (a Distributed Denial of Service), an attack that attempts to clog network pipes to the system by generating a large volume of traffic from many machines.\n\nWhen it comes to open source libraries, DoS vulnerabilities allow attackers to trigger such a crash or crippling of the service by using a flaw either in the application code or from the use of open source libraries.\n\nTwo common types of DoS vulnerabilities:\n\n* High CPU/Memory Consumption- An attacker sending crafted requests that could cause the system to take a disproportionate amount of time to process. For example, [commons-fileupload:commons-fileupload](https://security.snyk.io/vuln/SNYK-JAVA-COMMONSFILEUPLOAD-30082).\n\n* Crash - An attacker sending crafted requests that could cause the system to crash. For Example,  [npm `ws` package](https://snyk.io/vuln/npm:ws:20171108)\n\n## Remediation\nUpgrade `multer` to version 2.1.0 or higher.\n## References\n- [GitHub Commit](https://github.com/expressjs/multer/commit/cccf0fe0e64150c4f42ccf6654165c0d66b9adab)\n- [Vendor Advisory](https://cna.openjsf.org/security-advisories.html)\n",
+      "epssDetails": {
+        "percentile": "0.05219",
+        "probability": "0.00019",
+        "modelVersion": "v2025.03.14"
+      },
+      "identifiers": {
+        "CVE": [
+          "CVE-2026-2359"
+        ],
+        "CWE": [
+          "CWE-772"
+        ],
+        "GHSA": [
+          "GHSA-v52c-386h-88mc"
+        ]
+      },
+      "packageName": "multer",
+      "proprietary": false,
+      "creationTime": "2026-03-01T08:36:10.027641Z",
+      "functions_new": [],
+      "alternativeIds": [],
+      "disclosureTime": "2026-03-01T01:18:27Z",
+      "exploitDetails": {
+        "sources": [],
+        "maturityLevels": [
+          {
+            "type": "secondary",
+            "level": "Not Defined",
+            "format": "CVSSv3"
+          },
+          {
+            "type": "primary",
+            "level": "Not Defined",
+            "format": "CVSSv4"
+          }
+        ]
+      },
+      "packageManager": "npm",
+      "publicationTime": "2026-03-01T09:01:57.372756Z",
+      "severityBasedOn": "CVSS",
+      "modificationTime": "2026-05-06T14:03:44.602581Z",
+      "socialTrendAlert": false,
+      "severityWithCritical": "high",
+      "from": [
+        "nest-typescript-starter@1.0.0",
+        "@nestjs/platform-express@11.1.11",
+        "multer@2.0.2"
+      ],
+      "upgradePath": [
+        false,
+        "@nestjs/platform-express@11.1.15",
+        "multer@2.1.0"
+      ],
+      "isUpgradable": true,
+      "isPatchable": false,
+      "name": "multer",
+      "version": "2.0.2"
+    },
+    {
+      "id": "SNYK-JS-MULTER-15365918",
+      "title": "Incomplete Cleanup",
+      "CVSSv3": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
+      "credit": [
+        "Ethan Kim"
+      ],
+      "semver": {
+        "vulnerable": [
+          "<2.1.0"
+        ]
+      },
+      "exploit": "Not Defined",
+      "fixedIn": [
+        "2.1.0"
+      ],
+      "patches": [],
+      "insights": {
+        "triageAdvice": null
+      },
+      "language": "js",
+      "severity": "high",
+      "cvssScore": 8.7,
+      "functions": [],
+      "malicious": false,
+      "isDisputed": false,
+      "moduleName": "multer",
+      "references": [
+        {
+          "url": "https://github.com/expressjs/multer/commit/739919097dde3921ec31b930e4b9025036fa74ee",
+          "title": "GitHub Commit"
+        },
+        {
+          "url": "https://cna.openjsf.org/security-advisories.html",
+          "title": "Vendor Advisory"
+        }
+      ],
+      "cvssDetails": [
+        {
+          "assigner": "Red Hat",
+          "severity": "high",
+          "cvssV3Vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
+          "cvssV3BaseScore": 7.5,
+          "modificationTime": "2026-03-03T05:26:44.770140Z"
+        },
+        {
+          "assigner": "NVD",
+          "severity": "high",
+          "cvssV3Vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
+          "cvssV3BaseScore": 7.5,
+          "modificationTime": "2026-03-20T01:23:22.252385Z"
+        }
+      ],
+      "cvssSources": [
+        {
+          "type": "primary",
+          "vector": "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:N/VI:N/VA:H/SC:N/SI:N/SA:N",
+          "assigner": "Snyk",
+          "severity": "high",
+          "baseScore": 8.7,
+          "cvssVersion": "4.0",
+          "modificationTime": "2026-05-06T14:04:16.282554Z"
+        },
+        {
+          "type": "secondary",
+          "vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
+          "assigner": "Snyk",
+          "severity": "high",
+          "baseScore": 7.5,
+          "cvssVersion": "3.1",
+          "modificationTime": "2026-05-06T14:04:16.282554Z"
+        },
+        {
+          "type": "secondary",
+          "vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
+          "assigner": "Red Hat",
+          "severity": "high",
+          "baseScore": 7.5,
+          "cvssVersion": "3.1",
+          "modificationTime": "2026-03-03T05:26:44.770140Z"
+        },
+        {
+          "type": "secondary",
+          "vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
+          "assigner": "NVD",
+          "severity": "high",
+          "baseScore": 7.5,
+          "cvssVersion": "3.1",
+          "modificationTime": "2026-03-20T01:23:22.252385Z"
+        }
+      ],
+      "description": "## Overview\n\nAffected versions of this package are vulnerable to Incomplete Cleanup in the `makeMiddleware()` function in `make-middleware.js`. An attacker can cause resource exhaustion by sending malformed requests.\n\n## Details\n\nDenial of Service (DoS) describes a family of attacks, all aimed at making a system inaccessible to its intended and legitimate users.\n\nUnlike other vulnerabilities, DoS attacks usually do not aim at breaching security. Rather, they are focused on making websites and services unavailable to genuine users resulting in downtime.\n\nOne popular Denial of Service vulnerability is DDoS (a Distributed Denial of Service), an attack that attempts to clog network pipes to the system by generating a large volume of traffic from many machines.\n\nWhen it comes to open source libraries, DoS vulnerabilities allow attackers to trigger such a crash or crippling of the service by using a flaw either in the application code or from the use of open source libraries.\n\nTwo common types of DoS vulnerabilities:\n\n* High CPU/Memory Consumption- An attacker sending crafted requests that could cause the system to take a disproportionate amount of time to process. For example, [commons-fileupload:commons-fileupload](https://security.snyk.io/vuln/SNYK-JAVA-COMMONSFILEUPLOAD-30082).\n\n* Crash - An attacker sending crafted requests that could cause the system to crash. For Example,  [npm `ws` package](https://snyk.io/vuln/npm:ws:20171108)\n\n## Remediation\nUpgrade `multer` to version 2.1.0 or higher.\n## References\n- [GitHub Commit](https://github.com/expressjs/multer/commit/739919097dde3921ec31b930e4b9025036fa74ee)\n- [Vendor Advisory](https://cna.openjsf.org/security-advisories.html)\n",
+      "epssDetails": {
+        "percentile": "0.05219",
+        "probability": "0.00019",
+        "modelVersion": "v2025.03.14"
+      },
+      "identifiers": {
+        "CVE": [
+          "CVE-2026-3304"
+        ],
+        "CWE": [
+          "CWE-459"
+        ],
+        "GHSA": [
+          "GHSA-xf7r-hgr6-v32p"
+        ]
+      },
+      "packageName": "multer",
+      "proprietary": false,
+      "creationTime": "2026-03-01T08:56:50.535935Z",
+      "functions_new": [],
+      "alternativeIds": [],
+      "disclosureTime": "2026-02-27T18:23:04Z",
+      "exploitDetails": {
+        "sources": [],
+        "maturityLevels": [
+          {
+            "type": "secondary",
+            "level": "Not Defined",
+            "format": "CVSSv3"
+          },
+          {
+            "type": "primary",
+            "level": "Not Defined",
+            "format": "CVSSv4"
+          }
+        ]
+      },
+      "packageManager": "npm",
+      "publicationTime": "2026-03-01T09:18:03.344678Z",
+      "severityBasedOn": "CVSS",
+      "modificationTime": "2026-05-06T14:04:16.282554Z",
+      "socialTrendAlert": false,
+      "severityWithCritical": "high",
+      "from": [
+        "nest-typescript-starter@1.0.0",
+        "@nestjs/platform-express@11.1.11",
+        "multer@2.0.2"
+      ],
+      "upgradePath": [
+        false,
+        "@nestjs/platform-express@11.1.15",
+        "multer@2.1.0"
+      ],
+      "isUpgradable": true,
+      "isPatchable": false,
+      "name": "multer",
+      "version": "2.0.2"
+    },
+    {
+      "id": "SNYK-JS-MULTER-15417528",
+      "title": "Uncontrolled Recursion",
+      "CVSSv3": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
+      "credit": [
+        "Yuki Matsuhashi"
+      ],
+      "semver": {
+        "vulnerable": [
+          "<2.1.1"
+        ]
+      },
+      "exploit": "Not Defined",
+      "fixedIn": [
+        "2.1.1"
+      ],
+      "patches": [],
+      "insights": {
+        "triageAdvice": null
+      },
+      "language": "js",
+      "severity": "high",
+      "cvssScore": 8.7,
+      "functions": [],
+      "malicious": false,
+      "isDisputed": false,
+      "moduleName": "multer",
+      "references": [
+        {
+          "url": "https://github.com/expressjs/multer/commit/7e66481f8b2e6c54b982b34c152479e096ce2752",
+          "title": "GitHub Commit"
+        }
+      ],
+      "cvssDetails": [
+        {
+          "assigner": "NVD",
+          "severity": "high",
+          "cvssV3Vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
+          "cvssV3BaseScore": 7.5,
+          "modificationTime": "2026-03-10T01:19:54.880676Z"
+        }
+      ],
+      "cvssSources": [
+        {
+          "type": "primary",
+          "vector": "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:N/VI:N/VA:H/SC:N/SI:N/SA:N",
+          "assigner": "Snyk",
+          "severity": "high",
+          "baseScore": 8.7,
+          "cvssVersion": "4.0",
+          "modificationTime": "2026-03-10T17:40:01.440640Z"
+        },
+        {
+          "type": "secondary",
+          "vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
+          "assigner": "Snyk",
+          "severity": "high",
+          "baseScore": 7.5,
+          "cvssVersion": "3.1",
+          "modificationTime": "2026-03-10T17:40:01.440640Z"
+        },
+        {
+          "type": "secondary",
+          "vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
+          "assigner": "NVD",
+          "severity": "high",
+          "baseScore": 7.5,
+          "cvssVersion": "3.1",
+          "modificationTime": "2026-03-10T01:19:54.880676Z"
+        }
+      ],
+      "description": "## Overview\n\nAffected versions of this package are vulnerable to Uncontrolled Recursion. An attacker can cause the application to crash or become unresponsive by sending malformed requests that trigger uncontrolled recursion, potentially leading to a stack overflow.\n## Remediation\nUpgrade `multer` to version 2.1.1 or higher.\n## References\n- [GitHub Commit](https://github.com/expressjs/multer/commit/7e66481f8b2e6c54b982b34c152479e096ce2752)\n",
+      "epssDetails": {
+        "percentile": "0.19797",
+        "probability": "0.00064",
+        "modelVersion": "v2025.03.14"
+      },
+      "identifiers": {
+        "CVE": [
+          "CVE-2026-3520"
+        ],
+        "CWE": [
+          "CWE-674"
+        ],
+        "GHSA": [
+          "GHSA-5528-5vmv-3xc2"
+        ]
+      },
+      "packageName": "multer",
+      "proprietary": false,
+      "creationTime": "2026-03-05T07:50:41.644401Z",
+      "functions_new": [],
+      "alternativeIds": [],
+      "disclosureTime": "2026-03-04T18:27:15Z",
+      "exploitDetails": {
+        "sources": [],
+        "maturityLevels": [
+          {
+            "type": "secondary",
+            "level": "Not Defined",
+            "format": "CVSSv3"
+          },
+          {
+            "type": "primary",
+            "level": "Not Defined",
+            "format": "CVSSv4"
+          }
+        ]
+      },
+      "packageManager": "npm",
+      "publicationTime": "2026-03-05T07:56:12.047201Z",
+      "severityBasedOn": "CVSS",
+      "modificationTime": "2026-03-10T17:40:01.440640Z",
+      "socialTrendAlert": false,
+      "severityWithCritical": "high",
+      "from": [
+        "nest-typescript-starter@1.0.0",
+        "@nestjs/platform-express@11.1.11",
+        "multer@2.0.2"
+      ],
+      "upgradePath": [
+        false,
+        "@nestjs/platform-express@11.1.16",
+        "multer@2.1.1"
+      ],
+      "isUpgradable": true,
+      "isPatchable": false,
+      "name": "multer",
+      "version": "2.0.2"
+    },
+    {
+      "id": "SNYK-JS-NESTJSCORE-15682556",
+      "title": "Always-Incorrect Control Flow Implementation",
+      "CVSSv3": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:H/A:N",
+      "credit": [
+        "Unknown"
+      ],
+      "semver": {
+        "vulnerable": [
+          "<11.1.17"
+        ]
+      },
+      "exploit": "Not Defined",
+      "fixedIn": [
+        "11.1.17"
+      ],
+      "patches": [],
+      "insights": {
+        "triageAdvice": null
+      },
+      "language": "js",
+      "severity": "high",
+      "cvssScore": 8.7,
+      "functions": [],
+      "malicious": false,
+      "isDisputed": false,
+      "moduleName": "@nestjs/core",
+      "references": [
+        {
+          "url": "https://github.com/nestjs/nest/commit/cbdf737cd6e7cefa52d05ecea2ae4af95c464614",
+          "title": "GitHub Commit"
+        },
+        {
+          "url": "https://github.com/nestjs/nest/releases/tag/v11.1.17",
+          "title": "GitHub Release"
+        }
+      ],
+      "cvssDetails": [
+        {
+          "assigner": "NVD",
+          "severity": "high",
+          "cvssV3Vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:H/A:N",
+          "cvssV3BaseScore": 7.5,
+          "modificationTime": "2026-03-24T01:32:38.545657Z"
+        }
+      ],
+      "cvssSources": [
+        {
+          "type": "primary",
+          "vector": "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:N/VI:H/VA:N/SC:N/SI:N/SA:N",
+          "assigner": "Snyk",
+          "severity": "high",
+          "baseScore": 8.7,
+          "cvssVersion": "4.0",
+          "modificationTime": "2026-03-24T07:20:03.960301Z"
+        },
+        {
+          "type": "secondary",
+          "vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:H/A:N",
+          "assigner": "Snyk",
+          "severity": "high",
+          "baseScore": 7.5,
+          "cvssVersion": "3.1",
+          "modificationTime": "2026-03-24T07:20:03.960301Z"
+        },
+        {
+          "type": "secondary",
+          "vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:H/A:N",
+          "assigner": "NVD",
+          "severity": "high",
+          "baseScore": 7.5,
+          "cvssVersion": "3.1",
+          "modificationTime": "2026-03-24T01:32:38.545657Z"
+        }
+      ],
+      "description": "## Overview\n[@nestjs/core](https://www.npmjs.org/package/@nestjs/core) is a Nest - modern, fast, powerful node.js web framework (@core)\n\nAffected versions of this package are vulnerable to Always-Incorrect Control Flow Implementation when handling a `@nestjs/platform-fastify` HEAD request. An attacker can bypass middleware logic by sending malicious requests, which are redirected to GET handlers by fastify by default.\n## Remediation\nUpgrade `@nestjs/core` to version 11.1.17 or higher.\n## References\n- [GitHub Commit](https://github.com/nestjs/nest/commit/cbdf737cd6e7cefa52d05ecea2ae4af95c464614)\n- [GitHub Release](https://github.com/nestjs/nest/releases/tag/v11.1.17)\n",
+      "epssDetails": {
+        "percentile": "0.12566",
+        "probability": "0.00041",
+        "modelVersion": "v2025.03.14"
+      },
+      "identifiers": {
+        "CVE": [
+          "CVE-2026-33011"
+        ],
+        "CWE": [
+          "CWE-670"
+        ],
+        "GHSA": [
+          "GHSA-wf42-42fg-fg84"
+        ]
+      },
+      "packageName": "@nestjs/core",
+      "proprietary": false,
+      "creationTime": "2026-03-18T14:43:18.230236Z",
+      "functions_new": [],
+      "alternativeIds": [],
+      "disclosureTime": "2026-03-17T18:38:38Z",
+      "exploitDetails": {
+        "sources": [],
+        "maturityLevels": [
+          {
+            "type": "secondary",
+            "level": "Not Defined",
+            "format": "CVSSv3"
+          },
+          {
+            "type": "primary",
+            "level": "Not Defined",
+            "format": "CVSSv4"
+          }
+        ]
+      },
+      "packageManager": "npm",
+      "publicationTime": "2026-03-18T14:43:18.540297Z",
+      "severityBasedOn": "CVSS",
+      "modificationTime": "2026-03-24T07:20:03.960301Z",
+      "socialTrendAlert": false,
+      "severityWithCritical": "high",
+      "from": [
+        "nest-typescript-starter@1.0.0",
+        "@nestjs/core@11.0.1"
+      ],
+      "upgradePath": [
+        false,
+        "@nestjs/core@11.1.17"
+      ],
+      "isUpgradable": true,
+      "isPatchable": false,
+      "name": "@nestjs/core",
+      "version": "11.0.1"
+    },
+    {
+      "id": "SNYK-JS-NESTJSCORE-15920868",
+      "title": "Improper Neutralization of Special Elements in Output Used by a Downstream Component ('Injection')",
+      "CVSSv3": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:C/C:N/I:L/A:L",
+      "credit": [
+        "Lê Minh Quân"
+      ],
+      "semver": {
+        "vulnerable": [
+          "<11.1.18"
+        ]
+      },
+      "exploit": "Not Defined",
+      "fixedIn": [
+        "11.1.18"
+      ],
+      "patches": [],
+      "insights": {
+        "triageAdvice": null
+      },
+      "language": "js",
+      "severity": "medium",
+      "cvssScore": 6.3,
+      "functions": [],
+      "malicious": false,
+      "isDisputed": false,
+      "moduleName": "@nestjs/core",
+      "references": [
+        {
+          "url": "https://github.com/nestjs/nest/security/advisories/GHSA-36xv-jgw5-4q75",
+          "title": "GitHub Advisory"
+        },
+        {
+          "url": "https://github.com/nestjs/nest/commit/83558ae774a990a7916141d3abe0b6548ff3a8b2",
+          "title": "GitHub Commit"
+        },
+        {
+          "url": "https://github.com/nestjs/nest/pull/16686",
+          "title": "GitHub PR"
+        },
+        {
+          "url": "https://github.com/nestjs/nest/releases/tag/v11.1.18",
+          "title": "GitHub Release"
+        }
+      ],
+      "cvssDetails": [
+        {
+          "assigner": "Red Hat",
+          "severity": "medium",
+          "cvssV3Vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:L/A:L",
+          "cvssV3BaseScore": 6.5,
+          "modificationTime": "2026-04-12T05:11:25.969010Z"
+        },
+        {
+          "assigner": "NVD",
+          "severity": "medium",
+          "cvssV3Vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:N/A:L",
+          "cvssV3BaseScore": 6.1,
+          "modificationTime": "2026-04-18T01:17:24.075755Z"
+        }
+      ],
+      "cvssSources": [
+        {
+          "type": "primary",
+          "vector": "CVSS:4.0/AV:N/AC:L/AT:P/PR:N/UI:N/VC:N/VI:L/VA:L/SC:N/SI:L/SA:N",
+          "assigner": "Snyk",
+          "severity": "medium",
+          "baseScore": 6.3,
+          "cvssVersion": "4.0",
+          "modificationTime": "2026-04-18T01:17:24.075755Z"
+        },
+        {
+          "type": "secondary",
+          "vector": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:C/C:N/I:L/A:L",
+          "assigner": "Snyk",
+          "severity": "medium",
+          "baseScore": 5.4,
+          "cvssVersion": "3.1",
+          "modificationTime": "2026-04-18T01:17:24.075755Z"
+        },
+        {
+          "type": "secondary",
+          "vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:L/A:L",
+          "assigner": "Red Hat",
+          "severity": "medium",
+          "baseScore": 6.5,
+          "cvssVersion": "3.1",
+          "modificationTime": "2026-04-12T05:11:25.969010Z"
+        },
+        {
+          "type": "secondary",
+          "vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:N/A:L",
+          "assigner": "NVD",
+          "severity": "medium",
+          "baseScore": 6.1,
+          "cvssVersion": "3.1",
+          "modificationTime": "2026-04-18T01:17:24.075755Z"
+        }
+      ],
+      "description": "## Overview\n[@nestjs/core](https://www.npmjs.org/package/@nestjs/core) is a Nest - modern, fast, powerful node.js web framework (@core)\n\nAffected versions of this package are vulnerable to Improper Neutralization of Special Elements in Output Used by a Downstream Component ('Injection') via the `SseStream._transform` function. An attacker can inject arbitrary Server-Sent Events, spoof event types, and corrupt reconnection state by supplying specially crafted newline characters in upstream data that is mapped to the `type` or `id` fields.\n\n**Note:**\n\nThis is only exploitable if user-influenced data is mapped to these fields by developer code.\n## Remediation\nUpgrade `@nestjs/core` to version 11.1.18 or higher.\n## References\n- [GitHub Advisory](https://github.com/nestjs/nest/security/advisories/GHSA-36xv-jgw5-4q75)\n- [GitHub Commit](https://github.com/nestjs/nest/commit/83558ae774a990a7916141d3abe0b6548ff3a8b2)\n- [GitHub PR](https://github.com/nestjs/nest/pull/16686)\n- [GitHub Release](https://github.com/nestjs/nest/releases/tag/v11.1.18)\n",
+      "epssDetails": {
+        "percentile": "0.01683",
+        "probability": "0.00012",
+        "modelVersion": "v2025.03.14"
+      },
+      "identifiers": {
+        "CVE": [
+          "CVE-2026-35515"
+        ],
+        "CWE": [
+          "CWE-74"
+        ],
+        "GHSA": [
+          "GHSA-36xv-jgw5-4q75"
+        ]
+      },
+      "packageName": "@nestjs/core",
+      "proprietary": false,
+      "creationTime": "2026-04-07T06:59:55.289182Z",
+      "functions_new": [],
+      "alternativeIds": [],
+      "disclosureTime": "2026-04-06T17:59:51Z",
+      "exploitDetails": {
+        "sources": [],
+        "maturityLevels": [
+          {
+            "type": "secondary",
+            "level": "Not Defined",
+            "format": "CVSSv3"
+          },
+          {
+            "type": "primary",
+            "level": "Not Defined",
+            "format": "CVSSv4"
+          }
+        ]
+      },
+      "packageManager": "npm",
+      "publicationTime": "2026-04-07T06:59:55.606219Z",
+      "severityBasedOn": "CVSS",
+      "modificationTime": "2026-04-18T01:17:24.075755Z",
+      "socialTrendAlert": false,
+      "severityWithCritical": "medium",
+      "from": [
+        "nest-typescript-starter@1.0.0",
+        "@nestjs/core@11.0.1"
+      ],
+      "upgradePath": [
+        false,
+        "@nestjs/core@11.1.18"
+      ],
+      "isUpgradable": true,
+      "isPatchable": false,
+      "name": "@nestjs/core",
+      "version": "11.0.1"
+    },
+    {
+      "id": "SNYK-JS-PATHTOREGEXP-15789763",
+      "title": "Regular Expression Denial of Service (ReDoS)",
+      "CVSSv3": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
+      "credit": [
+        "uug4na"
+      ],
+      "semver": {
+        "vulnerable": [
+          ">=8.0.0 <8.4.0"
+        ]
+      },
+      "exploit": "Not Defined",
+      "fixedIn": [
+        "8.4.0"
+      ],
+      "patches": [],
+      "insights": {
+        "triageAdvice": null
+      },
+      "language": "js",
+      "severity": "high",
+      "cvssScore": 8.7,
+      "functions": [],
+      "malicious": false,
+      "isDisputed": false,
+      "moduleName": "path-to-regexp",
+      "references": [
+        {
+          "url": "https://github.com/pillarjs/path-to-regexp/commit/22a967901afc8b2b42eefe456faa7b6773dcc415",
+          "title": "GitHub Commit"
+        },
+        {
+          "url": "https://cna.openjsf.org/security-advisories.html",
+          "title": "OpenJS Security Advisories"
+        }
+      ],
+      "cvssDetails": [
+        {
+          "assigner": "Red Hat",
+          "severity": "high",
+          "cvssV3Vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
+          "cvssV3BaseScore": 7.5,
+          "modificationTime": "2026-03-29T09:39:01.246847Z"
+        }
+      ],
+      "cvssSources": [
+        {
+          "type": "primary",
+          "vector": "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:N/VI:N/VA:H/SC:N/SI:N/SA:N",
+          "assigner": "Snyk",
+          "severity": "high",
+          "baseScore": 8.7,
+          "cvssVersion": "4.0",
+          "modificationTime": "2026-03-31T17:40:02.329216Z"
+        },
+        {
+          "type": "secondary",
+          "vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
+          "assigner": "Snyk",
+          "severity": "high",
+          "baseScore": 7.5,
+          "cvssVersion": "3.1",
+          "modificationTime": "2026-03-31T17:40:02.329216Z"
+        },
+        {
+          "type": "secondary",
+          "vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
+          "assigner": "Red Hat",
+          "severity": "high",
+          "baseScore": 7.5,
+          "cvssVersion": "3.1",
+          "modificationTime": "2026-03-29T09:39:01.246847Z"
+        }
+      ],
+      "description": "## Overview\n\nAffected versions of this package are vulnerable to Regular Expression Denial of Service (ReDoS) in route patterns. An attacker can cause resource exhaustion by supplying input with multiple sequential optional groups, leading to excessive computation and denial of service.\r\n\r\n## Workaround\r\n\r\nThis vulnerability can be mitigated by limiting the number of sequential optional groups in route patterns and avoiding user-controlled input as route patterns.\n\n## Details\n\nDenial of Service (DoS) describes a family of attacks, all aimed at making a system inaccessible to its original and legitimate users. There are many types of DoS attacks, ranging from trying to clog the network pipes to the system by generating a large volume of traffic from many machines (a Distributed Denial of Service - DDoS - attack) to sending crafted requests that cause a system to crash or take a disproportional amount of time to process.\n\nThe Regular expression Denial of Service (ReDoS) is a type of Denial of Service attack. Regular expressions are incredibly powerful, but they aren't very intuitive and can ultimately end up making it easy for attackers to take your site down.\n\nLet’s take the following regular expression as an example:\n```js\nregex = /A(B|C+)+D/\n```\n\nThis regular expression accomplishes the following:\n- `A` The string must start with the letter 'A'\n- `(B|C+)+` The string must then follow the letter A with either the letter 'B' or some number of occurrences of the letter 'C' (the `+` matches one or more times). The `+` at the end of this section states that we can look for one or more matches of this section.\n- `D` Finally, we ensure this section of the string ends with a 'D'\n\nThe expression would match inputs such as `ABBD`, `ABCCCCD`, `ABCBCCCD` and `ACCCCCD`\n\nIt most cases, it doesn't take very long for a regex engine to find a match:\n\n```bash\n$ time node -e '/A(B|C+)+D/.test(\"ACCCCCCCCCCCCCCCCCCCCCCCCCCCCD\")'\n0.04s user 0.01s system 95% cpu 0.052 total\n\n$ time node -e '/A(B|C+)+D/.test(\"ACCCCCCCCCCCCCCCCCCCCCCCCCCCCX\")'\n1.79s user 0.02s system 99% cpu 1.812 total\n```\n\nThe entire process of testing it against a 30 characters long string takes around ~52ms. But when given an invalid string, it takes nearly two seconds to complete the test, over ten times as long as it took to test a valid string. The dramatic difference is due to the way regular expressions get evaluated.\n\nMost Regex engines will work very similarly (with minor differences). The engine will match the first possible way to accept the current character and proceed to the next one. If it then fails to match the next one, it will backtrack and see if there was another way to digest the previous character. If it goes too far down the rabbit hole only to find out the string doesn’t match in the end, and if many characters have multiple valid regex paths, the number of backtracking steps can become very large, resulting in what is known as _catastrophic backtracking_.\n\nLet's look at how our expression runs into this problem, using a shorter string: \"ACCCX\". While it seems fairly straightforward, there are still four different ways that the engine could match those three C's:\n1. CCC\n2. CC+C\n3. C+CC\n4. C+C+C.\n\nThe engine has to try each of those combinations to see if any of them potentially match against the expression. When you combine that with the other steps the engine must take, we can use [RegEx 101 debugger](https://regex101.com/debugger) to see the engine has to take a total of 38 steps before it can determine the string doesn't match.\n\nFrom there, the number of steps the engine must use to validate a string just continues to grow.\n\n| String | Number of C's | Number of steps |\n| -------|-------------:| -----:|\n| ACCCX | 3 | 38\n| ACCCCX | 4 | 71\n| ACCCCCX | 5 | 136\n| ACCCCCCCCCCCCCCX | 14 | 65,553\n\n\nBy the time the string includes 14 C's, the engine has to take over 65,000 steps just to see if the string is valid. These extreme situations can cause them to work very slowly (exponentially related to input size, as shown above), allowing an attacker to exploit this and can cause the service to excessively consume CPU, resulting in a Denial of Service.\n\n## Remediation\nUpgrade `path-to-regexp` to version 8.4.0 or higher.\n## References\n- [GitHub Commit](https://github.com/pillarjs/path-to-regexp/commit/22a967901afc8b2b42eefe456faa7b6773dcc415)\n- [OpenJS Security Advisories](https://cna.openjsf.org/security-advisories.html)\n",
+      "epssDetails": {
+        "percentile": "0.17679",
+        "probability": "0.00057",
+        "modelVersion": "v2025.03.14"
+      },
+      "identifiers": {
+        "CVE": [
+          "CVE-2026-4926"
+        ],
+        "CWE": [
+          "CWE-1333"
+        ]
+      },
+      "packageName": "path-to-regexp",
+      "proprietary": false,
+      "creationTime": "2026-03-27T08:11:43.387356Z",
+      "functions_new": [],
+      "alternativeIds": [],
+      "disclosureTime": "2026-03-26T20:34:28Z",
+      "exploitDetails": {
+        "sources": [],
+        "maturityLevels": [
+          {
+            "type": "secondary",
+            "level": "Not Defined",
+            "format": "CVSSv3"
+          },
+          {
+            "type": "primary",
+            "level": "Not Defined",
+            "format": "CVSSv4"
+          }
+        ]
+      },
+      "packageManager": "npm",
+      "publicationTime": "2026-03-27T08:11:43.704120Z",
+      "severityBasedOn": "CVSS",
+      "modificationTime": "2026-03-31T17:40:02.329216Z",
+      "socialTrendAlert": false,
+      "severityWithCritical": "high",
+      "from": [
+        "nest-typescript-starter@1.0.0",
+        "@nestjs/core@11.0.1",
+        "path-to-regexp@8.2.0"
+      ],
+      "upgradePath": [
+        false,
+        "@nestjs/core@11.1.18",
+        "path-to-regexp@8.4.2"
+      ],
+      "isUpgradable": true,
+      "isPatchable": false,
+      "name": "path-to-regexp",
+      "version": "8.2.0"
+    },
+    {
+      "id": "SNYK-JS-PATHTOREGEXP-15789765",
+      "title": "Regular Expression Denial of Service (ReDoS)",
+      "CVSSv3": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:N/I:N/A:H",
+      "credit": [
+        "blakeembrey"
+      ],
+      "semver": {
+        "vulnerable": [
+          ">=8.0.0 <8.4.0"
+        ]
+      },
+      "exploit": "Not Defined",
+      "fixedIn": [
+        "8.4.0"
+      ],
+      "patches": [],
+      "insights": {
+        "triageAdvice": null
+      },
+      "language": "js",
+      "severity": "high",
+      "cvssScore": 8.2,
+      "functions": [],
+      "malicious": false,
+      "isDisputed": false,
+      "moduleName": "path-to-regexp",
+      "references": [
+        {
+          "url": "https://github.com/pillarjs/path-to-regexp/commit/48646547da685c1ccb76a95fe23373975a91e200",
+          "title": "GitHub Commit"
+        },
+        {
+          "url": "https://cna.openjsf.org/security-advisories.html",
+          "title": "OpenJS Security Advisories"
+        }
+      ],
+      "cvssDetails": [
+        {
+          "assigner": "Red Hat",
+          "severity": "medium",
+          "cvssV3Vector": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:N/I:N/A:H",
+          "cvssV3BaseScore": 5.9,
+          "modificationTime": "2026-04-03T23:28:56.963350Z"
+        }
+      ],
+      "cvssSources": [
+        {
+          "type": "primary",
+          "vector": "CVSS:4.0/AV:N/AC:L/AT:P/PR:N/UI:N/VC:N/VI:N/VA:H/SC:N/SI:N/SA:N",
+          "assigner": "Snyk",
+          "severity": "high",
+          "baseScore": 8.2,
+          "cvssVersion": "4.0",
+          "modificationTime": "2026-04-03T23:28:56.963350Z"
+        },
+        {
+          "type": "secondary",
+          "vector": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:N/I:N/A:H",
+          "assigner": "Snyk",
+          "severity": "medium",
+          "baseScore": 5.9,
+          "cvssVersion": "3.1",
+          "modificationTime": "2026-04-03T23:28:56.963350Z"
+        },
+        {
+          "type": "secondary",
+          "vector": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:N/I:N/A:H",
+          "assigner": "Red Hat",
+          "severity": "medium",
+          "baseScore": 5.9,
+          "cvssVersion": "3.1",
+          "modificationTime": "2026-04-03T23:28:56.963350Z"
+        }
+      ],
+      "description": "## Overview\n\nAffected versions of this package are vulnerable to Regular Expression Denial of Service (ReDoS) when multiple wildcards are used in combination with at least one parameter. An attacker can cause excessive resource consumption and application unresponsiveness by supplying specially crafted input patterns that trigger catastrophic backtracking.\r\n\r\n**Note:**\r\n\r\nThis is only exploitable if the second wildcard is not positioned at the end of the path.\n\n## Details\n\nDenial of Service (DoS) describes a family of attacks, all aimed at making a system inaccessible to its original and legitimate users. There are many types of DoS attacks, ranging from trying to clog the network pipes to the system by generating a large volume of traffic from many machines (a Distributed Denial of Service - DDoS - attack) to sending crafted requests that cause a system to crash or take a disproportional amount of time to process.\n\nThe Regular expression Denial of Service (ReDoS) is a type of Denial of Service attack. Regular expressions are incredibly powerful, but they aren't very intuitive and can ultimately end up making it easy for attackers to take your site down.\n\nLet’s take the following regular expression as an example:\n```js\nregex = /A(B|C+)+D/\n```\n\nThis regular expression accomplishes the following:\n- `A` The string must start with the letter 'A'\n- `(B|C+)+` The string must then follow the letter A with either the letter 'B' or some number of occurrences of the letter 'C' (the `+` matches one or more times). The `+` at the end of this section states that we can look for one or more matches of this section.\n- `D` Finally, we ensure this section of the string ends with a 'D'\n\nThe expression would match inputs such as `ABBD`, `ABCCCCD`, `ABCBCCCD` and `ACCCCCD`\n\nIt most cases, it doesn't take very long for a regex engine to find a match:\n\n```bash\n$ time node -e '/A(B|C+)+D/.test(\"ACCCCCCCCCCCCCCCCCCCCCCCCCCCCD\")'\n0.04s user 0.01s system 95% cpu 0.052 total\n\n$ time node -e '/A(B|C+)+D/.test(\"ACCCCCCCCCCCCCCCCCCCCCCCCCCCCX\")'\n1.79s user 0.02s system 99% cpu 1.812 total\n```\n\nThe entire process of testing it against a 30 characters long string takes around ~52ms. But when given an invalid string, it takes nearly two seconds to complete the test, over ten times as long as it took to test a valid string. The dramatic difference is due to the way regular expressions get evaluated.\n\nMost Regex engines will work very similarly (with minor differences). The engine will match the first possible way to accept the current character and proceed to the next one. If it then fails to match the next one, it will backtrack and see if there was another way to digest the previous character. If it goes too far down the rabbit hole only to find out the string doesn’t match in the end, and if many characters have multiple valid regex paths, the number of backtracking steps can become very large, resulting in what is known as _catastrophic backtracking_.\n\nLet's look at how our expression runs into this problem, using a shorter string: \"ACCCX\". While it seems fairly straightforward, there are still four different ways that the engine could match those three C's:\n1. CCC\n2. CC+C\n3. C+CC\n4. C+C+C.\n\nThe engine has to try each of those combinations to see if any of them potentially match against the expression. When you combine that with the other steps the engine must take, we can use [RegEx 101 debugger](https://regex101.com/debugger) to see the engine has to take a total of 38 steps before it can determine the string doesn't match.\n\nFrom there, the number of steps the engine must use to validate a string just continues to grow.\n\n| String | Number of C's | Number of steps |\n| -------|-------------:| -----:|\n| ACCCX | 3 | 38\n| ACCCCX | 4 | 71\n| ACCCCCX | 5 | 136\n| ACCCCCCCCCCCCCCX | 14 | 65,553\n\n\nBy the time the string includes 14 C's, the engine has to take over 65,000 steps just to see if the string is valid. These extreme situations can cause them to work very slowly (exponentially related to input size, as shown above), allowing an attacker to exploit this and can cause the service to excessively consume CPU, resulting in a Denial of Service.\n\n## Remediation\nUpgrade `path-to-regexp` to version 8.4.0 or higher.\n## References\n- [GitHub Commit](https://github.com/pillarjs/path-to-regexp/commit/48646547da685c1ccb76a95fe23373975a91e200)\n- [OpenJS Security Advisories](https://cna.openjsf.org/security-advisories.html)\n",
+      "epssDetails": {
+        "percentile": "0.17744",
+        "probability": "0.00057",
+        "modelVersion": "v2025.03.14"
+      },
+      "identifiers": {
+        "CVE": [
+          "CVE-2026-4923"
+        ],
+        "CWE": [
+          "CWE-1333"
+        ]
+      },
+      "packageName": "path-to-regexp",
+      "proprietary": false,
+      "creationTime": "2026-03-27T08:16:36.880370Z",
+      "functions_new": [],
+      "alternativeIds": [],
+      "disclosureTime": "2026-03-26T20:34:28Z",
+      "exploitDetails": {
+        "sources": [],
+        "maturityLevels": [
+          {
+            "type": "secondary",
+            "level": "Not Defined",
+            "format": "CVSSv3"
+          },
+          {
+            "type": "primary",
+            "level": "Not Defined",
+            "format": "CVSSv4"
+          }
+        ]
+      },
+      "packageManager": "npm",
+      "publicationTime": "2026-03-27T08:16:37.083062Z",
+      "severityBasedOn": "CVSS",
+      "modificationTime": "2026-04-03T23:28:56.963350Z",
+      "socialTrendAlert": false,
+      "severityWithCritical": "high",
+      "from": [
+        "nest-typescript-starter@1.0.0",
+        "@nestjs/core@11.0.1",
+        "path-to-regexp@8.2.0"
+      ],
+      "upgradePath": [
+        false,
+        "@nestjs/core@11.1.18",
+        "path-to-regexp@8.4.2"
+      ],
+      "isUpgradable": true,
+      "isPatchable": false,
+      "name": "path-to-regexp",
+      "version": "8.2.0"
+    },
+    {
+      "id": "SNYK-JS-PATHTOREGEXP-15789763",
+      "title": "Regular Expression Denial of Service (ReDoS)",
+      "CVSSv3": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
+      "credit": [
+        "uug4na"
+      ],
+      "semver": {
+        "vulnerable": [
+          ">=8.0.0 <8.4.0"
+        ]
+      },
+      "exploit": "Not Defined",
+      "fixedIn": [
+        "8.4.0"
+      ],
+      "patches": [],
+      "insights": {
+        "triageAdvice": null
+      },
+      "language": "js",
+      "severity": "high",
+      "cvssScore": 8.7,
+      "functions": [],
+      "malicious": false,
+      "isDisputed": false,
+      "moduleName": "path-to-regexp",
+      "references": [
+        {
+          "url": "https://github.com/pillarjs/path-to-regexp/commit/22a967901afc8b2b42eefe456faa7b6773dcc415",
+          "title": "GitHub Commit"
+        },
+        {
+          "url": "https://cna.openjsf.org/security-advisories.html",
+          "title": "OpenJS Security Advisories"
+        }
+      ],
+      "cvssDetails": [
+        {
+          "assigner": "Red Hat",
+          "severity": "high",
+          "cvssV3Vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
+          "cvssV3BaseScore": 7.5,
+          "modificationTime": "2026-03-29T09:39:01.246847Z"
+        }
+      ],
+      "cvssSources": [
+        {
+          "type": "primary",
+          "vector": "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:N/VI:N/VA:H/SC:N/SI:N/SA:N",
+          "assigner": "Snyk",
+          "severity": "high",
+          "baseScore": 8.7,
+          "cvssVersion": "4.0",
+          "modificationTime": "2026-03-31T17:40:02.329216Z"
+        },
+        {
+          "type": "secondary",
+          "vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
+          "assigner": "Snyk",
+          "severity": "high",
+          "baseScore": 7.5,
+          "cvssVersion": "3.1",
+          "modificationTime": "2026-03-31T17:40:02.329216Z"
+        },
+        {
+          "type": "secondary",
+          "vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
+          "assigner": "Red Hat",
+          "severity": "high",
+          "baseScore": 7.5,
+          "cvssVersion": "3.1",
+          "modificationTime": "2026-03-29T09:39:01.246847Z"
+        }
+      ],
+      "description": "## Overview\n\nAffected versions of this package are vulnerable to Regular Expression Denial of Service (ReDoS) in route patterns. An attacker can cause resource exhaustion by supplying input with multiple sequential optional groups, leading to excessive computation and denial of service.\r\n\r\n## Workaround\r\n\r\nThis vulnerability can be mitigated by limiting the number of sequential optional groups in route patterns and avoiding user-controlled input as route patterns.\n\n## Details\n\nDenial of Service (DoS) describes a family of attacks, all aimed at making a system inaccessible to its original and legitimate users. There are many types of DoS attacks, ranging from trying to clog the network pipes to the system by generating a large volume of traffic from many machines (a Distributed Denial of Service - DDoS - attack) to sending crafted requests that cause a system to crash or take a disproportional amount of time to process.\n\nThe Regular expression Denial of Service (ReDoS) is a type of Denial of Service attack. Regular expressions are incredibly powerful, but they aren't very intuitive and can ultimately end up making it easy for attackers to take your site down.\n\nLet’s take the following regular expression as an example:\n```js\nregex = /A(B|C+)+D/\n```\n\nThis regular expression accomplishes the following:\n- `A` The string must start with the letter 'A'\n- `(B|C+)+` The string must then follow the letter A with either the letter 'B' or some number of occurrences of the letter 'C' (the `+` matches one or more times). The `+` at the end of this section states that we can look for one or more matches of this section.\n- `D` Finally, we ensure this section of the string ends with a 'D'\n\nThe expression would match inputs such as `ABBD`, `ABCCCCD`, `ABCBCCCD` and `ACCCCCD`\n\nIt most cases, it doesn't take very long for a regex engine to find a match:\n\n```bash\n$ time node -e '/A(B|C+)+D/.test(\"ACCCCCCCCCCCCCCCCCCCCCCCCCCCCD\")'\n0.04s user 0.01s system 95% cpu 0.052 total\n\n$ time node -e '/A(B|C+)+D/.test(\"ACCCCCCCCCCCCCCCCCCCCCCCCCCCCX\")'\n1.79s user 0.02s system 99% cpu 1.812 total\n```\n\nThe entire process of testing it against a 30 characters long string takes around ~52ms. But when given an invalid string, it takes nearly two seconds to complete the test, over ten times as long as it took to test a valid string. The dramatic difference is due to the way regular expressions get evaluated.\n\nMost Regex engines will work very similarly (with minor differences). The engine will match the first possible way to accept the current character and proceed to the next one. If it then fails to match the next one, it will backtrack and see if there was another way to digest the previous character. If it goes too far down the rabbit hole only to find out the string doesn’t match in the end, and if many characters have multiple valid regex paths, the number of backtracking steps can become very large, resulting in what is known as _catastrophic backtracking_.\n\nLet's look at how our expression runs into this problem, using a shorter string: \"ACCCX\". While it seems fairly straightforward, there are still four different ways that the engine could match those three C's:\n1. CCC\n2. CC+C\n3. C+CC\n4. C+C+C.\n\nThe engine has to try each of those combinations to see if any of them potentially match against the expression. When you combine that with the other steps the engine must take, we can use [RegEx 101 debugger](https://regex101.com/debugger) to see the engine has to take a total of 38 steps before it can determine the string doesn't match.\n\nFrom there, the number of steps the engine must use to validate a string just continues to grow.\n\n| String | Number of C's | Number of steps |\n| -------|-------------:| -----:|\n| ACCCX | 3 | 38\n| ACCCCX | 4 | 71\n| ACCCCCX | 5 | 136\n| ACCCCCCCCCCCCCCX | 14 | 65,553\n\n\nBy the time the string includes 14 C's, the engine has to take over 65,000 steps just to see if the string is valid. These extreme situations can cause them to work very slowly (exponentially related to input size, as shown above), allowing an attacker to exploit this and can cause the service to excessively consume CPU, resulting in a Denial of Service.\n\n## Remediation\nUpgrade `path-to-regexp` to version 8.4.0 or higher.\n## References\n- [GitHub Commit](https://github.com/pillarjs/path-to-regexp/commit/22a967901afc8b2b42eefe456faa7b6773dcc415)\n- [OpenJS Security Advisories](https://cna.openjsf.org/security-advisories.html)\n",
+      "epssDetails": {
+        "percentile": "0.17679",
+        "probability": "0.00057",
+        "modelVersion": "v2025.03.14"
+      },
+      "identifiers": {
+        "CVE": [
+          "CVE-2026-4926"
+        ],
+        "CWE": [
+          "CWE-1333"
+        ]
+      },
+      "packageName": "path-to-regexp",
+      "proprietary": false,
+      "creationTime": "2026-03-27T08:11:43.387356Z",
+      "functions_new": [],
+      "alternativeIds": [],
+      "disclosureTime": "2026-03-26T20:34:28Z",
+      "exploitDetails": {
+        "sources": [],
+        "maturityLevels": [
+          {
+            "type": "secondary",
+            "level": "Not Defined",
+            "format": "CVSSv3"
+          },
+          {
+            "type": "primary",
+            "level": "Not Defined",
+            "format": "CVSSv4"
+          }
+        ]
+      },
+      "packageManager": "npm",
+      "publicationTime": "2026-03-27T08:11:43.704120Z",
+      "severityBasedOn": "CVSS",
+      "modificationTime": "2026-03-31T17:40:02.329216Z",
+      "socialTrendAlert": false,
+      "severityWithCritical": "high",
+      "from": [
+        "nest-typescript-starter@1.0.0",
+        "@nestjs/platform-express@11.1.11",
+        "express@5.2.1",
+        "router@2.2.0",
+        "path-to-regexp@8.2.0"
+      ],
+      "upgradePath": [
+        false,
+        "@nestjs/platform-express@11.1.11",
+        "express@5.2.1",
+        "router@2.2.0",
+        "path-to-regexp@8.4.2"
+      ],
+      "isUpgradable": true,
+      "isPatchable": false,
+      "name": "path-to-regexp",
+      "version": "8.2.0"
+    },
+    {
+      "id": "SNYK-JS-PATHTOREGEXP-15789765",
+      "title": "Regular Expression Denial of Service (ReDoS)",
+      "CVSSv3": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:N/I:N/A:H",
+      "credit": [
+        "blakeembrey"
+      ],
+      "semver": {
+        "vulnerable": [
+          ">=8.0.0 <8.4.0"
+        ]
+      },
+      "exploit": "Not Defined",
+      "fixedIn": [
+        "8.4.0"
+      ],
+      "patches": [],
+      "insights": {
+        "triageAdvice": null
+      },
+      "language": "js",
+      "severity": "high",
+      "cvssScore": 8.2,
+      "functions": [],
+      "malicious": false,
+      "isDisputed": false,
+      "moduleName": "path-to-regexp",
+      "references": [
+        {
+          "url": "https://github.com/pillarjs/path-to-regexp/commit/48646547da685c1ccb76a95fe23373975a91e200",
+          "title": "GitHub Commit"
+        },
+        {
+          "url": "https://cna.openjsf.org/security-advisories.html",
+          "title": "OpenJS Security Advisories"
+        }
+      ],
+      "cvssDetails": [
+        {
+          "assigner": "Red Hat",
+          "severity": "medium",
+          "cvssV3Vector": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:N/I:N/A:H",
+          "cvssV3BaseScore": 5.9,
+          "modificationTime": "2026-04-03T23:28:56.963350Z"
+        }
+      ],
+      "cvssSources": [
+        {
+          "type": "primary",
+          "vector": "CVSS:4.0/AV:N/AC:L/AT:P/PR:N/UI:N/VC:N/VI:N/VA:H/SC:N/SI:N/SA:N",
+          "assigner": "Snyk",
+          "severity": "high",
+          "baseScore": 8.2,
+          "cvssVersion": "4.0",
+          "modificationTime": "2026-04-03T23:28:56.963350Z"
+        },
+        {
+          "type": "secondary",
+          "vector": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:N/I:N/A:H",
+          "assigner": "Snyk",
+          "severity": "medium",
+          "baseScore": 5.9,
+          "cvssVersion": "3.1",
+          "modificationTime": "2026-04-03T23:28:56.963350Z"
+        },
+        {
+          "type": "secondary",
+          "vector": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:N/I:N/A:H",
+          "assigner": "Red Hat",
+          "severity": "medium",
+          "baseScore": 5.9,
+          "cvssVersion": "3.1",
+          "modificationTime": "2026-04-03T23:28:56.963350Z"
+        }
+      ],
+      "description": "## Overview\n\nAffected versions of this package are vulnerable to Regular Expression Denial of Service (ReDoS) when multiple wildcards are used in combination with at least one parameter. An attacker can cause excessive resource consumption and application unresponsiveness by supplying specially crafted input patterns that trigger catastrophic backtracking.\r\n\r\n**Note:**\r\n\r\nThis is only exploitable if the second wildcard is not positioned at the end of the path.\n\n## Details\n\nDenial of Service (DoS) describes a family of attacks, all aimed at making a system inaccessible to its original and legitimate users. There are many types of DoS attacks, ranging from trying to clog the network pipes to the system by generating a large volume of traffic from many machines (a Distributed Denial of Service - DDoS - attack) to sending crafted requests that cause a system to crash or take a disproportional amount of time to process.\n\nThe Regular expression Denial of Service (ReDoS) is a type of Denial of Service attack. Regular expressions are incredibly powerful, but they aren't very intuitive and can ultimately end up making it easy for attackers to take your site down.\n\nLet’s take the following regular expression as an example:\n```js\nregex = /A(B|C+)+D/\n```\n\nThis regular expression accomplishes the following:\n- `A` The string must start with the letter 'A'\n- `(B|C+)+` The string must then follow the letter A with either the letter 'B' or some number of occurrences of the letter 'C' (the `+` matches one or more times). The `+` at the end of this section states that we can look for one or more matches of this section.\n- `D` Finally, we ensure this section of the string ends with a 'D'\n\nThe expression would match inputs such as `ABBD`, `ABCCCCD`, `ABCBCCCD` and `ACCCCCD`\n\nIt most cases, it doesn't take very long for a regex engine to find a match:\n\n```bash\n$ time node -e '/A(B|C+)+D/.test(\"ACCCCCCCCCCCCCCCCCCCCCCCCCCCCD\")'\n0.04s user 0.01s system 95% cpu 0.052 total\n\n$ time node -e '/A(B|C+)+D/.test(\"ACCCCCCCCCCCCCCCCCCCCCCCCCCCCX\")'\n1.79s user 0.02s system 99% cpu 1.812 total\n```\n\nThe entire process of testing it against a 30 characters long string takes around ~52ms. But when given an invalid string, it takes nearly two seconds to complete the test, over ten times as long as it took to test a valid string. The dramatic difference is due to the way regular expressions get evaluated.\n\nMost Regex engines will work very similarly (with minor differences). The engine will match the first possible way to accept the current character and proceed to the next one. If it then fails to match the next one, it will backtrack and see if there was another way to digest the previous character. If it goes too far down the rabbit hole only to find out the string doesn’t match in the end, and if many characters have multiple valid regex paths, the number of backtracking steps can become very large, resulting in what is known as _catastrophic backtracking_.\n\nLet's look at how our expression runs into this problem, using a shorter string: \"ACCCX\". While it seems fairly straightforward, there are still four different ways that the engine could match those three C's:\n1. CCC\n2. CC+C\n3. C+CC\n4. C+C+C.\n\nThe engine has to try each of those combinations to see if any of them potentially match against the expression. When you combine that with the other steps the engine must take, we can use [RegEx 101 debugger](https://regex101.com/debugger) to see the engine has to take a total of 38 steps before it can determine the string doesn't match.\n\nFrom there, the number of steps the engine must use to validate a string just continues to grow.\n\n| String | Number of C's | Number of steps |\n| -------|-------------:| -----:|\n| ACCCX | 3 | 38\n| ACCCCX | 4 | 71\n| ACCCCCX | 5 | 136\n| ACCCCCCCCCCCCCCX | 14 | 65,553\n\n\nBy the time the string includes 14 C's, the engine has to take over 65,000 steps just to see if the string is valid. These extreme situations can cause them to work very slowly (exponentially related to input size, as shown above), allowing an attacker to exploit this and can cause the service to excessively consume CPU, resulting in a Denial of Service.\n\n## Remediation\nUpgrade `path-to-regexp` to version 8.4.0 or higher.\n## References\n- [GitHub Commit](https://github.com/pillarjs/path-to-regexp/commit/48646547da685c1ccb76a95fe23373975a91e200)\n- [OpenJS Security Advisories](https://cna.openjsf.org/security-advisories.html)\n",
+      "epssDetails": {
+        "percentile": "0.17744",
+        "probability": "0.00057",
+        "modelVersion": "v2025.03.14"
+      },
+      "identifiers": {
+        "CVE": [
+          "CVE-2026-4923"
+        ],
+        "CWE": [
+          "CWE-1333"
+        ]
+      },
+      "packageName": "path-to-regexp",
+      "proprietary": false,
+      "creationTime": "2026-03-27T08:16:36.880370Z",
+      "functions_new": [],
+      "alternativeIds": [],
+      "disclosureTime": "2026-03-26T20:34:28Z",
+      "exploitDetails": {
+        "sources": [],
+        "maturityLevels": [
+          {
+            "type": "secondary",
+            "level": "Not Defined",
+            "format": "CVSSv3"
+          },
+          {
+            "type": "primary",
+            "level": "Not Defined",
+            "format": "CVSSv4"
+          }
+        ]
+      },
+      "packageManager": "npm",
+      "publicationTime": "2026-03-27T08:16:37.083062Z",
+      "severityBasedOn": "CVSS",
+      "modificationTime": "2026-04-03T23:28:56.963350Z",
+      "socialTrendAlert": false,
+      "severityWithCritical": "high",
+      "from": [
+        "nest-typescript-starter@1.0.0",
+        "@nestjs/platform-express@11.1.11",
+        "express@5.2.1",
+        "router@2.2.0",
+        "path-to-regexp@8.2.0"
+      ],
+      "upgradePath": [
+        false,
+        "@nestjs/platform-express@11.1.11",
+        "express@5.2.1",
+        "router@2.2.0",
+        "path-to-regexp@8.4.2"
+      ],
+      "isUpgradable": true,
+      "isPatchable": false,
+      "name": "path-to-regexp",
+      "version": "8.2.0"
+    },
+    {
+      "id": "SNYK-JS-PATHTOREGEXP-15789763",
+      "title": "Regular Expression Denial of Service (ReDoS)",
+      "CVSSv3": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
+      "credit": [
+        "uug4na"
+      ],
+      "semver": {
+        "vulnerable": [
+          ">=8.0.0 <8.4.0"
+        ]
+      },
+      "exploit": "Not Defined",
+      "fixedIn": [
+        "8.4.0"
+      ],
+      "patches": [],
+      "insights": {
+        "triageAdvice": null
+      },
+      "language": "js",
+      "severity": "high",
+      "cvssScore": 8.7,
+      "functions": [],
+      "malicious": false,
+      "isDisputed": false,
+      "moduleName": "path-to-regexp",
+      "references": [
+        {
+          "url": "https://github.com/pillarjs/path-to-regexp/commit/22a967901afc8b2b42eefe456faa7b6773dcc415",
+          "title": "GitHub Commit"
+        },
+        {
+          "url": "https://cna.openjsf.org/security-advisories.html",
+          "title": "OpenJS Security Advisories"
+        }
+      ],
+      "cvssDetails": [
+        {
+          "assigner": "Red Hat",
+          "severity": "high",
+          "cvssV3Vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
+          "cvssV3BaseScore": 7.5,
+          "modificationTime": "2026-03-29T09:39:01.246847Z"
+        }
+      ],
+      "cvssSources": [
+        {
+          "type": "primary",
+          "vector": "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:N/VI:N/VA:H/SC:N/SI:N/SA:N",
+          "assigner": "Snyk",
+          "severity": "high",
+          "baseScore": 8.7,
+          "cvssVersion": "4.0",
+          "modificationTime": "2026-03-31T17:40:02.329216Z"
+        },
+        {
+          "type": "secondary",
+          "vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
+          "assigner": "Snyk",
+          "severity": "high",
+          "baseScore": 7.5,
+          "cvssVersion": "3.1",
+          "modificationTime": "2026-03-31T17:40:02.329216Z"
+        },
+        {
+          "type": "secondary",
+          "vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
+          "assigner": "Red Hat",
+          "severity": "high",
+          "baseScore": 7.5,
+          "cvssVersion": "3.1",
+          "modificationTime": "2026-03-29T09:39:01.246847Z"
+        }
+      ],
+      "description": "## Overview\n\nAffected versions of this package are vulnerable to Regular Expression Denial of Service (ReDoS) in route patterns. An attacker can cause resource exhaustion by supplying input with multiple sequential optional groups, leading to excessive computation and denial of service.\r\n\r\n## Workaround\r\n\r\nThis vulnerability can be mitigated by limiting the number of sequential optional groups in route patterns and avoiding user-controlled input as route patterns.\n\n## Details\n\nDenial of Service (DoS) describes a family of attacks, all aimed at making a system inaccessible to its original and legitimate users. There are many types of DoS attacks, ranging from trying to clog the network pipes to the system by generating a large volume of traffic from many machines (a Distributed Denial of Service - DDoS - attack) to sending crafted requests that cause a system to crash or take a disproportional amount of time to process.\n\nThe Regular expression Denial of Service (ReDoS) is a type of Denial of Service attack. Regular expressions are incredibly powerful, but they aren't very intuitive and can ultimately end up making it easy for attackers to take your site down.\n\nLet’s take the following regular expression as an example:\n```js\nregex = /A(B|C+)+D/\n```\n\nThis regular expression accomplishes the following:\n- `A` The string must start with the letter 'A'\n- `(B|C+)+` The string must then follow the letter A with either the letter 'B' or some number of occurrences of the letter 'C' (the `+` matches one or more times). The `+` at the end of this section states that we can look for one or more matches of this section.\n- `D` Finally, we ensure this section of the string ends with a 'D'\n\nThe expression would match inputs such as `ABBD`, `ABCCCCD`, `ABCBCCCD` and `ACCCCCD`\n\nIt most cases, it doesn't take very long for a regex engine to find a match:\n\n```bash\n$ time node -e '/A(B|C+)+D/.test(\"ACCCCCCCCCCCCCCCCCCCCCCCCCCCCD\")'\n0.04s user 0.01s system 95% cpu 0.052 total\n\n$ time node -e '/A(B|C+)+D/.test(\"ACCCCCCCCCCCCCCCCCCCCCCCCCCCCX\")'\n1.79s user 0.02s system 99% cpu 1.812 total\n```\n\nThe entire process of testing it against a 30 characters long string takes around ~52ms. But when given an invalid string, it takes nearly two seconds to complete the test, over ten times as long as it took to test a valid string. The dramatic difference is due to the way regular expressions get evaluated.\n\nMost Regex engines will work very similarly (with minor differences). The engine will match the first possible way to accept the current character and proceed to the next one. If it then fails to match the next one, it will backtrack and see if there was another way to digest the previous character. If it goes too far down the rabbit hole only to find out the string doesn’t match in the end, and if many characters have multiple valid regex paths, the number of backtracking steps can become very large, resulting in what is known as _catastrophic backtracking_.\n\nLet's look at how our expression runs into this problem, using a shorter string: \"ACCCX\". While it seems fairly straightforward, there are still four different ways that the engine could match those three C's:\n1. CCC\n2. CC+C\n3. C+CC\n4. C+C+C.\n\nThe engine has to try each of those combinations to see if any of them potentially match against the expression. When you combine that with the other steps the engine must take, we can use [RegEx 101 debugger](https://regex101.com/debugger) to see the engine has to take a total of 38 steps before it can determine the string doesn't match.\n\nFrom there, the number of steps the engine must use to validate a string just continues to grow.\n\n| String | Number of C's | Number of steps |\n| -------|-------------:| -----:|\n| ACCCX | 3 | 38\n| ACCCCX | 4 | 71\n| ACCCCCX | 5 | 136\n| ACCCCCCCCCCCCCCX | 14 | 65,553\n\n\nBy the time the string includes 14 C's, the engine has to take over 65,000 steps just to see if the string is valid. These extreme situations can cause them to work very slowly (exponentially related to input size, as shown above), allowing an attacker to exploit this and can cause the service to excessively consume CPU, resulting in a Denial of Service.\n\n## Remediation\nUpgrade `path-to-regexp` to version 8.4.0 or higher.\n## References\n- [GitHub Commit](https://github.com/pillarjs/path-to-regexp/commit/22a967901afc8b2b42eefe456faa7b6773dcc415)\n- [OpenJS Security Advisories](https://cna.openjsf.org/security-advisories.html)\n",
+      "epssDetails": {
+        "percentile": "0.17679",
+        "probability": "0.00057",
+        "modelVersion": "v2025.03.14"
+      },
+      "identifiers": {
+        "CVE": [
+          "CVE-2026-4926"
+        ],
+        "CWE": [
+          "CWE-1333"
+        ]
+      },
+      "packageName": "path-to-regexp",
+      "proprietary": false,
+      "creationTime": "2026-03-27T08:11:43.387356Z",
+      "functions_new": [],
+      "alternativeIds": [],
+      "disclosureTime": "2026-03-26T20:34:28Z",
+      "exploitDetails": {
+        "sources": [],
+        "maturityLevels": [
+          {
+            "type": "secondary",
+            "level": "Not Defined",
+            "format": "CVSSv3"
+          },
+          {
+            "type": "primary",
+            "level": "Not Defined",
+            "format": "CVSSv4"
+          }
+        ]
+      },
+      "packageManager": "npm",
+      "publicationTime": "2026-03-27T08:11:43.704120Z",
+      "severityBasedOn": "CVSS",
+      "modificationTime": "2026-03-31T17:40:02.329216Z",
+      "socialTrendAlert": false,
+      "severityWithCritical": "high",
+      "from": [
+        "nest-typescript-starter@1.0.0",
+        "@nestjs/platform-express@11.1.11",
+        "path-to-regexp@8.3.0"
+      ],
+      "upgradePath": [
+        false,
+        "@nestjs/platform-express@11.1.18",
+        "path-to-regexp@8.4.2"
+      ],
+      "isUpgradable": true,
+      "isPatchable": false,
+      "name": "path-to-regexp",
+      "version": "8.3.0"
+    },
+    {
+      "id": "SNYK-JS-PATHTOREGEXP-15789765",
+      "title": "Regular Expression Denial of Service (ReDoS)",
+      "CVSSv3": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:N/I:N/A:H",
+      "credit": [
+        "blakeembrey"
+      ],
+      "semver": {
+        "vulnerable": [
+          ">=8.0.0 <8.4.0"
+        ]
+      },
+      "exploit": "Not Defined",
+      "fixedIn": [
+        "8.4.0"
+      ],
+      "patches": [],
+      "insights": {
+        "triageAdvice": null
+      },
+      "language": "js",
+      "severity": "high",
+      "cvssScore": 8.2,
+      "functions": [],
+      "malicious": false,
+      "isDisputed": false,
+      "moduleName": "path-to-regexp",
+      "references": [
+        {
+          "url": "https://github.com/pillarjs/path-to-regexp/commit/48646547da685c1ccb76a95fe23373975a91e200",
+          "title": "GitHub Commit"
+        },
+        {
+          "url": "https://cna.openjsf.org/security-advisories.html",
+          "title": "OpenJS Security Advisories"
+        }
+      ],
+      "cvssDetails": [
+        {
+          "assigner": "Red Hat",
+          "severity": "medium",
+          "cvssV3Vector": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:N/I:N/A:H",
+          "cvssV3BaseScore": 5.9,
+          "modificationTime": "2026-04-03T23:28:56.963350Z"
+        }
+      ],
+      "cvssSources": [
+        {
+          "type": "primary",
+          "vector": "CVSS:4.0/AV:N/AC:L/AT:P/PR:N/UI:N/VC:N/VI:N/VA:H/SC:N/SI:N/SA:N",
+          "assigner": "Snyk",
+          "severity": "high",
+          "baseScore": 8.2,
+          "cvssVersion": "4.0",
+          "modificationTime": "2026-04-03T23:28:56.963350Z"
+        },
+        {
+          "type": "secondary",
+          "vector": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:N/I:N/A:H",
+          "assigner": "Snyk",
+          "severity": "medium",
+          "baseScore": 5.9,
+          "cvssVersion": "3.1",
+          "modificationTime": "2026-04-03T23:28:56.963350Z"
+        },
+        {
+          "type": "secondary",
+          "vector": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:N/I:N/A:H",
+          "assigner": "Red Hat",
+          "severity": "medium",
+          "baseScore": 5.9,
+          "cvssVersion": "3.1",
+          "modificationTime": "2026-04-03T23:28:56.963350Z"
+        }
+      ],
+      "description": "## Overview\n\nAffected versions of this package are vulnerable to Regular Expression Denial of Service (ReDoS) when multiple wildcards are used in combination with at least one parameter. An attacker can cause excessive resource consumption and application unresponsiveness by supplying specially crafted input patterns that trigger catastrophic backtracking.\r\n\r\n**Note:**\r\n\r\nThis is only exploitable if the second wildcard is not positioned at the end of the path.\n\n## Details\n\nDenial of Service (DoS) describes a family of attacks, all aimed at making a system inaccessible to its original and legitimate users. There are many types of DoS attacks, ranging from trying to clog the network pipes to the system by generating a large volume of traffic from many machines (a Distributed Denial of Service - DDoS - attack) to sending crafted requests that cause a system to crash or take a disproportional amount of time to process.\n\nThe Regular expression Denial of Service (ReDoS) is a type of Denial of Service attack. Regular expressions are incredibly powerful, but they aren't very intuitive and can ultimately end up making it easy for attackers to take your site down.\n\nLet’s take the following regular expression as an example:\n```js\nregex = /A(B|C+)+D/\n```\n\nThis regular expression accomplishes the following:\n- `A` The string must start with the letter 'A'\n- `(B|C+)+` The string must then follow the letter A with either the letter 'B' or some number of occurrences of the letter 'C' (the `+` matches one or more times). The `+` at the end of this section states that we can look for one or more matches of this section.\n- `D` Finally, we ensure this section of the string ends with a 'D'\n\nThe expression would match inputs such as `ABBD`, `ABCCCCD`, `ABCBCCCD` and `ACCCCCD`\n\nIt most cases, it doesn't take very long for a regex engine to find a match:\n\n```bash\n$ time node -e '/A(B|C+)+D/.test(\"ACCCCCCCCCCCCCCCCCCCCCCCCCCCCD\")'\n0.04s user 0.01s system 95% cpu 0.052 total\n\n$ time node -e '/A(B|C+)+D/.test(\"ACCCCCCCCCCCCCCCCCCCCCCCCCCCCX\")'\n1.79s user 0.02s system 99% cpu 1.812 total\n```\n\nThe entire process of testing it against a 30 characters long string takes around ~52ms. But when given an invalid string, it takes nearly two seconds to complete the test, over ten times as long as it took to test a valid string. The dramatic difference is due to the way regular expressions get evaluated.\n\nMost Regex engines will work very similarly (with minor differences). The engine will match the first possible way to accept the current character and proceed to the next one. If it then fails to match the next one, it will backtrack and see if there was another way to digest the previous character. If it goes too far down the rabbit hole only to find out the string doesn’t match in the end, and if many characters have multiple valid regex paths, the number of backtracking steps can become very large, resulting in what is known as _catastrophic backtracking_.\n\nLet's look at how our expression runs into this problem, using a shorter string: \"ACCCX\". While it seems fairly straightforward, there are still four different ways that the engine could match those three C's:\n1. CCC\n2. CC+C\n3. C+CC\n4. C+C+C.\n\nThe engine has to try each of those combinations to see if any of them potentially match against the expression. When you combine that with the other steps the engine must take, we can use [RegEx 101 debugger](https://regex101.com/debugger) to see the engine has to take a total of 38 steps before it can determine the string doesn't match.\n\nFrom there, the number of steps the engine must use to validate a string just continues to grow.\n\n| String | Number of C's | Number of steps |\n| -------|-------------:| -----:|\n| ACCCX | 3 | 38\n| ACCCCX | 4 | 71\n| ACCCCCX | 5 | 136\n| ACCCCCCCCCCCCCCX | 14 | 65,553\n\n\nBy the time the string includes 14 C's, the engine has to take over 65,000 steps just to see if the string is valid. These extreme situations can cause them to work very slowly (exponentially related to input size, as shown above), allowing an attacker to exploit this and can cause the service to excessively consume CPU, resulting in a Denial of Service.\n\n## Remediation\nUpgrade `path-to-regexp` to version 8.4.0 or higher.\n## References\n- [GitHub Commit](https://github.com/pillarjs/path-to-regexp/commit/48646547da685c1ccb76a95fe23373975a91e200)\n- [OpenJS Security Advisories](https://cna.openjsf.org/security-advisories.html)\n",
+      "epssDetails": {
+        "percentile": "0.17744",
+        "probability": "0.00057",
+        "modelVersion": "v2025.03.14"
+      },
+      "identifiers": {
+        "CVE": [
+          "CVE-2026-4923"
+        ],
+        "CWE": [
+          "CWE-1333"
+        ]
+      },
+      "packageName": "path-to-regexp",
+      "proprietary": false,
+      "creationTime": "2026-03-27T08:16:36.880370Z",
+      "functions_new": [],
+      "alternativeIds": [],
+      "disclosureTime": "2026-03-26T20:34:28Z",
+      "exploitDetails": {
+        "sources": [],
+        "maturityLevels": [
+          {
+            "type": "secondary",
+            "level": "Not Defined",
+            "format": "CVSSv3"
+          },
+          {
+            "type": "primary",
+            "level": "Not Defined",
+            "format": "CVSSv4"
+          }
+        ]
+      },
+      "packageManager": "npm",
+      "publicationTime": "2026-03-27T08:16:37.083062Z",
+      "severityBasedOn": "CVSS",
+      "modificationTime": "2026-04-03T23:28:56.963350Z",
+      "socialTrendAlert": false,
+      "severityWithCritical": "high",
+      "from": [
+        "nest-typescript-starter@1.0.0",
+        "@nestjs/platform-express@11.1.11",
+        "path-to-regexp@8.3.0"
+      ],
+      "upgradePath": [
+        false,
+        "@nestjs/platform-express@11.1.18",
+        "path-to-regexp@8.4.2"
+      ],
+      "isUpgradable": true,
+      "isPatchable": false,
+      "name": "path-to-regexp",
+      "version": "8.3.0"
+    },
+    {
+      "id": "SNYK-JS-QS-15268416",
+      "title": "Allocation of Resources Without Limits or Throttling",
+      "CVSSv3": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H/E:P",
+      "credit": [
+        "SharokhAtaie"
+      ],
+      "semver": {
+        "vulnerable": [
+          ">=6.7.0 <6.14.2"
+        ]
+      },
+      "exploit": "Proof of Concept",
+      "fixedIn": [
+        "6.14.2"
+      ],
+      "patches": [],
+      "insights": {
+        "triageAdvice": null
+      },
+      "language": "js",
+      "severity": "high",
+      "cvssScore": 8.2,
+      "functions": [],
+      "malicious": false,
+      "isDisputed": false,
+      "moduleName": "qs",
+      "references": [
+        {
+          "url": "https://github.com/ljharb/qs/commit/f6a7abff1f13d644db9b05fe4f2c98ada6bf8482",
+          "title": "GitHub Commit"
+        }
+      ],
+      "cvssDetails": [
+        {
+          "assigner": "Red Hat",
+          "severity": "medium",
+          "cvssV3Vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:L",
+          "cvssV3BaseScore": 5.3,
+          "modificationTime": "2026-02-13T05:44:36.413749Z"
+        },
+        {
+          "assigner": "NVD",
+          "severity": "high",
+          "cvssV3Vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
+          "cvssV3BaseScore": 7.5,
+          "modificationTime": "2026-02-25T01:18:28.970240Z"
+        }
+      ],
+      "cvssSources": [
+        {
+          "type": "primary",
+          "vector": "CVSS:4.0/AV:N/AC:L/AT:P/PR:N/UI:N/VC:N/VI:N/VA:H/SC:N/SI:N/SA:N/E:P",
+          "assigner": "Snyk",
+          "severity": "high",
+          "baseScore": 8.2,
+          "cvssVersion": "4.0",
+          "modificationTime": "2026-02-26T12:06:22.123661Z"
+        },
+        {
+          "type": "secondary",
+          "vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H/E:P",
+          "assigner": "Snyk",
+          "severity": "high",
+          "baseScore": 7.5,
+          "cvssVersion": "3.1",
+          "modificationTime": "2026-02-26T12:06:22.123661Z"
+        },
+        {
+          "type": "secondary",
+          "vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:L",
+          "assigner": "Red Hat",
+          "severity": "medium",
+          "baseScore": 5.3,
+          "cvssVersion": "3.1",
+          "modificationTime": "2026-02-13T05:44:36.413749Z"
+        },
+        {
+          "type": "secondary",
+          "vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
+          "assigner": "NVD",
+          "severity": "high",
+          "baseScore": 7.5,
+          "cvssVersion": "3.1",
+          "modificationTime": "2026-02-25T01:18:28.970240Z"
+        }
+      ],
+      "description": "## Overview\n[qs](https://www.npmjs.com/package/qs) is a querystring parser that supports nesting and arrays, with a depth limit.\n\nAffected versions of this package are vulnerable to Allocation of Resources Without Limits or Throttling via the `parseArrayValue` function when the `comma` option is in use. An attacker can exhaust system memory by submitting a parameter containing a large number of comma-separated values, resulting in the allocation of excessively large arrays.\r\n\r\n**Note:**\r\nThis is only exploitable if the `comma` option is explicitly set to true. `arrayLimit` is properly enforced for index and bracket notation.\n## PoC\n```js\r\nconst qs = require('qs');\r\n\r\nconst payload = 'a=' + ','.repeat(25);  // 26 elements after split (bypasses arrayLimit: 5)\r\nconst options = { comma: true, arrayLimit: 5, throwOnLimitExceeded: true };\r\n\r\ntry {\r\n  const result = qs.parse(payload, options);\r\n  console.log(result.a.length);  // Outputs: 26 (bypass successful)\r\n} catch (e) {\r\n  console.log('Limit enforced:', e.message);  // Not thrown\r\n}\r\n```\n## Remediation\nUpgrade `qs` to version 6.14.2 or higher.\n## References\n- [GitHub Commit](https://github.com/ljharb/qs/commit/f6a7abff1f13d644db9b05fe4f2c98ada6bf8482)\n",
+      "epssDetails": {
+        "percentile": "0.15547",
+        "probability": "0.00050",
+        "modelVersion": "v2025.03.14"
+      },
+      "identifiers": {
+        "CVE": [
+          "CVE-2026-2391"
+        ],
+        "CWE": [
+          "CWE-770"
+        ],
+        "GHSA": [
+          "GHSA-w7fw-mjwx-w883"
+        ]
+      },
+      "packageName": "qs",
+      "proprietary": false,
+      "creationTime": "2026-02-12T07:33:26.992101Z",
+      "functions_new": [],
+      "alternativeIds": [],
+      "disclosureTime": "2026-02-12T05:20:07Z",
+      "exploitDetails": {
+        "sources": [
+          "Snyk"
+        ],
+        "maturityLevels": [
+          {
+            "type": "secondary",
+            "level": "Proof of Concept",
+            "format": "CVSSv3"
+          },
+          {
+            "type": "primary",
+            "level": "Proof of Concept",
+            "format": "CVSSv4"
+          }
+        ]
+      },
+      "packageManager": "npm",
+      "publicationTime": "2026-02-12T08:09:30.892673Z",
+      "severityBasedOn": "CVSS",
+      "modificationTime": "2026-02-26T12:06:22.123661Z",
+      "socialTrendAlert": false,
+      "severityWithCritical": "high",
+      "from": [
+        "nest-typescript-starter@1.0.0",
+        "@nestjs/platform-express@11.1.11",
+        "express@5.2.1",
+        "qs@6.14.1"
+      ],
+      "upgradePath": [
+        false,
+        "@nestjs/platform-express@11.1.11",
+        "express@5.2.1",
+        "qs@6.15.1"
+      ],
+      "isUpgradable": true,
+      "isPatchable": false,
+      "name": "qs",
+      "version": "6.14.1"
+    },
+    {
+      "id": "SNYK-JS-QS-15268416",
+      "title": "Allocation of Resources Without Limits or Throttling",
+      "CVSSv3": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H/E:P",
+      "credit": [
+        "SharokhAtaie"
+      ],
+      "semver": {
+        "vulnerable": [
+          ">=6.7.0 <6.14.2"
+        ]
+      },
+      "exploit": "Proof of Concept",
+      "fixedIn": [
+        "6.14.2"
+      ],
+      "patches": [],
+      "insights": {
+        "triageAdvice": null
+      },
+      "language": "js",
+      "severity": "high",
+      "cvssScore": 8.2,
+      "functions": [],
+      "malicious": false,
+      "isDisputed": false,
+      "moduleName": "qs",
+      "references": [
+        {
+          "url": "https://github.com/ljharb/qs/commit/f6a7abff1f13d644db9b05fe4f2c98ada6bf8482",
+          "title": "GitHub Commit"
+        }
+      ],
+      "cvssDetails": [
+        {
+          "assigner": "Red Hat",
+          "severity": "medium",
+          "cvssV3Vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:L",
+          "cvssV3BaseScore": 5.3,
+          "modificationTime": "2026-02-13T05:44:36.413749Z"
+        },
+        {
+          "assigner": "NVD",
+          "severity": "high",
+          "cvssV3Vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
+          "cvssV3BaseScore": 7.5,
+          "modificationTime": "2026-02-25T01:18:28.970240Z"
+        }
+      ],
+      "cvssSources": [
+        {
+          "type": "primary",
+          "vector": "CVSS:4.0/AV:N/AC:L/AT:P/PR:N/UI:N/VC:N/VI:N/VA:H/SC:N/SI:N/SA:N/E:P",
+          "assigner": "Snyk",
+          "severity": "high",
+          "baseScore": 8.2,
+          "cvssVersion": "4.0",
+          "modificationTime": "2026-02-26T12:06:22.123661Z"
+        },
+        {
+          "type": "secondary",
+          "vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H/E:P",
+          "assigner": "Snyk",
+          "severity": "high",
+          "baseScore": 7.5,
+          "cvssVersion": "3.1",
+          "modificationTime": "2026-02-26T12:06:22.123661Z"
+        },
+        {
+          "type": "secondary",
+          "vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:L",
+          "assigner": "Red Hat",
+          "severity": "medium",
+          "baseScore": 5.3,
+          "cvssVersion": "3.1",
+          "modificationTime": "2026-02-13T05:44:36.413749Z"
+        },
+        {
+          "type": "secondary",
+          "vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
+          "assigner": "NVD",
+          "severity": "high",
+          "baseScore": 7.5,
+          "cvssVersion": "3.1",
+          "modificationTime": "2026-02-25T01:18:28.970240Z"
+        }
+      ],
+      "description": "## Overview\n[qs](https://www.npmjs.com/package/qs) is a querystring parser that supports nesting and arrays, with a depth limit.\n\nAffected versions of this package are vulnerable to Allocation of Resources Without Limits or Throttling via the `parseArrayValue` function when the `comma` option is in use. An attacker can exhaust system memory by submitting a parameter containing a large number of comma-separated values, resulting in the allocation of excessively large arrays.\r\n\r\n**Note:**\r\nThis is only exploitable if the `comma` option is explicitly set to true. `arrayLimit` is properly enforced for index and bracket notation.\n## PoC\n```js\r\nconst qs = require('qs');\r\n\r\nconst payload = 'a=' + ','.repeat(25);  // 26 elements after split (bypasses arrayLimit: 5)\r\nconst options = { comma: true, arrayLimit: 5, throwOnLimitExceeded: true };\r\n\r\ntry {\r\n  const result = qs.parse(payload, options);\r\n  console.log(result.a.length);  // Outputs: 26 (bypass successful)\r\n} catch (e) {\r\n  console.log('Limit enforced:', e.message);  // Not thrown\r\n}\r\n```\n## Remediation\nUpgrade `qs` to version 6.14.2 or higher.\n## References\n- [GitHub Commit](https://github.com/ljharb/qs/commit/f6a7abff1f13d644db9b05fe4f2c98ada6bf8482)\n",
+      "epssDetails": {
+        "percentile": "0.15547",
+        "probability": "0.00050",
+        "modelVersion": "v2025.03.14"
+      },
+      "identifiers": {
+        "CVE": [
+          "CVE-2026-2391"
+        ],
+        "CWE": [
+          "CWE-770"
+        ],
+        "GHSA": [
+          "GHSA-w7fw-mjwx-w883"
+        ]
+      },
+      "packageName": "qs",
+      "proprietary": false,
+      "creationTime": "2026-02-12T07:33:26.992101Z",
+      "functions_new": [],
+      "alternativeIds": [],
+      "disclosureTime": "2026-02-12T05:20:07Z",
+      "exploitDetails": {
+        "sources": [
+          "Snyk"
+        ],
+        "maturityLevels": [
+          {
+            "type": "secondary",
+            "level": "Proof of Concept",
+            "format": "CVSSv3"
+          },
+          {
+            "type": "primary",
+            "level": "Proof of Concept",
+            "format": "CVSSv4"
+          }
+        ]
+      },
+      "packageManager": "npm",
+      "publicationTime": "2026-02-12T08:09:30.892673Z",
+      "severityBasedOn": "CVSS",
+      "modificationTime": "2026-02-26T12:06:22.123661Z",
+      "socialTrendAlert": false,
+      "severityWithCritical": "high",
+      "from": [
+        "nest-typescript-starter@1.0.0",
+        "@nestjs/platform-express@11.1.11",
+        "express@5.2.1",
+        "body-parser@2.2.1",
+        "qs@6.14.1"
+      ],
+      "upgradePath": [
+        false,
+        "@nestjs/platform-express@11.1.11",
+        "express@5.2.1",
+        "body-parser@2.2.2",
+        "qs@6.15.1"
+      ],
+      "isUpgradable": true,
+      "isPatchable": false,
+      "name": "qs",
+      "version": "6.14.1"
+    }
+  ],
+  "ok": false,
+  "dependencyCount": 180,
+  "org": "joaogw",
+  "policy": "# Snyk (https://snyk.io) policy file, patches or ignores known vulnerabilities.\nversion: v1.25.1\nignore: {}\npatch: {}\n",
+  "isPrivate": true,
+  "licensesPolicy": {
+    "severities": {},
+    "orgLicenseRules": {
+      "AGPL-1.0": {
+        "licenseType": "AGPL-1.0",
+        "severity": "high",
+        "instructions": ""
+      },
+      "AGPL-3.0": {
+        "licenseType": "AGPL-3.0",
+        "severity": "high",
+        "instructions": ""
+      },
+      "Artistic-1.0": {
+        "licenseType": "Artistic-1.0",
+        "severity": "medium",
+        "instructions": ""
+      },
+      "Artistic-2.0": {
+        "licenseType": "Artistic-2.0",
+        "severity": "medium",
+        "instructions": ""
+      },
+      "CDDL-1.0": {
+        "licenseType": "CDDL-1.0",
+        "severity": "medium",
+        "instructions": ""
+      },
+      "CPOL-1.02": {
+        "licenseType": "CPOL-1.02",
+        "severity": "high",
+        "instructions": ""
+      },
+      "EPL-1.0": {
+        "licenseType": "EPL-1.0",
+        "severity": "medium",
+        "instructions": ""
+      },
+      "GPL-2.0": {
+        "licenseType": "GPL-2.0",
+        "severity": "high",
+        "instructions": ""
+      },
+      "GPL-3.0": {
+        "licenseType": "GPL-3.0",
+        "severity": "high",
+        "instructions": ""
+      },
+      "LGPL-2.0": {
+        "licenseType": "LGPL-2.0",
+        "severity": "medium",
+        "instructions": ""
+      },
+      "LGPL-2.1": {
+        "licenseType": "LGPL-2.1",
+        "severity": "medium",
+        "instructions": ""
+      },
+      "LGPL-3.0": {
+        "licenseType": "LGPL-3.0",
+        "severity": "medium",
+        "instructions": ""
+      },
+      "MPL-1.1": {
+        "licenseType": "MPL-1.1",
+        "severity": "medium",
+        "instructions": ""
+      },
+      "MPL-2.0": {
+        "licenseType": "MPL-2.0",
+        "severity": "medium",
+        "instructions": ""
+      },
+      "MS-RL": {
+        "licenseType": "MS-RL",
+        "severity": "medium",
+        "instructions": ""
+      },
+      "SimPL-2.0": {
+        "licenseType": "SimPL-2.0",
+        "severity": "high",
+        "instructions": ""
+      }
+    }
+  },
+  "packageManager": "npm",
+  "ignoreSettings": {
+    "adminOnly": false,
+    "reasonRequired": false,
+    "disregardFilesystemIgnores": false
+  },
+  "summary": "14 vulnerable dependency paths",
+  "remediation": {
+    "unresolved": [
+      {
+        "id": "SNYK-JS-QS-15268416",
+        "title": "Allocation of Resources Without Limits or Throttling",
+        "CVSSv3": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H/E:P",
+        "credit": [
+          "SharokhAtaie"
+        ],
+        "semver": {
+          "vulnerable": [
+            ">=6.7.0 <6.14.2"
+          ]
+        },
+        "exploit": "Proof of Concept",
+        "fixedIn": [
+          "6.14.2"
+        ],
+        "patches": [],
+        "insights": {
+          "triageAdvice": null
+        },
+        "language": "js",
+        "severity": "high",
+        "cvssScore": 8.2,
+        "functions": [],
+        "malicious": false,
+        "isDisputed": false,
+        "moduleName": "qs",
+        "references": [
+          {
+            "url": "https://github.com/ljharb/qs/commit/f6a7abff1f13d644db9b05fe4f2c98ada6bf8482",
+            "title": "GitHub Commit"
+          }
+        ],
+        "cvssDetails": [
+          {
+            "assigner": "Red Hat",
+            "severity": "medium",
+            "cvssV3Vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:L",
+            "cvssV3BaseScore": 5.3,
+            "modificationTime": "2026-02-13T05:44:36.413749Z"
+          },
+          {
+            "assigner": "NVD",
+            "severity": "high",
+            "cvssV3Vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
+            "cvssV3BaseScore": 7.5,
+            "modificationTime": "2026-02-25T01:18:28.970240Z"
+          }
+        ],
+        "cvssSources": [
+          {
+            "type": "primary",
+            "vector": "CVSS:4.0/AV:N/AC:L/AT:P/PR:N/UI:N/VC:N/VI:N/VA:H/SC:N/SI:N/SA:N/E:P",
+            "assigner": "Snyk",
+            "severity": "high",
+            "baseScore": 8.2,
+            "cvssVersion": "4.0",
+            "modificationTime": "2026-02-26T12:06:22.123661Z"
+          },
+          {
+            "type": "secondary",
+            "vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H/E:P",
+            "assigner": "Snyk",
+            "severity": "high",
+            "baseScore": 7.5,
+            "cvssVersion": "3.1",
+            "modificationTime": "2026-02-26T12:06:22.123661Z"
+          },
+          {
+            "type": "secondary",
+            "vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:L",
+            "assigner": "Red Hat",
+            "severity": "medium",
+            "baseScore": 5.3,
+            "cvssVersion": "3.1",
+            "modificationTime": "2026-02-13T05:44:36.413749Z"
+          },
+          {
+            "type": "secondary",
+            "vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
+            "assigner": "NVD",
+            "severity": "high",
+            "baseScore": 7.5,
+            "cvssVersion": "3.1",
+            "modificationTime": "2026-02-25T01:18:28.970240Z"
+          }
+        ],
+        "description": "## Overview\n[qs](https://www.npmjs.com/package/qs) is a querystring parser that supports nesting and arrays, with a depth limit.\n\nAffected versions of this package are vulnerable to Allocation of Resources Without Limits or Throttling via the `parseArrayValue` function when the `comma` option is in use. An attacker can exhaust system memory by submitting a parameter containing a large number of comma-separated values, resulting in the allocation of excessively large arrays.\r\n\r\n**Note:**\r\nThis is only exploitable if the `comma` option is explicitly set to true. `arrayLimit` is properly enforced for index and bracket notation.\n## PoC\n```js\r\nconst qs = require('qs');\r\n\r\nconst payload = 'a=' + ','.repeat(25);  // 26 elements after split (bypasses arrayLimit: 5)\r\nconst options = { comma: true, arrayLimit: 5, throwOnLimitExceeded: true };\r\n\r\ntry {\r\n  const result = qs.parse(payload, options);\r\n  console.log(result.a.length);  // Outputs: 26 (bypass successful)\r\n} catch (e) {\r\n  console.log('Limit enforced:', e.message);  // Not thrown\r\n}\r\n```\n## Remediation\nUpgrade `qs` to version 6.14.2 or higher.\n## References\n- [GitHub Commit](https://github.com/ljharb/qs/commit/f6a7abff1f13d644db9b05fe4f2c98ada6bf8482)\n",
+        "epssDetails": {
+          "percentile": "0.15547",
+          "probability": "0.00050",
+          "modelVersion": "v2025.03.14"
+        },
+        "identifiers": {
+          "CVE": [
+            "CVE-2026-2391"
+          ],
+          "CWE": [
+            "CWE-770"
+          ],
+          "GHSA": [
+            "GHSA-w7fw-mjwx-w883"
+          ]
+        },
+        "packageName": "qs",
+        "proprietary": false,
+        "creationTime": "2026-02-12T07:33:26.992101Z",
+        "functions_new": [],
+        "alternativeIds": [],
+        "disclosureTime": "2026-02-12T05:20:07Z",
+        "exploitDetails": {
+          "sources": [
+            "Snyk"
+          ],
+          "maturityLevels": [
+            {
+              "type": "secondary",
+              "level": "Proof of Concept",
+              "format": "CVSSv3"
+            },
+            {
+              "type": "primary",
+              "level": "Proof of Concept",
+              "format": "CVSSv4"
+            }
+          ]
+        },
+        "packageManager": "npm",
+        "publicationTime": "2026-02-12T08:09:30.892673Z",
+        "severityBasedOn": "CVSS",
+        "modificationTime": "2026-02-26T12:06:22.123661Z",
+        "socialTrendAlert": false,
+        "packagePopularityRank": 99,
+        "from": [
+          "nest-typescript-starter@1.0.0",
+          "@nestjs/platform-express@11.1.11",
+          "express@5.2.1",
+          "body-parser@2.2.1",
+          "qs@6.14.1"
+        ],
+        "upgradePath": [
+          false,
+          "@nestjs/platform-express@11.1.11",
+          "express@5.2.1",
+          "body-parser@2.2.2",
+          "qs@6.15.1"
+        ],
+        "isUpgradable": true,
+        "isPatchable": false,
+        "isPinnable": false,
+        "isRuntime": false,
+        "name": "qs",
+        "version": "6.14.1",
+        "severityWithCritical": "high"
+      }
+    ],
+    "upgrade": {
+      "@nestjs/core@11.0.1": {
+        "upgradeTo": "@nestjs/core@11.1.18",
+        "upgrades": [
+          "@nestjs/core@11.0.1",
+          "path-to-regexp@8.2.0",
+          "path-to-regexp@8.2.0",
+          "@nestjs/core@11.0.1"
+        ],
+        "vulns": [
+          "SNYK-JS-NESTJSCORE-15920868",
+          "SNYK-JS-PATHTOREGEXP-15789763",
+          "SNYK-JS-PATHTOREGEXP-15789765",
+          "SNYK-JS-NESTJSCORE-15682556"
+        ]
+      },
+      "@nestjs/platform-express@11.1.11": {
+        "upgradeTo": "@nestjs/platform-express@11.1.18",
+        "upgrades": [
+          "path-to-regexp@8.3.0",
+          "path-to-regexp@8.3.0",
+          "multer@2.0.2",
+          "multer@2.0.2",
+          "multer@2.0.2"
+        ],
+        "vulns": [
+          "SNYK-JS-PATHTOREGEXP-15789763",
+          "SNYK-JS-PATHTOREGEXP-15789765",
+          "SNYK-JS-MULTER-15417528",
+          "SNYK-JS-MULTER-15365916",
+          "SNYK-JS-MULTER-15365918"
+        ]
+      },
+      "prisma@6.17.1": {
+        "upgradeTo": "prisma@6.19.3",
+        "upgrades": [
+          "effect@3.16.12"
+        ],
+        "vulns": [
+          "SNYK-JS-EFFECT-15746380"
+        ]
+      }
+    },
+    "patch": {},
+    "ignore": {},
+    "pin": {}
+  },
+  "filesystemPolicy": false,
+  "filtered": {
+    "ignore": [],
+    "patch": []
+  },
+  "uniqueCount": 9,
+  "projectName": "nest-typescript-starter",
+  "displayTargetFile": "package-lock.json",
+  "hasUnknownVersions": false,
+  "path": "E:\\Coding\\NestJS\\tech-challenge-01"
+}

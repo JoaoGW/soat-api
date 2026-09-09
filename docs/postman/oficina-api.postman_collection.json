@@ -1,0 +1,681 @@
+{
+  "info": {
+    "_postman_id": "cd7d6a61-0d02-4b0c-90e4-2d5f8f5b5e23",
+    "name": "Sistema Integrado de Oficina - Fase 2",
+    "description": "Collection das APIs administrativas e publicas do Tech Challenge Fase 2. Execute primeiro Auth/Login para preencher o token JWT.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000"
+    },
+    {
+      "key": "token",
+      "value": ""
+    },
+    {
+      "key": "clienteId",
+      "value": ""
+    },
+    {
+      "key": "veiculoId",
+      "value": ""
+    },
+    {
+      "key": "servicoId",
+      "value": ""
+    },
+    {
+      "key": "pecaId",
+      "value": ""
+    },
+    {
+      "key": "ordemServicoId",
+      "value": ""
+    },
+    {
+      "key": "codigoAcompanhamento",
+      "value": ""
+    },
+    {
+      "key": "webhookTokenAprovacao",
+      "value": ""
+    },
+    {
+      "key": "webhookTokenRecusa",
+      "value": ""
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Login administrativo",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.accessToken) pm.collectionVariables.set('token', json.accessToken);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"admin\",\n  \"password\": \"admin12345\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Clientes",
+      "item": [
+        {
+          "name": "Criar cliente",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.id) pm.collectionVariables.set('clienteId', json.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Cliente Fase 2\",\n  \"documento\": \"52998224725\",\n  \"contato\": \"cliente.fase2@email.com\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/clientes",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "clientes"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Listar clientes",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/clientes",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "clientes"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Buscar cliente por ID",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/clientes/{{clienteId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "clientes",
+                "{{clienteId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Atualizar cliente",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Cliente Fase 2 Atualizado\",\n  \"contato\": \"cliente.atualizado@email.com\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/clientes/{{clienteId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "clientes",
+                "{{clienteId}}"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Veiculos",
+      "item": [
+        {
+          "name": "Criar veiculo",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.id) pm.collectionVariables.set('veiculoId', json.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"clienteId\": \"{{clienteId}}\",\n  \"placa\": \"FSE2G27\",\n  \"marca\": \"Fiat\",\n  \"modelo\": \"Pulse\",\n  \"ano\": 2024\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/veiculos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "veiculos"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Listar veiculos",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/veiculos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "veiculos"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Listar veiculos por cliente",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/veiculos/cliente/{{clienteId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "veiculos",
+                "cliente",
+                "{{clienteId}}"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Catalogo",
+      "item": [
+        {
+          "name": "Criar servico",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.id) pm.collectionVariables.set('servicoId', json.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Diagnostico completo\",\n  \"descricao\": \"Diagnostico eletronico do veiculo\",\n  \"precoEmCentavos\": 18000\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/servicos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "servicos"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Listar servicos",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/servicos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "servicos"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Criar peca",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.id) pm.collectionVariables.set('pecaId', json.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Sensor de teste\",\n  \"precoEmCentavos\": 7500,\n  \"quantidadeEstoque\": 5\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/pecas",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pecas"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Ajustar estoque",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"quantidadeEstoque\": 10\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/pecas/{{pecaId}}/estoque",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pecas",
+                "{{pecaId}}",
+                "estoque"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Ordens de Servico",
+      "item": [
+        {
+          "name": "Abrir OS com servicos e pecas",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.id) pm.collectionVariables.set('ordemServicoId', json.id);",
+                  "if (json.codigoAcompanhamento) pm.collectionVariables.set('codigoAcompanhamento', json.codigoAcompanhamento);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"clienteId\": \"{{clienteId}}\",\n  \"veiculoId\": \"{{veiculoId}}\",\n  \"servicos\": [\n    {\n      \"servicoId\": \"{{servicoId}}\"\n    }\n  ],\n  \"pecas\": [\n    {\n      \"pecaId\": \"{{pecaId}}\",\n      \"quantidade\": 2\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/ordens-servico",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ordens-servico"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Listar OS ativas priorizadas",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/ordens-servico",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ordens-servico"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Iniciar diagnostico",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/ordens-servico/{{ordemServicoId}}/iniciar-diagnostico",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ordens-servico",
+                "{{ordemServicoId}}",
+                "iniciar-diagnostico"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Gerar orcamento",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/ordens-servico/{{ordemServicoId}}/gerar-orcamento",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ordens-servico",
+                "{{ordemServicoId}}",
+                "gerar-orcamento"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Enviar orcamento por email",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/ordens-servico/{{ordemServicoId}}/enviar-orcamento",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ordens-servico",
+                "{{ordemServicoId}}",
+                "enviar-orcamento"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Aprovar orcamento administrativo",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/ordens-servico/{{ordemServicoId}}/aprovar-orcamento",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ordens-servico",
+                "{{ordemServicoId}}",
+                "aprovar-orcamento"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Iniciar execucao",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/ordens-servico/{{ordemServicoId}}/iniciar-execucao",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ordens-servico",
+                "{{ordemServicoId}}",
+                "iniciar-execucao"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Finalizar servico",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/ordens-servico/{{ordemServicoId}}/finalizar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ordens-servico",
+                "{{ordemServicoId}}",
+                "finalizar"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Entregar veiculo",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/ordens-servico/{{ordemServicoId}}/entregar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ordens-servico",
+                "{{ordemServicoId}}",
+                "entregar"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Publico e Webhook",
+      "auth": {
+        "type": "noauth"
+      },
+      "item": [
+        {
+          "name": "Consultar status publico",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/consulta/os/{{codigoAcompanhamento}}/status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "consulta",
+                "os",
+                "{{codigoAcompanhamento}}",
+                "status"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Aprovar orcamento por webhook",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/webhook/orcamento/aprovar?token={{webhookTokenAprovacao}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "webhook",
+                "orcamento",
+                "aprovar"
+              ],
+              "query": [
+                {
+                  "key": "token",
+                  "value": "{{webhookTokenAprovacao}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Recusar orcamento por webhook",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/webhook/orcamento/recusar?token={{webhookTokenRecusa}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "webhook",
+                "orcamento",
+                "recusar"
+              ],
+              "query": [
+                {
+                  "key": "token",
+                  "value": "{{webhookTokenRecusa}}"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Relatorios",
+      "item": [
+        {
+          "name": "Tempo medio de execucao",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/relatorios/tempo-medio-execucao",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "relatorios",
+                "tempo-medio-execucao"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

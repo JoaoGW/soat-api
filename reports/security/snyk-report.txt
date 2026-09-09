@@ -1,0 +1,51 @@
+
+Testing E:\Coding\NestJS\tech-challenge-01...
+
+Tested 180 dependencies for known issues, found 9 issues, 14 vulnerable paths.
+
+
+Issues to fix by upgrading:
+
+  Upgrade @nestjs/core@11.0.1 to @nestjs/core@11.1.18 to fix
+  ✗ Improper Neutralization of Special Elements in Output Used by a Downstream Component ('Injection') [Medium Severity][https://security.snyk.io/vuln/SNYK-JS-NESTJSCORE-15920868] in @nestjs/core@11.0.1
+    introduced by @nestjs/core@11.0.1
+  ✗ Regular Expression Denial of Service (ReDoS) [High Severity][https://security.snyk.io/vuln/SNYK-JS-PATHTOREGEXP-15789763] in path-to-regexp@8.2.0
+    introduced by @nestjs/core@11.0.1 > path-to-regexp@8.2.0 and 2 other path(s)
+  ✗ Regular Expression Denial of Service (ReDoS) [High Severity][https://security.snyk.io/vuln/SNYK-JS-PATHTOREGEXP-15789765] in path-to-regexp@8.2.0
+    introduced by @nestjs/core@11.0.1 > path-to-regexp@8.2.0 and 2 other path(s)
+  ✗ Always-Incorrect Control Flow Implementation [High Severity][https://security.snyk.io/vuln/SNYK-JS-NESTJSCORE-15682556] in @nestjs/core@11.0.1
+    introduced by @nestjs/core@11.0.1
+
+  Upgrade @nestjs/platform-express@11.1.11 to @nestjs/platform-express@11.1.18 to fix
+  ✗ Regular Expression Denial of Service (ReDoS) [High Severity][https://security.snyk.io/vuln/SNYK-JS-PATHTOREGEXP-15789763] in path-to-regexp@8.2.0
+    introduced by @nestjs/core@11.0.1 > path-to-regexp@8.2.0 and 2 other path(s)
+  ✗ Regular Expression Denial of Service (ReDoS) [High Severity][https://security.snyk.io/vuln/SNYK-JS-PATHTOREGEXP-15789765] in path-to-regexp@8.2.0
+    introduced by @nestjs/core@11.0.1 > path-to-regexp@8.2.0 and 2 other path(s)
+  ✗ Uncontrolled Recursion [High Severity][https://security.snyk.io/vuln/SNYK-JS-MULTER-15417528] in multer@2.0.2
+    introduced by @nestjs/platform-express@11.1.11 > multer@2.0.2
+  ✗ Missing Release of Resource after Effective Lifetime [High Severity][https://security.snyk.io/vuln/SNYK-JS-MULTER-15365916] in multer@2.0.2
+    introduced by @nestjs/platform-express@11.1.11 > multer@2.0.2
+  ✗ Incomplete Cleanup [High Severity][https://security.snyk.io/vuln/SNYK-JS-MULTER-15365918] in multer@2.0.2
+    introduced by @nestjs/platform-express@11.1.11 > multer@2.0.2
+
+  Upgrade prisma@6.17.1 to prisma@6.19.3 to fix
+  ✗ Race Condition [Critical Severity][https://security.snyk.io/vuln/SNYK-JS-EFFECT-15746380] in effect@3.16.12
+    introduced by prisma@6.17.1 > @prisma/config@6.17.1 > effect@3.16.12
+
+
+Issues with no direct upgrade or patch:
+  ✗ Allocation of Resources Without Limits or Throttling [High Severity][https://security.snyk.io/vuln/SNYK-JS-QS-15268416] in qs@6.14.1
+    introduced by @nestjs/platform-express@11.1.11 > express@5.2.1 > qs@6.14.1 and 1 other path(s)
+  This issue was fixed in versions: 6.14.2
+
+
+
+Organization:      joaogw
+Package manager:   npm
+Target file:       package-lock.json
+Project name:      nest-typescript-starter
+Open source:       no
+Project path:      E:\Coding\NestJS\tech-challenge-01
+Licenses:          enabled
+
+

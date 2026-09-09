@@ -1,0 +1,119 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Cliente {
+  id        String           @id
+  nome      String
+  documento String           @unique
+  tipo      String
+  contato   String
+  ativo     Boolean          @default(true)
+  veiculos  Veiculo[]
+  ordens    OrdemDeServico[]
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+}
+
+model Veiculo {
+  id        String           @id
+  clienteId String
+  placa     String           @unique
+  marca     String
+  modelo    String
+  ano       Int
+  ativo     Boolean          @default(true)
+  cliente   Cliente          @relation(fields: [clienteId], references: [id], onDelete: Restrict)
+  ordens    OrdemDeServico[]
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  @@index([clienteId])
+}
+
+model Servico {
+  id        String          @id
+  nome      String
+  descricao String
+  preco     Int
+  ativo     Boolean         @default(true)
+  itensOS   ItemServicoOS[]
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+}
+
+model Peca {
+  id                String   @id
+  nome              String
+  preco             Int
+  quantidadeEstoque Int
+  ativo             Boolean  @default(true)
+  itensOS           ItemOS[]
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model OrdemDeServico {
+  id                   String              @id
+  codigoAcompanhamento String              @unique
+  clienteId            String
+  veiculoId            String
+  status               String
+  valorTotal           Int                 @default(0)
+  orcamentoGerado      Boolean             @default(false)
+  orcamentoAprovado    Boolean             @default(false)
+  dataInicioExecucao   DateTime?
+  dataFinalizacao      DateTime?
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+  cliente              Cliente             @relation(fields: [clienteId], references: [id], onDelete: Restrict)
+  veiculo              Veiculo             @relation(fields: [veiculoId], references: [id], onDelete: Restrict)
+  itens                ItemOS[]
+  servicos             ItemServicoOS[]
+  historicoStatus      HistoricoStatusOS[]
+
+  @@index([clienteId])
+  @@index([status])
+  @@index([veiculoId])
+}
+
+model ItemOS {
+  id            String         @id @default(cuid())
+  osId          String
+  pecaId        String
+  quantidade    Int
+  precoUnitario Int
+  os            OrdemDeServico @relation(fields: [osId], references: [id], onDelete: Restrict)
+  peca          Peca           @relation(fields: [pecaId], references: [id], onDelete: Restrict)
+
+  @@index([osId])
+  @@index([pecaId])
+}
+
+model ItemServicoOS {
+  id            String         @id @default(cuid())
+  osId          String
+  servicoId     String
+  precoUnitario Int
+  os            OrdemDeServico @relation(fields: [osId], references: [id], onDelete: Restrict)
+  servico       Servico        @relation(fields: [servicoId], references: [id], onDelete: Restrict)
+
+  @@index([osId])
+  @@index([servicoId])
+}
+
+model HistoricoStatusOS {
+  id         String          @id @default(cuid())
+  osId       String
+  status     String
+  ocorridoEm DateTime
+  os         OrdemDeServico @relation(fields: [osId], references: [id], onDelete: Restrict)
+
+  @@index([osId, ocorridoEm])
+  @@index([status])
+}

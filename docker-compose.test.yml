@@ -1,0 +1,12 @@
+version: '3.8'
+
+services:
+  postgres-test:
+    image: postgres:16
+    container_name: oficina-postgres-test
+    ports:
+      - '5433:5432'
+    environment:
+      POSTGRES_USER: test_user
+      POSTGRES_PASSWORD: test_password
+      POSTGRES_DB: oficina_test_db
