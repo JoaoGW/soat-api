@@ -11,6 +11,25 @@ Challenge. Ele separa dois artefatos com finalidades distintas:
 Os documentos descrevem a arquitetura-alvo. A existência de uma decisão não
 significa que o recurso correspondente já esteja provisionado na nuvem.
 
+## Mapa de responsabilidades dos repositórios
+
+```mermaid
+flowchart LR
+    API[soat-api\nAPI NestJS, Prisma e documentação central]
+    AUTH[soat-auth-function\nAutenticação CPF e JWT]
+    AKS[soat-aks-infra\nAKS, rede, Kong e observabilidade]
+    PG[soat-postgres-infra\nPostgreSQL gerenciado e rede privada]
+
+    AUTH --> API
+    API --> PG
+    AKS --> API
+    AKS --> AUTH
+    AKS --> PG
+```
+
+O diagrama descreve responsabilidades e integrações alvo. O provisionamento
+dos recursos Azure permanece fora da Fase 2.
+
 ## RFCs
 
 | RFC | Tema | Situação |

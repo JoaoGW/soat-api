@@ -23,8 +23,11 @@ npm run test:e2e
 docker compose -f docker-compose.test.yml down
 ```
 
-Configure as variáveis descritas em `.env.example`. Para testes, use
-`.env.test` e nunca a URL de um banco de produção.
+## Variáveis
+
+Configure as variáveis descritas em `.env.example`. Para testes locais, copie
+`.env.test.example` para `.env.test`; esse arquivo local é ignorado pelo Git e
+nunca deve conter uma URL ou segredo de produção.
 
 ## Entrega e arquitetura
 
@@ -32,6 +35,8 @@ Configure as variáveis descritas em `.env.example`. Para testes, use
 - Collection: `docs/postman/oficina-api.postman_collection.json`;
 - Testes: `docs/testes.md`;
 - RFCs e ADRs: `docs/architecture/README.md`.
+- Diagrama central dos quatro repositórios:
+  `docs/architecture/README.md#mapa-de-responsabilidades-dos-repositórios`.
 
 O deploy Azure, o gateway e a publicação de imagens serão implementados nas
 próximas fases. Não há infraestrutura Kind, Kubernetes local ou CD neste
@@ -39,5 +44,6 @@ repositório.
 
 ## CI
 
-O workflow valida Prisma, lint, build, testes unitários com cobertura e testes
-e2e contra PostgreSQL em todo push ou pull request para `main` e `development`.
+O [workflow CI](https://github.com/JoaoGW/soat-api/actions/workflows/ci.yml)
+valida Prisma, lint, build, testes unitários com cobertura e testes e2e contra
+PostgreSQL em todo push ou pull request para `main` e `development`.
