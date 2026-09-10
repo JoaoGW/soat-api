@@ -59,3 +59,22 @@ jobs:
       - run: npx prisma migrate deploy
       - run: npm run test:cov -- --runInBand
       - run: npm run test:e2e -- --runInBand
+
+  manifests:
+    name: Validar manifests Kustomize
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Renderizar os ambientes e o job de migration
+        run: |
+          kubectl kustomize deploy/kustomize/overlays/hml > /tmp/hml.yaml
+          kubectl kustomize deploy/kustomize/overlays/prod > /tmp/prod.yaml
+          kubectl kustomize deploy/kustomize/migration/overlays/hml > /tmp/migration-hml.yaml
+          ! grep -R ':latest' /tmp/hml.yaml /tmp/prod.yaml /tmp/migration-hml.yaml
+      - name: Confirmar os controles de disponibilidade
+        run: |
+          grep -q 'kind: Ingress' /tmp/hml.yaml
+          grep -q 'replicas: 2' /tmp/prod.yaml
+          grep -q 'kind: HorizontalPodAutoscaler' /tmp/prod.yaml
+          grep -q 'kind: PodDisruptionBudget' /tmp/prod.yaml
+          grep -q 'kind: Job' /tmp/migration-hml.yaml

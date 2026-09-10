@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: soat-api
+  labels:
+    app.kubernetes.io/name: soat-api
+    app.kubernetes.io/part-of: soat
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: soat-api
+  ports:
+    - name: http
+      port: 80
+      targetPort: http

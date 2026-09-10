@@ -1,0 +1,122 @@
+name: Deploy imutável da API
+
+on:
+  push:
+    branches: [development, main]
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+
+env:
+  IMAGE_NAME: ghcr.io/joaogw/soat-api
+
+jobs:
+  build_and_publish:
+    name: Publicar imagem por SHA
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ env.IMAGE_NAME }}:${{ github.sha }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+      - name: Tornar o pacote público para o AKS sem credencial de pull
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: >-
+          gh api --method PATCH /user/packages/container/soat-api/visibility
+          -f visibility=public
+
+  deploy_hml:
+    name: Deploy hml
+    needs: build_and_publish
+    if: github.ref_name == 'development' && vars.TF_APPLY_ENABLED == 'true' && vars.AZURE_CLIENT_ID != ''
+    runs-on: ubuntu-latest
+    environment: hml
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - uses: azure/use-kubelogin@v1
+        with:
+          kubelogin-version: v0.1.4
+      - uses: imranismail/setup-kustomize@v2
+      - name: Autenticar no cluster AKS
+        run: |
+          az aks get-credentials \
+            --resource-group '${{ vars.AKS_RESOURCE_GROUP }}' \
+            --name '${{ vars.AKS_NAME }}' \
+            --overwrite-existing
+          kubelogin convert-kubeconfig -l azurecli
+      - name: Executar migrations antes do rollout
+        env:
+          ENVIRONMENT: hml
+          IMAGE: ${{ env.IMAGE_NAME }}:${{ github.sha }}
+          KEY_VAULT_NAME: ${{ vars.KEY_VAULT_NAME }}
+          AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+          API_WORKLOAD_CLIENT_ID: ${{ vars.API_WORKLOAD_CLIENT_ID }}
+        run: ./scripts/deploy-api.sh migration "$ENVIRONMENT" "$IMAGE"
+      - name: Aplicar Deployment da API
+        env:
+          ENVIRONMENT: hml
+          IMAGE: ${{ env.IMAGE_NAME }}:${{ github.sha }}
+          KEY_VAULT_NAME: ${{ vars.KEY_VAULT_NAME }}
+          AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+          API_WORKLOAD_CLIENT_ID: ${{ vars.API_WORKLOAD_CLIENT_ID }}
+        run: ./scripts/deploy-api.sh application "$ENVIRONMENT" "$IMAGE"
+
+  deploy_prod:
+    name: Deploy prod
+    needs: build_and_publish
+    if: github.ref_name == 'main' && vars.TF_APPLY_ENABLED == 'true' && vars.AZURE_CLIENT_ID != ''
+    runs-on: ubuntu-latest
+    environment: prod
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - uses: azure/use-kubelogin@v1
+        with:
+          kubelogin-version: v0.1.4
+      - uses: imranismail/setup-kustomize@v2
+      - name: Autenticar no cluster AKS
+        run: |
+          az aks get-credentials \
+            --resource-group '${{ vars.AKS_RESOURCE_GROUP }}' \
+            --name '${{ vars.AKS_NAME }}' \
+            --overwrite-existing
+          kubelogin convert-kubeconfig -l azurecli
+      - name: Executar migrations antes do rollout
+        env:
+          ENVIRONMENT: prod
+          IMAGE: ${{ env.IMAGE_NAME }}:${{ github.sha }}
+          KEY_VAULT_NAME: ${{ vars.KEY_VAULT_NAME }}
+          AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+          API_WORKLOAD_CLIENT_ID: ${{ vars.API_WORKLOAD_CLIENT_ID }}
+        run: ./scripts/deploy-api.sh migration "$ENVIRONMENT" "$IMAGE"
+      - name: Aplicar Deployment da API
+        env:
+          ENVIRONMENT: prod
+          IMAGE: ${{ env.IMAGE_NAME }}:${{ github.sha }}
+          KEY_VAULT_NAME: ${{ vars.KEY_VAULT_NAME }}
+          AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+          API_WORKLOAD_CLIENT_ID: ${{ vars.API_WORKLOAD_CLIENT_ID }}
+        run: ./scripts/deploy-api.sh application "$ENVIRONMENT" "$IMAGE"
