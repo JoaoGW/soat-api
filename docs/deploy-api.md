@@ -17,8 +17,9 @@ Antes de habilitar o deploy, a foundation do repositório `soat-aks-infra` deve
 ter sido aplicada após a conferência de custo. Ela cria o AKS com OIDC,
 Workload Identity e o add-on Secrets Store CSI, além das identities:
 
-- `api_hml` e `api_prod`: OIDC do GitHub, com Azure Kubernetes Service RBAC
-  Cluster Admin apenas no cluster e escrita somente no state;
+- `api_hml` e `api_prod`: OIDC do GitHub, com Azure Kubernetes Service Cluster
+  User Role e Azure Kubernetes Service RBAC Cluster Admin apenas no cluster,
+  além de escrita somente no state;
 - `api_workload[hml|prod]`: identity do ServiceAccount `soat-api`, com papel
   `Key Vault Secrets User` apenas no Key Vault.
 
