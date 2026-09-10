@@ -70,6 +70,7 @@ jobs:
           KEY_VAULT_NAME: ${{ vars.KEY_VAULT_NAME }}
           AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
           API_WORKLOAD_CLIENT_ID: ${{ vars.API_WORKLOAD_CLIENT_ID }}
+          APP_VERSION: ${{ github.sha }}
         run: ./scripts/deploy-api.sh migration "$ENVIRONMENT" "$IMAGE"
       - name: Aplicar Deployment da API
         env:
@@ -78,6 +79,7 @@ jobs:
           KEY_VAULT_NAME: ${{ vars.KEY_VAULT_NAME }}
           AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
           API_WORKLOAD_CLIENT_ID: ${{ vars.API_WORKLOAD_CLIENT_ID }}
+          APP_VERSION: ${{ github.sha }}
         run: ./scripts/deploy-api.sh application "$ENVIRONMENT" "$IMAGE"
 
   deploy_prod:
@@ -111,6 +113,7 @@ jobs:
           KEY_VAULT_NAME: ${{ vars.KEY_VAULT_NAME }}
           AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
           API_WORKLOAD_CLIENT_ID: ${{ vars.API_WORKLOAD_CLIENT_ID }}
+          APP_VERSION: ${{ github.sha }}
         run: ./scripts/deploy-api.sh migration "$ENVIRONMENT" "$IMAGE"
       - name: Aplicar Deployment da API
         env:
@@ -119,4 +122,5 @@ jobs:
           KEY_VAULT_NAME: ${{ vars.KEY_VAULT_NAME }}
           AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
           API_WORKLOAD_CLIENT_ID: ${{ vars.API_WORKLOAD_CLIENT_ID }}
+          APP_VERSION: ${{ github.sha }}
         run: ./scripts/deploy-api.sh application "$ENVIRONMENT" "$IMAGE"

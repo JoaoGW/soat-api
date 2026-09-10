@@ -31,7 +31,15 @@ spec:
               containerPort: 3000
           env:
             - name: NODE_ENV
-              value: production
+              value: __ENVIRONMENT__
+            - name: OBSERVABILITY_ENABLED
+              value: "true"
+            - name: OTEL_SERVICE_NAME
+              value: soat-api
+            - name: OTEL_SERVICE_VERSION
+              value: __APP_VERSION__
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: https://otlp.nr-data.net:4318
             - name: JWT_EXPIRES_IN
               value: 1d
             - name: JWT_CLIENT_ISSUER
@@ -52,7 +60,7 @@ spec:
               memory: 512Mi
           readinessProbe:
             httpGet:
-              path: /
+              path: /health
               port: http
             initialDelaySeconds: 10
             periodSeconds: 10
@@ -60,7 +68,7 @@ spec:
             failureThreshold: 3
           livenessProbe:
             httpGet:
-              path: /
+              path: /health
               port: http
             initialDelaySeconds: 30
             periodSeconds: 20

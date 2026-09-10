@@ -1,4 +1,4 @@
-# Decisões de arquitetura - Fases 3 a 5
+# Decisões de arquitetura - Fases 3 a 6
 
 Este diretório preserva a trilha de decisão arquitetural da Fase 3 do Tech
 Challenge. Ele separa dois artefatos com finalidades distintas:
@@ -19,7 +19,7 @@ flowchart LR
     AUTH[soat-auth-function\nAutenticação CPF e JWT de cliente]
     AKS[soat-aks-infra\nAKS, VNet, Kong, CSI e Key Vault]
     PG[soat-postgres-infra\nPostgreSQL gerenciado e rede privada]
-    OBS[Prometheus/Grafana\nFase 6]
+    OBS[New Relic Free\nOTel e métricas Kubernetes]
 
     AUTH --> API
     API --> PG
@@ -29,7 +29,7 @@ flowchart LR
     AKS --> OBS
 ```
 
-## Topologia implementada até a Fase 5
+## Topologia implementada até a Fase 6
 
 ```mermaid
 flowchart TB
@@ -40,7 +40,8 @@ flowchart TB
     FUNCTION[Function CPF\nPOST /auth/cpf]
     HML[Namespace hml\nAPI 1 réplica]
     PROD[Namespace prod\nAPI 2+ réplicas, interno]
-    OBS[Namespace observability\ncoleta na Fase 6]
+    OBS[Namespace observability\nnr-k8s-otel-collector]
+    NR[New Relic Free\ntraces, métricas e logs]
     KV[Azure Key Vault\nRBAC]
     PGHML[PostgreSQL hml\nprivado + TLS]
     PGPROD[PostgreSQL prod\nprivado + TLS]
@@ -60,13 +61,23 @@ flowchart TB
     PROD -->|CSI + Workload Identity| KV
     HML --> PGHML
     PROD --> PGPROD
+    HML -->|OTLP/HTTP| NR
+    FUNCTION -->|OTLP/HTTP| NR
+    OBS -->|métricas Kubernetes| NR
 ```
 
 O Terraform mantém `apply` bloqueado por trava de custo até a conferência de
 crédito, SKU e quota. A Function, o gateway de autenticação, o Deployment da
 API, HPA e PDB estão descritos nos repositórios correspondentes, mas não serão
-aplicados enquanto a trava estiver desligada. Prometheus/Grafana e
-observabilidade ativa pertencem à Fase 6.
+aplicados enquanto a trava estiver desligada. A observabilidade ativa pertence
+à Fase 6 e também permanece sem apply enquanto a trava estiver desligada.
+
+A observabilidade da Fase 6 usa OpenTelemetry e New Relic Free. O coletor
+`nr-k8s-otel-collector` cobre nós, CPU, memória, pods, eventos e
+`kube-state-metrics`; API e Function enviam traces, logs e métricas de negócio
+por OTLP/HTTP. A coleta de logs de containers permanece desabilitada para
+evitar duplicidade. Não são usados Prometheus, Grafana, Azure Monitor ou
+mudanças no `soat-postgres-infra` nesta fase.
 
 ## RFCs
 
