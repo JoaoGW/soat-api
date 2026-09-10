@@ -25,7 +25,7 @@ import { AtualizarServicoUseCase } from '../../../application/use-cases/servico/
 import { RemoverServicoUseCase } from '../../../application/use-cases/servico/RemoverServicoUseCase';
 
 @ApiTags('Servicos')
-@ApiBearerAuth('JWT')
+@ApiBearerAuth('JWT_ADMIN')
 @Controller('servicos')
 @UseGuards(JwtAuthGuard)
 export class ServicoController {

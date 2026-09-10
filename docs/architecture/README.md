@@ -1,4 +1,4 @@
-# Decisões de arquitetura - Fase 3
+# Decisões de arquitetura - Fases 3 a 5
 
 Este diretório preserva a trilha de decisão arquitetural da Fase 3 do Tech
 Challenge. Ele separa dois artefatos com finalidades distintas:
@@ -15,9 +15,9 @@ significa que o recurso correspondente já esteja provisionado na nuvem.
 
 ```mermaid
 flowchart LR
-    API[soat-api\nAPI NestJS, Prisma e documentação central]
-    AUTH[soat-auth-function\nAutenticação CPF e JWT]
-    AKS[soat-aks-infra\nAKS, VNet, Kong e Key Vault]
+    API[soat-api\nAPI NestJS, JWT de cliente e deploy Kustomize]
+    AUTH[soat-auth-function\nAutenticação CPF e JWT de cliente]
+    AKS[soat-aks-infra\nAKS, VNet, Kong, CSI e Key Vault]
     PG[soat-postgres-infra\nPostgreSQL gerenciado e rede privada]
     OBS[Prometheus/Grafana\nFase 6]
 
@@ -29,36 +29,44 @@ flowchart LR
     AKS --> OBS
 ```
 
-## Topologia implementada na Fase 3
+## Topologia implementada até a Fase 5
 
 ```mermaid
 flowchart TB
+    CLIENTE[Cliente autenticado\nJWT CPF]
     GH[GitHub Actions\nOIDC sem client secret]
     AKS[AKS compartilhado\nAzure RBAC + Workload Identity]
     KONG[Kong público\nnamespace kong]
-    HML[Namespace hml]
-    PROD[Namespace prod]
+    FUNCTION[Function CPF\nPOST /auth/cpf]
+    HML[Namespace hml\nAPI 1 réplica]
+    PROD[Namespace prod\nAPI 2+ réplicas, interno]
     OBS[Namespace observability\ncoleta na Fase 6]
     KV[Azure Key Vault\nRBAC]
     PGHML[PostgreSQL hml\nprivado + TLS]
     PGPROD[PostgreSQL prod\nprivado + TLS]
 
-    GH --> AKS
+    CLIENTE --> KONG
+    KONG -->|POST /auth/cpf, exato| FUNCTION
+    KONG -->|demais rotas hml| HML
+    FUNCTION --> CLIENTE
+    GH -->|imagem GHCR por SHA| AKS
     GH --> PGHML
     GH --> PGPROD
     KONG --> AKS
     AKS --> HML
     AKS --> PROD
     AKS --> OBS
-    HML --> KV
-    PROD --> KV
+    HML -->|CSI + Workload Identity| KV
+    PROD -->|CSI + Workload Identity| KV
     HML --> PGHML
     PROD --> PGPROD
 ```
 
-O Terraform da Fase 3 implementa a topologia e mantém `apply` bloqueado por
-trava de custo até a conferência de crédito, SKU e quota. Function, rotas Kong,
-Deployment da API, HPA/PDB e observabilidade ativa pertencem às fases 4, 5 e 6.
+O Terraform mantém `apply` bloqueado por trava de custo até a conferência de
+crédito, SKU e quota. A Function, o gateway de autenticação, o Deployment da
+API, HPA e PDB estão descritos nos repositórios correspondentes, mas não serão
+aplicados enquanto a trava estiver desligada. Prometheus/Grafana e
+observabilidade ativa pertencem à Fase 6.
 
 ## RFCs
 

@@ -33,7 +33,7 @@ import { PlacaJaCadastradaError } from '../../../domain/errors/PlacaJaCadastrada
 import { PlacaVeiculoInvalidaError } from '../../../domain/errors/PlacaVeiculoInvalidaError';
 
 @ApiTags('Veiculos')
-@ApiBearerAuth('JWT')
+@ApiBearerAuth('JWT_ADMIN')
 @Controller('veiculos')
 @UseGuards(JwtAuthGuard)
 export class VeiculoController {

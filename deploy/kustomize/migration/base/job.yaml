@@ -1,0 +1,45 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: soat-api-migrate
+  labels:
+    app.kubernetes.io/name: soat-api
+    app.kubernetes.io/component: migration
+spec:
+  backoffLimit: 2
+  ttlSecondsAfterFinished: 600
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: soat-api
+        app.kubernetes.io/component: migration
+        azure.workload.identity/use: "true"
+    spec:
+      restartPolicy: Never
+      serviceAccountName: soat-api
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      containers:
+        - name: migrate
+          image: ghcr.io/joaogw/soat-api:sha-not-set
+          command: ["npx", "prisma", "migrate", "deploy"]
+          env:
+            - name: NODE_ENV
+              value: production
+          envFrom:
+            - secretRef:
+                name: soat-api-runtime
+          volumeMounts:
+            - name: key-vault-secrets
+              mountPath: /mnt/secrets-store
+              readOnly: true
+      volumes:
+        - name: key-vault-secrets
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: soat-api-key-vault
