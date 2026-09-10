@@ -31,6 +31,9 @@ jobs:
       DATABASE_URL: postgresql://test_user:test_password@localhost:5433/oficina_test_db
       JWT_SECRET: test-secret-with-at-least-32-characters
       JWT_EXPIRES_IN: 1d
+      JWT_CLIENT_SECRET: test-client-secret-with-at-least-32-characters
+      JWT_CLIENT_ISSUER: soat-auth-function
+      JWT_CLIENT_AUDIENCE: soat-api
       ADMIN_USERNAME: admin
       ADMIN_PASSWORD_HASH: $2b$10$12kw18n1pMwBIluxZQxh1O.zpsHVW.lRC9lmwyWCtKIOcC.49x5.O
       MAIL_HOST: smtp.test.local

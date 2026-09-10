@@ -55,7 +55,9 @@ import { OrdemDeServicoController } from './interfaces/controllers/admin/OrdemDe
 import { PecaController } from './interfaces/controllers/admin/PecaController';
 import { ServicoController } from './interfaces/controllers/admin/ServicoController';
 import { VeiculoController } from './interfaces/controllers/admin/VeiculoController';
+import { ClienteOrdemServicoController } from './interfaces/controllers/cliente/ClienteOrdemServicoController';
 import { JwtAuthGuard } from './interfaces/guards/JwtAuthGuard';
+import { JwtClienteAuthGuard } from './interfaces/guards/JwtClienteAuthGuard';
 import { AuthModule } from './modules/auth.module';
 import { PublicoModule } from './modules/publico.module';
 import { RelatorioModule } from './modules/relatorio.module';
@@ -76,6 +78,7 @@ import { RepositoryModule } from './modules/repository.module';
     AppController,
     ClienteController,
     VeiculoController,
+    ClienteOrdemServicoController,
     ServicoController,
     PecaController,
     OrdemDeServicoController,
@@ -83,6 +86,7 @@ import { RepositoryModule } from './modules/repository.module';
   providers: [
     AppService,
     JwtAuthGuard,
+    JwtClienteAuthGuard,
     EmailAdapter,
     JwtOrcamentoWebhookTokenAdapter,
     {
