@@ -3,6 +3,7 @@ import {
   Controller,
   ForbiddenException,
   Get,
+  HttpCode,
   NotFoundException,
   Param,
   Post,
@@ -83,6 +84,7 @@ export class ClienteOrdemServicoController {
   }
 
   @Post(':id/aprovar-orcamento')
+  @HttpCode(200)
   @ApiOperation({ summary: 'Aprovar o orcamento da propria OS' })
   @ApiResponse({ status: 200, description: 'Orcamento aprovado com sucesso' })
   @ApiResponse({ status: 400, description: 'Status invalido para aprovacao' })
@@ -113,6 +115,7 @@ export class ClienteOrdemServicoController {
   }
 
   @Post(':id/recusar-orcamento')
+  @HttpCode(200)
   @ApiOperation({ summary: 'Recusar o orcamento da propria OS' })
   @ApiResponse({ status: 200, description: 'Orcamento recusado, OS cancelada' })
   @ApiResponse({ status: 400, description: 'Status invalido para recusa' })

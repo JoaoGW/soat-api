@@ -103,7 +103,7 @@ describe('Cliente - Ordens de Servico (e2e)', () => {
     await request(app.getHttpServer())
       .post(`/cliente/ordens-servico/${os.getId()}/aprovar-orcamento`)
       .set('Authorization', `Bearer ${await tokenCliente('cliente-1')}`)
-      .expect(201);
+      .expect(200);
 
     const osAtualizada = await osRepo.findById(os.getId());
     expect(osAtualizada?.orcamentoAprovado).toBe(true);
@@ -117,7 +117,7 @@ describe('Cliente - Ordens de Servico (e2e)', () => {
     await request(app.getHttpServer())
       .post(`/cliente/ordens-servico/${os.getId()}/recusar-orcamento`)
       .set('Authorization', `Bearer ${await tokenCliente('cliente-1')}`)
-      .expect(201);
+      .expect(200);
 
     const osAtualizada = await osRepo.findById(os.getId());
     expect(osAtualizada?.status).toBe(StatusOS.CANCELADA);
