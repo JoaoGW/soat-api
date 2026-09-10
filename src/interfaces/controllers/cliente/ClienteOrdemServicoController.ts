@@ -41,14 +41,40 @@ export class ClienteOrdemServicoController {
 
   @Get(':id')
   @ApiOperation({ summary: 'Consultar a propria ordem de servico' })
-  @ApiResponse({ status: 200, description: 'Ordem de servico encontrada' })
+  @ApiResponse({
+    status: 200,
+    description: 'Ordem de servico encontrada',
+    schema: {
+      example: {
+        id: '7d0f6d4e-9565-4f2a-a510-434da97d89e0',
+        codigoAcompanhamento: 'OS-2026-ABC123',
+        status: 'AGUARDANDO_APROVACAO',
+        valorTotalEmCentavos: 10000,
+        orcamentoGerado: true,
+        orcamentoAprovado: false,
+      },
+    },
+  })
   @ApiResponse({
     status: 401,
-    description: 'JWT de cliente ausente ou invalido',
+    description:
+      'Exemplo: token ausente, token inválido, issuer/audience incorretos ou papel administrativo.',
+    schema: {
+      example: {
+        statusCode: 401,
+        message: 'Unauthorized',
+      },
+    },
   })
   @ApiResponse({
     status: 403,
     description: 'Ordem de servico pertence a outro cliente',
+    schema: {
+      example: {
+        statusCode: 403,
+        message: 'Acesso negado para esta ordem de servico',
+      },
+    },
   })
   @ApiResponse({ status: 404, description: 'Ordem de servico nao encontrada' })
   async buscar(@Param('id') id: string, @Req() request: RequisicaoCliente) {
@@ -62,11 +88,18 @@ export class ClienteOrdemServicoController {
   @ApiResponse({ status: 400, description: 'Status invalido para aprovacao' })
   @ApiResponse({
     status: 401,
-    description: 'JWT de cliente ausente ou invalido',
+    description:
+      'Exemplo: token ausente, token inválido, issuer/audience incorretos ou papel administrativo.',
   })
   @ApiResponse({
     status: 403,
     description: 'Ordem de servico pertence a outro cliente',
+    schema: {
+      example: {
+        statusCode: 403,
+        message: 'Acesso negado para esta ordem de servico',
+      },
+    },
   })
   @ApiResponse({ status: 404, description: 'Ordem de servico nao encontrada' })
   async aprovar(@Param('id') id: string, @Req() request: RequisicaoCliente) {
@@ -85,11 +118,18 @@ export class ClienteOrdemServicoController {
   @ApiResponse({ status: 400, description: 'Status invalido para recusa' })
   @ApiResponse({
     status: 401,
-    description: 'JWT de cliente ausente ou invalido',
+    description:
+      'Exemplo: token ausente, token inválido, issuer/audience incorretos ou papel administrativo.',
   })
   @ApiResponse({
     status: 403,
     description: 'Ordem de servico pertence a outro cliente',
+    schema: {
+      example: {
+        statusCode: 403,
+        message: 'Acesso negado para esta ordem de servico',
+      },
+    },
   })
   @ApiResponse({ status: 404, description: 'Ordem de servico nao encontrada' })
   async recusar(@Param('id') id: string, @Req() request: RequisicaoCliente) {
