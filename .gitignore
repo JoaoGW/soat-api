@@ -408,6 +408,7 @@ Temporary Items
 
 # Local
 .env
+.env.test
 .env.docker
 dist
 .webpack
@@ -415,6 +416,7 @@ dist
 .env.local
 .env.*.local
 !.env.example
+!.env.test.example
 
 # Kubernetes local secrets
 k8s/secret.yaml
