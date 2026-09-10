@@ -5,10 +5,12 @@ import { PrismaOrdemDeServicoRepository } from '../infrastructure/repositories/P
 import { PrismaPecaRepository } from '../infrastructure/repositories/PrismaPecaRepository';
 import { PrismaServicoRepository } from '../infrastructure/repositories/PrismaServicoRepository';
 import { PrismaVeiculoRepository } from '../infrastructure/repositories/PrismaVeiculoRepository';
+import { ObservabilityService } from '../infrastructure/observability/ObservabilityService';
 
 @Module({
   providers: [
     PrismaService,
+    ObservabilityService,
     PrismaClienteRepository,
     PrismaVeiculoRepository,
     PrismaServicoRepository,
@@ -17,6 +19,7 @@ import { PrismaVeiculoRepository } from '../infrastructure/repositories/PrismaVe
   ],
   exports: [
     PrismaService,
+    ObservabilityService,
     PrismaClienteRepository,
     PrismaVeiculoRepository,
     PrismaServicoRepository,

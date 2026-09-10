@@ -19,6 +19,7 @@ esac
 : "${KEY_VAULT_NAME:?KEY_VAULT_NAME é obrigatório}"
 : "${AZURE_TENANT_ID:?AZURE_TENANT_ID é obrigatório}"
 : "${API_WORKLOAD_CLIENT_ID:?API_WORKLOAD_CLIENT_ID é obrigatório}"
+: "${APP_VERSION:?APP_VERSION é obrigatório}"
 
 if [[ "$image" == *":latest" || "$image" != *":${GITHUB_SHA:-}" ]]; then
   echo "A imagem precisa usar exatamente o SHA do commit atual." >&2
@@ -35,6 +36,7 @@ find "$workspace/deploy" -type f -name '*.yaml' -print0 | xargs -0 \
   -e "s|__KEY_VAULT_NAME__|$KEY_VAULT_NAME|g" \
   -e "s|__AZURE_TENANT_ID__|$AZURE_TENANT_ID|g" \
   -e "s|__API_WORKLOAD_CLIENT_ID__|$API_WORKLOAD_CLIENT_ID|g"
+  -e "s|__APP_VERSION__|$APP_VERSION|g"
 
 cd "$workspace/$overlay"
 kustomize edit set image "ghcr.io/joaogw/soat-api=$image"
