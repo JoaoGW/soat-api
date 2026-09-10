@@ -17,18 +17,48 @@ significa que o recurso correspondente já esteja provisionado na nuvem.
 flowchart LR
     API[soat-api\nAPI NestJS, Prisma e documentação central]
     AUTH[soat-auth-function\nAutenticação CPF e JWT]
-    AKS[soat-aks-infra\nAKS, rede, Kong e observabilidade]
+    AKS[soat-aks-infra\nAKS, VNet, Kong e Key Vault]
     PG[soat-postgres-infra\nPostgreSQL gerenciado e rede privada]
+    OBS[Prometheus/Grafana\nFase 6]
 
     AUTH --> API
     API --> PG
     AKS --> API
     AKS --> AUTH
     AKS --> PG
+    AKS --> OBS
 ```
 
-O diagrama descreve responsabilidades e integrações alvo. O provisionamento
-dos recursos Azure permanece fora da Fase 2.
+## Topologia implementada na Fase 3
+
+```mermaid
+flowchart TB
+    GH[GitHub Actions\nOIDC sem client secret]
+    AKS[AKS compartilhado\nAzure RBAC + Workload Identity]
+    KONG[Kong público\nnamespace kong]
+    HML[Namespace hml]
+    PROD[Namespace prod]
+    OBS[Namespace observability\ncoleta na Fase 6]
+    KV[Azure Key Vault\nRBAC]
+    PGHML[PostgreSQL hml\nprivado + TLS]
+    PGPROD[PostgreSQL prod\nprivado + TLS]
+
+    GH --> AKS
+    GH --> PGHML
+    GH --> PGPROD
+    KONG --> AKS
+    AKS --> HML
+    AKS --> PROD
+    AKS --> OBS
+    HML --> KV
+    PROD --> KV
+    HML --> PGHML
+    PROD --> PGPROD
+```
+
+O Terraform da Fase 3 implementa a topologia e mantém `apply` bloqueado por
+trava de custo até a conferência de crédito, SKU e quota. Function, rotas Kong,
+Deployment da API, HPA/PDB e observabilidade ativa pertencem às fases 4, 5 e 6.
 
 ## RFCs
 
