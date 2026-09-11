@@ -32,13 +32,6 @@ jobs:
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
-      - name: Tornar o pacote público para o AKS sem credencial de pull
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: >-
-          gh api --method PATCH /user/packages/container/soat-api/visibility
-          -f visibility=public
-
   deploy_hml:
     name: Deploy hml
     needs: build_and_publish
