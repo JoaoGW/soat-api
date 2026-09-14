@@ -1,6 +1,7 @@
 name: Deploy imutável da API
 
 on:
+  workflow_dispatch:
   push:
     branches: [development, main]
 
