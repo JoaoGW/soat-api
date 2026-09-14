@@ -42,13 +42,13 @@ cd "$workspace/$overlay"
 kustomize edit set image "ghcr.io/joaogw/soat-api=$image"
 
 if [[ "$mode" == "migration" ]]; then
-  kubectl -n "$environment" apply \
+  kubectl -n "$environment" apply --server-side --field-manager=soat-api-deploy \
     -f "$workspace/deploy/kustomize/base/serviceaccount.yaml" \
     -f "$workspace/deploy/kustomize/base/secret-provider-class.yaml"
   kubectl -n "$environment" delete job soat-api-migrate --ignore-not-found=true
-  kubectl apply -k .
+  kubectl apply --server-side --field-manager=soat-api-deploy -k .
   kubectl -n "$environment" wait --for=condition=complete job/soat-api-migrate --timeout=10m
 else
-  kubectl apply -k .
+  kubectl apply --server-side --field-manager=soat-api-deploy -k .
   kubectl -n "$environment" rollout status deployment/soat-api --timeout=10m
 fi
