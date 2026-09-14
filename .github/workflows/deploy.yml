@@ -36,21 +36,35 @@ jobs:
   deploy_hml:
     name: Deploy hml
     needs: build_and_publish
-    if: github.ref_name == 'development' && vars.TF_APPLY_ENABLED == 'true' && vars.AZURE_CLIENT_ID != ''
+    if: github.ref_name == 'development'
     runs-on: ubuntu-latest
     environment: hml
     steps:
+      - name: Verificar autorização de deploy
+        id: gate
+        run: |
+          if [[ '${{ vars.TF_APPLY_ENABLED }}' == 'true' && -n '${{ vars.AZURE_CLIENT_ID }}' ]]; then
+            echo 'deploy=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'deploy=false' >> "$GITHUB_OUTPUT"
+            echo 'Deploy HML bloqueado pela trava de custo.'
+          fi
       - uses: actions/checkout@v4
+        if: steps.gate.outputs.deploy == 'true'
       - uses: azure/login@v2
+        if: steps.gate.outputs.deploy == 'true'
         with:
           client-id: ${{ vars.AZURE_CLIENT_ID }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
       - uses: azure/use-kubelogin@v1
+        if: steps.gate.outputs.deploy == 'true'
         with:
           kubelogin-version: v0.1.4
       - uses: imranismail/setup-kustomize@v2
+        if: steps.gate.outputs.deploy == 'true'
       - name: Autenticar no cluster AKS
+        if: steps.gate.outputs.deploy == 'true'
         run: |
           az aks get-credentials \
             --resource-group '${{ vars.AKS_RESOURCE_GROUP }}' \
@@ -58,6 +72,7 @@ jobs:
             --overwrite-existing
           kubelogin convert-kubeconfig -l azurecli
       - name: Executar migrations antes do rollout
+        if: steps.gate.outputs.deploy == 'true'
         env:
           ENVIRONMENT: hml
           IMAGE: ${{ env.IMAGE_NAME }}:${{ github.sha }}
@@ -67,6 +82,7 @@ jobs:
           APP_VERSION: ${{ github.sha }}
         run: ./scripts/deploy-api.sh migration "$ENVIRONMENT" "$IMAGE"
       - name: Aplicar Deployment da API
+        if: steps.gate.outputs.deploy == 'true'
         env:
           ENVIRONMENT: hml
           IMAGE: ${{ env.IMAGE_NAME }}:${{ github.sha }}
@@ -79,21 +95,35 @@ jobs:
   deploy_prod:
     name: Deploy prod
     needs: build_and_publish
-    if: github.ref_name == 'main' && vars.TF_APPLY_ENABLED == 'true' && vars.AZURE_CLIENT_ID != ''
+    if: github.ref_name == 'main'
     runs-on: ubuntu-latest
     environment: prod
     steps:
+      - name: Verificar autorização de deploy
+        id: gate
+        run: |
+          if [[ '${{ vars.TF_APPLY_ENABLED }}' == 'true' && -n '${{ vars.AZURE_CLIENT_ID }}' ]]; then
+            echo 'deploy=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'deploy=false' >> "$GITHUB_OUTPUT"
+            echo 'Deploy PROD bloqueado pela trava de custo.'
+          fi
       - uses: actions/checkout@v4
+        if: steps.gate.outputs.deploy == 'true'
       - uses: azure/login@v2
+        if: steps.gate.outputs.deploy == 'true'
         with:
           client-id: ${{ vars.AZURE_CLIENT_ID }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
       - uses: azure/use-kubelogin@v1
+        if: steps.gate.outputs.deploy == 'true'
         with:
           kubelogin-version: v0.1.4
       - uses: imranismail/setup-kustomize@v2
+        if: steps.gate.outputs.deploy == 'true'
       - name: Autenticar no cluster AKS
+        if: steps.gate.outputs.deploy == 'true'
         run: |
           az aks get-credentials \
             --resource-group '${{ vars.AKS_RESOURCE_GROUP }}' \
@@ -101,6 +131,7 @@ jobs:
             --overwrite-existing
           kubelogin convert-kubeconfig -l azurecli
       - name: Executar migrations antes do rollout
+        if: steps.gate.outputs.deploy == 'true'
         env:
           ENVIRONMENT: prod
           IMAGE: ${{ env.IMAGE_NAME }}:${{ github.sha }}
@@ -110,6 +141,7 @@ jobs:
           APP_VERSION: ${{ github.sha }}
         run: ./scripts/deploy-api.sh migration "$ENVIRONMENT" "$IMAGE"
       - name: Aplicar Deployment da API
+        if: steps.gate.outputs.deploy == 'true'
         env:
           ENVIRONMENT: prod
           IMAGE: ${{ env.IMAGE_NAME }}:${{ github.sha }}
