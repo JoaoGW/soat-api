@@ -35,7 +35,7 @@ find "$workspace/deploy" -type f -name '*.yaml' -print0 | xargs -0 \
   -e "s|__ENVIRONMENT__|$environment|g" \
   -e "s|__KEY_VAULT_NAME__|$KEY_VAULT_NAME|g" \
   -e "s|__AZURE_TENANT_ID__|$AZURE_TENANT_ID|g" \
-  -e "s|__API_WORKLOAD_CLIENT_ID__|$API_WORKLOAD_CLIENT_ID|g"
+  -e "s|__API_WORKLOAD_CLIENT_ID__|$API_WORKLOAD_CLIENT_ID|g" \
   -e "s|__APP_VERSION__|$APP_VERSION|g"
 
 cd "$workspace/$overlay"
