@@ -1,4 +1,4 @@
-# Decisões de arquitetura - Fases 3 a 6
+# Decisões de arquitetura - Fases 3 a 7
 
 Este diretório preserva a trilha de decisão arquitetural da Fase 3 do Tech
 Challenge. Ele separa dois artefatos com finalidades distintas:
@@ -8,8 +8,9 @@ Challenge. Ele separa dois artefatos com finalidades distintas:
 - **ADR (Architecture Decision Record):** registra uma decisão que passa a
   orientar a implementação e suas consequências.
 
-Os documentos descrevem a arquitetura-alvo. A existência de uma decisão não
-significa que o recurso correspondente já esteja provisionado na nuvem.
+Os RFCs registram alternativas avaliadas; os ADRs registram decisões tomadas.
+O estado operacional abaixo distingue explicitamente o que está comprovado em
+homologação do que permanece interno em produção.
 
 ## Mapa de responsabilidades dos repositórios
 
@@ -29,7 +30,7 @@ flowchart LR
     AKS --> OBS
 ```
 
-## Topologia implementada até a Fase 6
+## Topologia operacional comprovada em homologação
 
 ```mermaid
 flowchart TB
@@ -39,12 +40,12 @@ flowchart TB
     KONG[Kong público\nnamespace kong]
     FUNCTION[Function CPF\nPOST /auth/cpf]
     HML[Namespace hml\nAPI 1 réplica]
-    PROD[Namespace prod\nAPI 2+ réplicas, interno]
+    PROD[Namespace prod\nplanejado, interno]
     OBS[Namespace observability\nnr-k8s-otel-collector]
     NR[New Relic Free\ntraces, métricas e logs]
     KV[Azure Key Vault\nRBAC]
     PGHML[PostgreSQL hml\nprivado + TLS]
-    PGPROD[PostgreSQL prod\nprivado + TLS]
+    PGPROD[PostgreSQL prod\nplanejado, privado + TLS]
 
     CLIENTE --> KONG
     KONG -->|POST /auth/cpf, exato| FUNCTION
@@ -52,25 +53,30 @@ flowchart TB
     FUNCTION --> CLIENTE
     GH -->|imagem GHCR por SHA| AKS
     GH --> PGHML
-    GH --> PGPROD
+    GH -. promoção futura .-> PGPROD
     KONG --> AKS
     AKS --> HML
-    AKS --> PROD
+    AKS -. namespace interno .-> PROD
     AKS --> OBS
     HML -->|CSI + Workload Identity| KV
-    PROD -->|CSI + Workload Identity| KV
+    PROD -. CSI + Workload Identity .-> KV
     HML --> PGHML
-    PROD --> PGPROD
+    PROD -.-> PGPROD
     HML -->|OTLP/HTTP| NR
     FUNCTION -->|OTLP/HTTP| NR
     OBS -->|métricas Kubernetes| NR
 ```
 
-O Terraform mantém `apply` bloqueado por trava de custo até a conferência de
-crédito, SKU e quota. A Function, o gateway de autenticação, o Deployment da
-API, HPA e PDB estão descritos nos repositórios correspondentes, mas não serão
-aplicados enquanto a trava estiver desligada. A observabilidade ativa pertence
-à Fase 6 e também permanece sem apply enquanto a trava estiver desligada.
+Em HML estão comprovados: Function de CPF, rota exata `/auth/cpf` no Kong,
+API NestJS por imagem GHCR identificada pelo SHA do commit, PostgreSQL privado,
+Key Vault, traces, logs, métricas, coletor Kubernetes, dashboard e monitores
+de saúde. As travas de `apply` foram restauradas para desligadas após os
+deploys controlados.
+
+Produção tem namespace, banco e fluxo de promoção documentados como alvo, mas
+não é tratada aqui como evidência operacional: não há Deployment da API nem
+gateway público comprovados. HPA, PDB e ao menos duas réplicas serão aplicados
+junto do Deployment produtivo; não são evidência operacional de HML.
 
 A observabilidade da Fase 6 usa OpenTelemetry e New Relic Free. O coletor
 `nr-k8s-otel-collector` cobre nós, CPU, memória, pods, eventos e
@@ -78,6 +84,55 @@ A observabilidade da Fase 6 usa OpenTelemetry e New Relic Free. O coletor
 por OTLP/HTTP. A coleta de logs de containers permanece desabilitada para
 evitar duplicidade. Não são usados Prometheus, Grafana, Azure Monitor ou
 mudanças no `soat-postgres-infra` nesta fase.
+
+O nó atual do AKS usa SKU `Standard_D2as_v6`, com autoscaling entre um e dois
+nós. O cluster continua em tier Free, com Azure CNI Overlay, OIDC issuer,
+Workload Identity e Azure RBAC.
+
+## Sequências principais
+
+### Autenticação CPF e consumo pelo cliente
+
+```mermaid
+sequenceDiagram
+    participant C as Cliente
+    participant K as Kong HML
+    participant F as Function CPF
+    participant DB as PostgreSQL HML
+    participant A as soat-api
+
+    C->>K: POST /auth/cpf (CPF)
+    K->>F: encaminha rota exata e aplica rate limit
+    F->>F: valida formato e dígitos verificadores
+    F->>DB: consulta cliente ativo
+    DB-->>F: cliente autorizado
+    F-->>C: JWT cliente (sub=clienteId, role=cliente)
+    C->>K: GET /cliente/ordens-servico/:id (Bearer JWT cliente)
+    K->>A: encaminha para Service HML
+    A->>DB: busca OS e compara clienteId com sub
+    DB-->>A: OS do próprio cliente
+    A-->>C: 200; OS de terceiro retorna 403
+```
+
+### Fluxo administrativo de ordem de serviço
+
+```mermaid
+sequenceDiagram
+    participant A as Administrador
+    participant API as soat-api
+    participant DB as PostgreSQL
+    participant H as HistoricoStatusOS
+
+    A->>API: rota administrativa com JWT_ADMIN
+    API->>DB: cria ou atualiza ordem e itens
+    API->>H: registra transição de status na mesma transação
+    DB-->>API: commit
+    API-->>A: resposta administrativa ou relatório protegido
+```
+
+O JWT administrativo (`JWT_ADMIN`) e o JWT de cliente (`JWT_CLIENTE`) têm
+segredos, issuer/audience e guards separados. O webhook assinado de e-mail é
+um fluxo distinto e não representa autenticação de cliente.
 
 ## RFCs
 
@@ -98,6 +153,13 @@ mudanças no `soat-postgres-infra` nesta fase.
 | [ADR-005](adrs/ADR-005-historico-status-os.md) | Histórico append-only de status da OS | Aceito |
 | [ADR-006](adrs/ADR-006-isolamento-de-ambientes.md) | Isolamento de homologação e produção | Aceito |
 | [ADR-007](adrs/ADR-007-hpa-e-disponibilidade.md) | HPA e disponibilidade da API | Aceito |
+
+## Modelo de dados
+
+O [modelo ER e a justificativa formal do PostgreSQL](modelo-er-postgresql.md)
+derivam diretamente de `prisma/schema.prisma`. A escolha do banco está ligada
+ao [RFC-002](rfcs/RFC-002-banco-gerenciado.md) e à
+[ADR-003](adrs/ADR-003-postgresql-gerenciado.md).
 
 ## Premissas de custo e segurança
 
