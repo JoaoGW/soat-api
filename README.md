@@ -37,17 +37,27 @@ fluxos não compartilham segredo nem guard.
 
 ## Entrega e arquitetura
 
-- Swagger: `http://localhost:3000/docs` quando a aplicação está em execução;
+- Swagger: `http://localhost:3000/docs` local e
+  `http://20.226.244.207/docs` em HML;
 - Collection: `docs/postman/oficina-api.postman_collection.json`;
 - Testes: `docs/testes.md`;
 - RFCs e ADRs: `docs/architecture/README.md`.
+- Modelo ER e decisão de banco:
+  `docs/architecture/modelo-er-postgresql.md`;
 - Diagrama central dos quatro repositórios e deploy:
   `docs/architecture/README.md#mapa-de-responsabilidades-dos-repositórios`.
 - Deploy imutável: `docs/deploy-api.md`.
 
-Não há infraestrutura Kind ou Kubernetes local neste repositório. Em
-homologação, somente o proxy Kong expõe a API; em produção o Service permanece
-interno até que exista uma decisão posterior de domínio e gateway público.
+Não há infraestrutura Kind ou Kubernetes local neste repositório. Em HML, a
+API está implantada no AKS e somente o proxy Kong a expõe; a Function de CPF
+atende `POST /auth/cpf`. A consulta pública por código de acompanhamento foi
+substituída por `GET /cliente/ordens-servico/:id` e pelas ações autenticadas de
+aprovar/recusar orçamento. Em produção, o Service permanece interno, sem URL
+pública, até decisão posterior de domínio e gateway.
+
+Use `JWT_ADMIN` nas rotas administrativas e `JWT_CLIENTE` apenas nas rotas de
+cliente. A coleção mantém esses tokens separados nas variáveis `token` e
+`clienteToken`; não inclua valores reais no arquivo.
 
 ## CI
 
@@ -58,6 +68,7 @@ renderiza os manifests Kustomize e verifica Ingress, HPA, PDB e ausência de
 tags `latest`.
 
 O workflow de deploy publica somente `ghcr.io/joaogw/soat-api:<SHA_DO_COMMIT>`.
-Os jobs de homologação e produção só executam se a variável protegida do
-ambiente `TF_APPLY_ENABLED` estiver como `true`; por padrão, ela permanece
-desligada para preservar o crédito Azure.
+O deploy HML foi validado usando referência imutável por SHA. Os jobs de
+homologação e produção só executam se a variável protegida do ambiente
+`TF_APPLY_ENABLED` estiver como `true`; após a validação, ela foi restaurada
+para `false` para preservar o crédito Azure.
