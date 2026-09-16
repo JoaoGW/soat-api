@@ -27,7 +27,7 @@ import { AtualizarClienteUseCase } from '../../../application/use-cases/cliente/
 import { RemoverClienteUseCase } from '../../../application/use-cases/cliente/RemoverClienteUseCase';
 
 @ApiTags('Clientes')
-@ApiBearerAuth('JWT')
+@ApiBearerAuth('JWT_ADMIN')
 @Controller('clientes')
 @UseGuards(JwtAuthGuard)
 export class ClienteController {

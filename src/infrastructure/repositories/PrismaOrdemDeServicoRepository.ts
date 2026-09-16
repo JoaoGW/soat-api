@@ -9,15 +9,19 @@ import {
 import { PaginationParams } from '../../domain/repositories/types';
 import { PrismaService } from '../database/PrismaService';
 import { OrdemDeServicoMapper } from '../mappers/OrdemDeServicoMapper';
+import { ObservabilityService } from '../observability/ObservabilityService';
 
 @Injectable()
 export class PrismaOrdemDeServicoRepository
   implements OrdemDeServicoRepository
 {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly observability: ObservabilityService,
+  ) {}
 
   async save(os: OrdemDeServico): Promise<void> {
-    await this.prisma.$transaction(async (tx) => {
+    const metricas = await this.prisma.$transaction(async (tx) => {
       const atual = await tx.ordemDeServico.findUnique({
         where: { id: os.getId() },
         select: { status: true },
@@ -63,7 +67,30 @@ export class PrismaOrdemDeServicoRepository
             },
           },
         });
-        return;
+        return { criada: true, houveTransicao: false, status: os.status };
+      }
+
+      let tempoEtapa:
+        | {
+            etapa: 'diagnostico' | 'execucao' | 'finalizacao';
+            duracaoEmMs: number;
+          }
+        | undefined;
+      if (atual.status !== String(os.status)) {
+        const inicio = this.inicioDaEtapa(os.status);
+        if (inicio) {
+          const eventoInicial = await tx.historicoStatusOS.findFirst({
+            where: { osId: os.getId(), status: inicio },
+            orderBy: { ocorridoEm: 'asc' },
+          });
+          if (eventoInicial)
+            tempoEtapa = {
+              etapa: this.nomeDaEtapa(os.status),
+              duracaoEmMs:
+                os.dataAtualizacao.getTime() -
+                eventoInicial.ocorridoEm.getTime(),
+            };
+        }
       }
 
       await tx.ordemDeServico.update({
@@ -90,7 +117,38 @@ export class PrismaOrdemDeServicoRepository
             : {}),
         },
       });
+      return {
+        criada: false,
+        houveTransicao: atual.status !== String(os.status),
+        status: os.status,
+        tempoEtapa,
+      };
     });
+
+    if (metricas.criada) this.observability.registrarOrdemCriada();
+    if (metricas.houveTransicao)
+      this.observability.registrarTransicao(metricas.status);
+    if (metricas.tempoEtapa)
+      this.observability.registrarTempoEtapa(
+        metricas.tempoEtapa.etapa,
+        metricas.tempoEtapa.duracaoEmMs,
+      );
+  }
+
+  private inicioDaEtapa(status: StatusOS): StatusOS | undefined {
+    if (status === StatusOS.AGUARDANDO_APROVACAO)
+      return StatusOS.EM_DIAGNOSTICO;
+    if (status === StatusOS.FINALIZADA) return StatusOS.EM_EXECUCAO;
+    if (status === StatusOS.ENTREGUE) return StatusOS.FINALIZADA;
+    return undefined;
+  }
+
+  private nomeDaEtapa(
+    status: StatusOS,
+  ): 'diagnostico' | 'execucao' | 'finalizacao' {
+    if (status === StatusOS.AGUARDANDO_APROVACAO) return 'diagnostico';
+    if (status === StatusOS.FINALIZADA) return 'execucao';
+    return 'finalizacao';
   }
 
   async findById(id: string): Promise<OrdemDeServico | null> {

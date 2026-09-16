@@ -82,10 +82,8 @@ describe('Webhook de orcamento (e2e)', () => {
       .get(`/webhook/orcamento/recusar?token=${encodeURIComponent(token)}`)
       .expect(200);
 
-    const statusResponse = await request(app.getHttpServer())
-      .get(`/consulta/os/${os.codigoAcompanhamento.valor}/status`)
-      .expect(200);
-    expect(statusResponse.body.status).toBe(StatusOS.CANCELADA);
+    const osAtualizada = await osRepo.findById(os.getId());
+    expect(osAtualizada?.status).toBe(StatusOS.CANCELADA);
   });
 
   it('GET /webhook/orcamento/aprovar deve retornar 400 com token de recusa', async () => {

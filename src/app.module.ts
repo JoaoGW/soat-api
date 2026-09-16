@@ -1,4 +1,5 @@
-import { Module } from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
+import { APP_INTERCEPTOR } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -55,11 +56,15 @@ import { OrdemDeServicoController } from './interfaces/controllers/admin/OrdemDe
 import { PecaController } from './interfaces/controllers/admin/PecaController';
 import { ServicoController } from './interfaces/controllers/admin/ServicoController';
 import { VeiculoController } from './interfaces/controllers/admin/VeiculoController';
+import { ClienteOrdemServicoController } from './interfaces/controllers/cliente/ClienteOrdemServicoController';
 import { JwtAuthGuard } from './interfaces/guards/JwtAuthGuard';
+import { JwtClienteAuthGuard } from './interfaces/guards/JwtClienteAuthGuard';
 import { AuthModule } from './modules/auth.module';
 import { PublicoModule } from './modules/publico.module';
 import { RelatorioModule } from './modules/relatorio.module';
 import { RepositoryModule } from './modules/repository.module';
+import { CorrelationIdMiddleware } from './interfaces/observability/CorrelationIdMiddleware';
+import { HttpObservabilityInterceptor } from './interfaces/observability/HttpObservabilityInterceptor';
 
 @Module({
   imports: [
@@ -76,13 +81,20 @@ import { RepositoryModule } from './modules/repository.module';
     AppController,
     ClienteController,
     VeiculoController,
+    ClienteOrdemServicoController,
     ServicoController,
     PecaController,
     OrdemDeServicoController,
   ],
   providers: [
     AppService,
+    CorrelationIdMiddleware,
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: HttpObservabilityInterceptor,
+    },
     JwtAuthGuard,
+    JwtClienteAuthGuard,
     EmailAdapter,
     JwtOrcamentoWebhookTokenAdapter,
     {
@@ -354,4 +366,8 @@ import { RepositoryModule } from './modules/repository.module';
     },
   ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer): void {
+    consumer.apply(CorrelationIdMiddleware).forRoutes('*');
+  }
+}

@@ -1,8 +1,8 @@
 {
   "info": {
     "_postman_id": "cd7d6a61-0d02-4b0c-90e4-2d5f8f5b5e23",
-    "name": "Sistema Integrado de Oficina - Fase 2",
-    "description": "Collection das APIs administrativas e publicas do Tech Challenge Fase 2. Execute primeiro Auth/Login para preencher o token JWT.",
+    "name": "Sistema Integrado de Oficina - Fases 3 a 7",
+    "description": "Collection das APIs administrativas, autenticação CPF e rotas protegidas de cliente. Execute o login administrativo para JWT_ADMIN; obtenha o JWT_CLIENTE em POST /auth/cpf e preencha clienteToken.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -12,6 +12,10 @@
     },
     {
       "key": "token",
+      "value": ""
+    },
+    {
+      "key": "clienteToken",
       "value": ""
     },
     {
@@ -576,32 +580,102 @@
       ]
     },
     {
-      "name": "Publico e Webhook",
+      "name": "Cliente autenticado",
       "auth": {
         "type": "noauth"
       },
       "item": [
         {
-          "name": "Consultar status publico",
+          "name": "Consultar propria OS",
           "request": {
             "auth": {
-              "type": "noauth"
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{clienteToken}}",
+                  "type": "string"
+                }
+              ]
             },
             "method": "GET",
             "url": {
-              "raw": "{{baseUrl}}/consulta/os/{{codigoAcompanhamento}}/status",
+              "raw": "{{baseUrl}}/cliente/ordens-servico/{{ordemServicoId}}",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "consulta",
-                "os",
-                "{{codigoAcompanhamento}}",
-                "status"
+                "cliente",
+                "ordens-servico",
+                "{{ordemServicoId}}"
               ]
             }
           }
         },
+        {
+          "name": "Aprovar orcamento da propria OS",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{clienteToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/cliente/ordens-servico/{{ordemServicoId}}/aprovar-orcamento",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "cliente",
+                "ordens-servico",
+                "{{ordemServicoId}}",
+                "aprovar-orcamento"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Recusar orcamento da propria OS",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{clienteToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/cliente/ordens-servico/{{ordemServicoId}}/recusar-orcamento",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "cliente",
+                "ordens-servico",
+                "{{ordemServicoId}}",
+                "recusar-orcamento"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Webhook",
+      "auth": {
+        "type": "noauth"
+      },
+      "item": [
         {
           "name": "Aprovar orcamento por webhook",
           "request": {
