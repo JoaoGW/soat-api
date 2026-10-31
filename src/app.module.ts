@@ -52,6 +52,7 @@ import { PrismaVeiculoRepository } from './infrastructure/repositories/PrismaVei
 import { EmailAdapter } from './infrastructure/adapters/email/EmailAdapter';
 import { JwtOrcamentoWebhookTokenAdapter } from './infrastructure/adapters/webhook/JwtOrcamentoWebhookTokenAdapter';
 import { ClienteController } from './interfaces/controllers/admin/ClienteController';
+import { ClienteIntegracaoController } from './interfaces/controllers/internal/ClienteIntegracaoController';
 import { OrdemDeServicoController } from './interfaces/controllers/admin/OrdemDeServicoController';
 import { PecaController } from './interfaces/controllers/admin/PecaController';
 import { ServicoController } from './interfaces/controllers/admin/ServicoController';
@@ -80,6 +81,7 @@ import { HttpObservabilityInterceptor } from './interfaces/observability/HttpObs
   controllers: [
     AppController,
     ClienteController,
+    ClienteIntegracaoController,
     VeiculoController,
     ClienteOrdemServicoController,
     ServicoController,
