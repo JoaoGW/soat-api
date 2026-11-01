@@ -11,6 +11,7 @@ import {
 } from '../../src/infrastructure/service-bus/ChargeEventConsumer';
 import { PrismaClient } from '@prisma/client';
 import { ReceiveChargeEvent } from '../../src/infrastructure/saga/ReceberCobranca';
+import { ReplayPendingChargeEvents } from '../../src/infrastructure/saga/ReaplicarCobrancas';
 
 const url = process.env.DATABASE_URL;
 if (!url) throw new Error('DATABASE_URL de teste é obrigatória');
@@ -183,5 +184,42 @@ describe('recepção de cobrança na Saga em PostgreSQL', () => {
       Array<{ status: string }>
     >`SELECT "status" FROM "Inbox" WHERE "messageId" = ${event.messageId}`;
     expect(result[0].status).toBe('APPLIED');
+  });
+  it('varre páginas de eventos pendentes sem depender de redelivery', async () => {
+    const event = await setup('RESERVA_PENDENTE');
+    const dir = resolve(process.cwd(), 'docs/contracts/messages');
+    const fixture = JSON.parse(
+      readFileSync(
+        resolve(dir, 'examples/billing.charge-created.v1.json'),
+        'utf8',
+      ),
+    ) as Record<string, unknown>;
+    const body = { ...fixture, ...event };
+    const message = {
+      messageId: event.messageId,
+      subject: event.type,
+      body,
+    } as ServiceBusReceivedMessage;
+    const receiver = {
+      completeMessage: jest.fn(),
+      abandonMessage: jest.fn(),
+      deadLetterMessage: jest.fn(),
+    };
+    const validator = chargeEventValidator(dir);
+    const consumer = new ChargeEventConsumer(service, validator);
+    await consumer.process(message, receiver as unknown as ServiceBusReceiver);
+    expect(receiver.completeMessage).toHaveBeenCalled();
+    await prisma.$executeRaw`UPDATE "SagaInstance" SET "status" = 'COBRANCA_PENDENTE' WHERE "id" = ${event.sagaId}`;
+    const replay = new ReplayPendingChargeEvents(prisma, service, validator);
+    let cursor: { receivedAt: Date; messageId: string } | undefined;
+    for (let i = 0; i < 100; i++) {
+      const page = await replay.execute(1, cursor);
+      if (!page.next) break;
+      cursor = page.next;
+    }
+    const rows = await prisma.$queryRaw<
+      Array<{ status: string }>
+    >`SELECT "status" FROM "Inbox" WHERE "messageId" = ${event.messageId}`;
+    expect(rows[0].status).toBe('APPLIED');
   });
 });

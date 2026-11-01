@@ -5,7 +5,8 @@ identificador, filial, OS e dados correspondem à operação e ao comando já
 persistidos. Para cobrança criada, com a Saga na etapa esperada e orçamento
 correspondente, a atualização da Saga, o resultado da operação e a inbox são
 confirmados na mesma transação. Eventos fora de ordem e eventos de falha ficam
-pendentes. A reaplicação atualmente precisa ser acionada pelo chamador.
+pendentes. A reaplicação paginada das cobranças criadas pode ser acionada
+pelo chamador; o agendador ainda precisa ser conectado.
 
 O consumidor de eventos de cobrança valida JSON Schema e confirma mensagens
 somente após a gravação da inbox. A autorização da identidade do transporte, o
