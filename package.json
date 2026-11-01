@@ -22,7 +22,8 @@
     "test:cov": "jest --coverage --config jest.config.ts",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/jest/bin/jest --runInBand",
     "test:e2e": "jest --config jest.e2e.config.ts",
-    "security:snyk": "node scripts/security/run-snyk-scan.mjs"
+    "security:snyk": "node scripts/security/run-snyk-scan.mjs",
+    "test:os-integration": "jest --config jest.os.integration.cjs --runInBand --watchman=false"
   },
   "engines": {
     "npm": ">=10.0.0",
