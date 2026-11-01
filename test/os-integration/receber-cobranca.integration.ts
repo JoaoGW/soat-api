@@ -1,4 +1,14 @@
 import { randomUUID } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import {
+  ServiceBusReceivedMessage,
+  ServiceBusReceiver,
+} from '@azure/service-bus';
+import {
+  ChargeEventConsumer,
+  chargeEventValidator,
+} from '../../src/infrastructure/service-bus/ChargeEventConsumer';
 import { PrismaClient } from '@prisma/client';
 import { ReceiveChargeEvent } from '../../src/infrastructure/saga/ReceberCobranca';
 
@@ -141,5 +151,37 @@ describe('recepção de cobrança na Saga em PostgreSQL', () => {
       );
       await prisma.$executeRawUnsafe('DROP FUNCTION test_block_saga_update()');
     }
+  });
+  it('valida e confirma evento somente após inbox e Saga persistirem', async () => {
+    const event = await setup();
+    const dir = resolve(process.cwd(), 'docs/contracts/messages');
+    const fixture = JSON.parse(
+      readFileSync(
+        resolve(dir, 'examples/billing.charge-created.v1.json'),
+        'utf8',
+      ),
+    ) as Record<string, unknown>;
+    const body = { ...fixture, ...event };
+    const message = {
+      messageId: event.messageId,
+      subject: event.type,
+      body,
+    } as ServiceBusReceivedMessage;
+    const receiver = {
+      completeMessage: jest.fn(),
+      abandonMessage: jest.fn(),
+      deadLetterMessage: jest.fn(),
+    };
+    const consumer = new ChargeEventConsumer(
+      service,
+      chargeEventValidator(dir),
+    );
+    await consumer.process(message, receiver as unknown as ServiceBusReceiver);
+    expect(receiver.completeMessage).toHaveBeenCalledWith(message);
+    expect(receiver.abandonMessage).not.toHaveBeenCalled();
+    const result = await prisma.$queryRaw<
+      Array<{ status: string }>
+    >`SELECT "status" FROM "Inbox" WHERE "messageId" = ${event.messageId}`;
+    expect(result[0].status).toBe('APPLIED');
   });
 });

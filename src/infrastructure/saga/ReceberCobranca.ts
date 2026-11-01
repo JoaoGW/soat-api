@@ -1,6 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 
-type ChargeEvent = {
+export type ChargeEvent = {
   messageId: string;
   type: 'billing.charge-created.v1' | 'billing.charge-failed.v1';
   producer: 'soat-billing-service';

@@ -7,10 +7,11 @@ correspondente, a atualização da Saga, o resultado da operação e a inbox sã
 confirmados na mesma transação. Eventos fora de ordem e eventos de falha ficam
 pendentes. A reaplicação atualmente precisa ser acionada pelo chamador.
 
-O chamador deve validar JSON Schema e a identidade do transporte antes de usar
-o serviço. O consumer do broker, o agendador de reavaliação, compensações e
-outras transições persistentes ainda não estão implementados. Este módulo não
-está conectado ao runtime legado e não está pronto para receber tráfego.
+O consumidor de eventos de cobrança valida JSON Schema e confirma mensagens
+somente após a gravação da inbox. A autorização da identidade do transporte, o
+roteamento dos demais eventos e o agendador de reavaliação ainda precisam ser
+implementados. O consumidor não está ligado ao runtime. Compensações e outras
+transições persistentes também faltam; o módulo não está pronto para tráfego.
 
 `npm run test:os-integration` exige `DATABASE_URL` apontando para PostgreSQL
 local com nome terminado em `_test`, após `npm run db:migrate:deploy` no banco
