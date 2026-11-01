@@ -8,9 +8,9 @@ confirmados na mesma transação. Eventos fora de ordem e eventos de falha ficam
 pendentes. A reaplicação paginada das cobranças criadas é executada por um agendador
 opcional, desativado por padrão.
 
-O consumidor de eventos de cobrança valida JSON Schema e confirma mensagens
+Os consumidores de eventos de cobrança e pagamento validam JSON Schema e confirmam mensagens
 somente após a gravação da inbox. A autorização da identidade do transporte, o
-roteamento dos demais eventos ainda precisam ser implementados. O consumidor não está ligado ao runtime. Compensações e outras
+roteamento dos demais eventos ainda precisam ser implementados. Os consumidores não estão ligados ao runtime. Compensações e outras
 transições persistentes também faltam; o módulo não está pronto para tráfego.
 
 `npm run test:os-integration` exige `DATABASE_URL` apontando para PostgreSQL
@@ -21,3 +21,9 @@ O agendador exige `ENABLE_SAGA_REPLAY=true` e `SAGA_DATABASE_URL` para o
 banco dedicado da Fase 4. Ele percorre as páginas pendentes e reinicia a
 varredura a cada 60 segundos. Não habilitar antes de configurar e validar os
 fluxos no ambiente isolado.
+
+Pagamento confirmado fica pendente até associar cobrança, orçamento e reserva
+confirmada à mesma Saga. Quando os pré-requisitos existem, a Saga, operação e
+comando `execution.enqueue-work.v1` são gravados atomicamente. Pagamento
+tardio ou order divergente exige reconciliação. A execução ainda não consome
+esse comando.
