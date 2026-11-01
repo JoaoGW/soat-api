@@ -9,6 +9,8 @@ import { resolve } from 'node:path';
 import { chargeEventValidator } from '../service-bus/ChargeEventConsumer';
 import { paymentEventValidator } from '../service-bus/PaymentEventConsumer';
 import { ReceivePaymentEvent } from './ReceberPagamento';
+import { ReceiveWorkEnqueuedEvent } from './ReceberEnfileiramento';
+import { workEnqueuedEventValidator } from '../service-bus/WorkEnqueuedEventConsumer';
 import { ReceiveChargeEvent } from './ReceberCobranca';
 import { ReplayPendingChargeEvents } from './ReaplicarCobrancas';
 
@@ -51,6 +53,10 @@ export class SagaReplayWorker implements OnModuleInit, OnApplicationShutdown {
       validate,
       new ReceivePaymentEvent(this.db),
       paymentEventValidator(resolve(process.cwd(), 'docs/contracts/messages')),
+      new ReceiveWorkEnqueuedEvent(this.db),
+      workEnqueuedEventValidator(
+        resolve(process.cwd(), 'docs/contracts/messages'),
+      ),
     );
     this.active = this.poll();
   }

@@ -1,10 +1,14 @@
 import { PrismaClient } from '@prisma/client';
 import { ChargeEvent } from './ReceberCobranca';
 import { PaymentEvent } from './ReceberPagamento';
+import { WorkEnqueuedEvent } from './ReceberEnfileiramento';
 
 type Handler = { execute(event: ChargeEvent): Promise<'APPLIED' | 'PENDING'> };
 type PaymentHandler = {
   execute(event: PaymentEvent): Promise<'APPLIED' | 'PENDING'>;
+};
+type WorkHandler = {
+  execute(event: WorkEnqueuedEvent): Promise<'APPLIED' | 'PENDING'>;
 };
 type Cursor = { receivedAt: Date; messageId: string };
 
@@ -16,6 +20,8 @@ export class ReplayPendingChargeEvents {
     private readonly validate: (event: unknown) => boolean,
     private readonly paymentHandler?: PaymentHandler,
     private readonly validatePayment?: (event: unknown) => boolean,
+    private readonly workHandler?: WorkHandler,
+    private readonly validateWork?: (event: unknown) => boolean,
   ) {}
 
   async execute(
@@ -47,7 +53,7 @@ export class ReplayPendingChargeEvents {
     >`
       SELECT "payload", "receivedAt", "messageId", "type" FROM "Inbox"
       WHERE "consumer" = 'os.saga-events' AND "status" = 'PENDING'
-        AND ("type" = 'billing.charge-created.v1' OR (${Boolean(this.paymentHandler && this.validatePayment)} AND "type" = 'billing.payment-confirmed.v1'))
+        AND ("type" = 'billing.charge-created.v1' OR (${Boolean(this.paymentHandler && this.validatePayment)} AND "type" = 'billing.payment-confirmed.v1') OR (${Boolean(this.workHandler && this.validateWork)} AND "type" = 'execution.work-enqueued.v1'))
         AND (${date}::timestamp IS NULL OR ("receivedAt", "messageId") > (${date}::timestamp, ${id}::text))
       ORDER BY "receivedAt", "messageId" LIMIT ${limit}`;
     const result = {
@@ -64,9 +70,12 @@ export class ReplayPendingChargeEvents {
     };
     for (const row of rows) {
       const isPayment = row.type === 'billing.payment-confirmed.v1';
+      const isWork = row.type === 'execution.work-enqueued.v1';
       const valid = isPayment
         ? this.validatePayment?.(row.payload)
-        : this.validate(row.payload);
+        : isWork
+          ? this.validateWork?.(row.payload)
+          : this.validate(row.payload);
       if (!valid) {
         result.errors++;
         continue;
@@ -75,7 +84,9 @@ export class ReplayPendingChargeEvents {
         const outcome =
           isPayment && this.paymentHandler
             ? await this.paymentHandler.execute(row.payload as PaymentEvent)
-            : await this.handler.execute(row.payload as ChargeEvent);
+            : isWork && this.workHandler
+              ? await this.workHandler.execute(row.payload as WorkEnqueuedEvent)
+              : await this.handler.execute(row.payload as ChargeEvent);
         if (outcome === 'APPLIED') result.applied++;
         else result.pending++;
       } catch {

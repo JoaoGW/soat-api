@@ -13,8 +13,13 @@ import {
   paymentEventValidator,
 } from '../../src/infrastructure/service-bus/PaymentEventConsumer';
 import { chargeEventValidator } from '../../src/infrastructure/service-bus/ChargeEventConsumer';
+import {
+  WorkEnqueuedEventConsumer,
+  workEnqueuedEventValidator,
+} from '../../src/infrastructure/service-bus/WorkEnqueuedEventConsumer';
 import { ReplayPendingChargeEvents } from '../../src/infrastructure/saga/ReaplicarCobrancas';
 import { ReceivePaymentEvent } from '../../src/infrastructure/saga/ReceberPagamento';
+import { ReceiveWorkEnqueuedEvent } from '../../src/infrastructure/saga/ReceberEnfileiramento';
 import { ReceiveChargeEvent } from '../../src/infrastructure/saga/ReceberCobranca';
 
 const url = process.env.DATABASE_URL;
@@ -267,5 +272,172 @@ describe('pagamento e autorização da fila em PostgreSQL', () => {
       Array<{ messageId: string }>
     >`SELECT "messageId" FROM "Outbox" WHERE "type" = 'execution.enqueue-work.v1' AND "payload"->>'sagaId' = ${paymentEvent.sagaId}`;
     expect(events).toHaveLength(0);
+  });
+  it('confirma fila apenas para operação e reserva correspondentes', async () => {
+    const { paymentEvent, chargeEvent } = await setup();
+    await chargeService.execute(chargeEvent);
+    await paymentService.execute(paymentEvent);
+    const commands = await db.$queryRaw<
+      Array<{
+        payload: {
+          operationId: string;
+          data: {
+            executionId: string;
+            reservationId: string;
+            quoteId: string;
+            quoteVersion: number;
+            chargeId: string;
+            paymentId: string;
+          };
+        };
+      }>
+    >`SELECT "payload" FROM "Outbox" WHERE "type" = 'execution.enqueue-work.v1' AND "payload"->>'sagaId' = ${paymentEvent.sagaId}`;
+    const command = commands[0].payload;
+    const event = {
+      messageId: `work-${paymentEvent.messageId}`,
+      type: 'execution.work-enqueued.v1' as const,
+      producer: 'soat-execution-service' as const,
+      operationId: command.operationId,
+      sagaId: paymentEvent.sagaId,
+      osId: paymentEvent.osId,
+      filialId: paymentEvent.filialId,
+      data: command.data,
+    };
+    const handler = new ReceiveWorkEnqueuedEvent(db);
+    expect(
+      await Promise.all(
+        Array.from({ length: 4 }, () => handler.execute(event)),
+      ),
+    ).toEqual(['APPLIED', 'APPLIED', 'APPLIED', 'APPLIED']);
+    const saga = await db.$queryRaw<
+      Array<{ status: string }>
+    >`SELECT "status" FROM "SagaInstance" WHERE "id" = ${paymentEvent.sagaId}`;
+    expect(saga[0].status).toBe('NA_FILA');
+    await expect(
+      handler.execute({ ...event, messageId: `again-${event.messageId}` }),
+    ).resolves.toBe('APPLIED');
+    await expect(
+      handler.execute({
+        ...event,
+        messageId: `bad-${event.messageId}`,
+        data: { ...event.data, reservationId: 'other' },
+      }),
+    ).rejects.toThrow('diverge');
+  });
+  it('não avança fila depois de iniciar compensação', async () => {
+    const { paymentEvent, chargeEvent } = await setup();
+    await chargeService.execute(chargeEvent);
+    await paymentService.execute(paymentEvent);
+    const commands = await db.$queryRaw<
+      Array<{
+        payload: {
+          operationId: string;
+          data: {
+            executionId: string;
+            reservationId: string;
+            quoteId: string;
+            quoteVersion: number;
+            chargeId: string;
+            paymentId: string;
+          };
+        };
+      }>
+    >`SELECT "payload" FROM "Outbox" WHERE "type" = 'execution.enqueue-work.v1' AND "payload"->>'sagaId' = ${paymentEvent.sagaId}`;
+    const command = commands[0].payload;
+    await db.$executeRaw`UPDATE "SagaInstance" SET "status" = 'COMPENSANDO' WHERE "id" = ${paymentEvent.sagaId}`;
+    const event = {
+      messageId: `late-${paymentEvent.messageId}`,
+      type: 'execution.work-enqueued.v1' as const,
+      producer: 'soat-execution-service' as const,
+      operationId: command.operationId,
+      sagaId: paymentEvent.sagaId,
+      osId: paymentEvent.osId,
+      filialId: paymentEvent.filialId,
+      data: command.data,
+    };
+    await expect(new ReceiveWorkEnqueuedEvent(db).execute(event)).resolves.toBe(
+      'PENDING',
+    );
+    const rows = await db.$queryRaw<
+      Array<{ status: string }>
+    >`SELECT "status" FROM "SagaInstance" WHERE "id" = ${paymentEvent.sagaId}`;
+    expect(rows[0].status).toBe('COMPENSANDO');
+  });
+  it('reaplica confirmação de fila recebida antes da etapa correta', async () => {
+    const { paymentEvent, chargeEvent } = await setup();
+    await chargeService.execute(chargeEvent);
+    await paymentService.execute(paymentEvent);
+    const commands = await db.$queryRaw<
+      Array<{
+        payload: {
+          operationId: string;
+          data: {
+            executionId: string;
+            reservationId: string;
+            quoteId: string;
+            quoteVersion: number;
+            chargeId: string;
+            paymentId: string;
+          };
+        };
+      }>
+    >`SELECT "payload" FROM "Outbox" WHERE "type" = 'execution.enqueue-work.v1' AND "payload"->>'sagaId' = ${paymentEvent.sagaId}`;
+    const command = commands[0].payload;
+    const dir = resolve(process.cwd(), 'docs/contracts/messages');
+    const fixture = JSON.parse(
+      readFileSync(
+        resolve(dir, 'examples/execution.work-enqueued.v1.json'),
+        'utf8',
+      ),
+    ) as Record<string, unknown>;
+    const event = {
+      ...fixture,
+      messageId: `queued-${paymentEvent.messageId}`,
+      type: 'execution.work-enqueued.v1' as const,
+      producer: 'soat-execution-service' as const,
+      operationId: command.operationId,
+      sagaId: paymentEvent.sagaId,
+      osId: paymentEvent.osId,
+      filialId: paymentEvent.filialId,
+      data: command.data,
+    };
+    const message = {
+      messageId: event.messageId,
+      subject: event.type,
+      body: event,
+    } as ServiceBusReceivedMessage;
+    const receiver = {
+      completeMessage: jest.fn(),
+      abandonMessage: jest.fn(),
+      deadLetterMessage: jest.fn(),
+    };
+    const workHandler = new ReceiveWorkEnqueuedEvent(db);
+    const workValidator = workEnqueuedEventValidator(dir);
+    await db.$executeRaw`UPDATE "SagaInstance" SET "status" = 'COBRANCA_PENDENTE' WHERE "id" = ${paymentEvent.sagaId}`;
+    await new WorkEnqueuedEventConsumer(workHandler, workValidator).process(
+      message,
+      receiver as unknown as ServiceBusReceiver,
+    );
+    expect(receiver.completeMessage).toHaveBeenCalledWith(message);
+    await db.$executeRaw`UPDATE "SagaInstance" SET "status" = 'FILA_PENDENTE' WHERE "id" = ${paymentEvent.sagaId}`;
+    const replay = new ReplayPendingChargeEvents(
+      db,
+      chargeService,
+      chargeEventValidator(dir),
+      paymentService,
+      paymentEventValidator(dir),
+      workHandler,
+      workValidator,
+    );
+    let cursor: { receivedAt: Date; messageId: string } | undefined;
+    for (let i = 0; i < 100; i++) {
+      const page = await replay.execute(1, cursor);
+      if (!page.next) break;
+      cursor = page.next;
+    }
+    const rows = await db.$queryRaw<
+      Array<{ status: string }>
+    >`SELECT "status" FROM "Inbox" WHERE "messageId" = ${event.messageId}`;
+    expect(rows[0].status).toBe('APPLIED');
   });
 });
