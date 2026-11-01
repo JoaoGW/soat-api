@@ -12,6 +12,7 @@ import {
 import { PrismaClient } from '@prisma/client';
 import { ReceiveChargeEvent } from '../../src/infrastructure/saga/ReceberCobranca';
 import { ReplayPendingChargeEvents } from '../../src/infrastructure/saga/ReaplicarCobrancas';
+import { SagaReplayWorker } from '../../src/infrastructure/saga/AgendarReaplicacao';
 
 const url = process.env.DATABASE_URL;
 if (!url) throw new Error('DATABASE_URL de teste é obrigatória');
@@ -221,5 +222,54 @@ describe('recepção de cobrança na Saga em PostgreSQL', () => {
       Array<{ status: string }>
     >`SELECT "status" FROM "Inbox" WHERE "messageId" = ${event.messageId}`;
     expect(rows[0].status).toBe('APPLIED');
+  });
+  it('agendador opcional reaplica evento no banco dedicado', async () => {
+    const event = await setup('RESERVA_PENDENTE');
+    const dir = resolve(process.cwd(), 'docs/contracts/messages');
+    const fixture = JSON.parse(
+      readFileSync(
+        resolve(dir, 'examples/billing.charge-created.v1.json'),
+        'utf8',
+      ),
+    ) as Record<string, unknown>;
+    const message = {
+      messageId: event.messageId,
+      subject: event.type,
+      body: { ...fixture, ...event },
+    } as ServiceBusReceivedMessage;
+    const receiver = {
+      completeMessage: jest.fn(),
+      abandonMessage: jest.fn(),
+      deadLetterMessage: jest.fn(),
+    };
+    await new ChargeEventConsumer(service, chargeEventValidator(dir)).process(
+      message,
+      receiver as unknown as ServiceBusReceiver,
+    );
+    await prisma.$executeRaw`UPDATE "SagaInstance" SET "status" = 'COBRANCA_PENDENTE' WHERE "id" = ${event.sagaId}`;
+    const previousEnabled = process.env.ENABLE_SAGA_REPLAY;
+    const previousUrl = process.env.SAGA_DATABASE_URL;
+    process.env.ENABLE_SAGA_REPLAY = 'true';
+    process.env.SAGA_DATABASE_URL = url;
+    const worker = new SagaReplayWorker();
+    try {
+      worker.onModuleInit();
+      let status = '';
+      for (let i = 0; i < 100 && status !== 'APPLIED'; i++) {
+        const rows = await prisma.$queryRaw<
+          Array<{ status: string }>
+        >`SELECT "status" FROM "Inbox" WHERE "messageId" = ${event.messageId}`;
+        status = rows[0]?.status;
+        if (status !== 'APPLIED')
+          await new Promise((resolve) => setTimeout(resolve, 20));
+      }
+      expect(status).toBe('APPLIED');
+    } finally {
+      await worker.onApplicationShutdown();
+      if (previousEnabled === undefined) delete process.env.ENABLE_SAGA_REPLAY;
+      else process.env.ENABLE_SAGA_REPLAY = previousEnabled;
+      if (previousUrl === undefined) delete process.env.SAGA_DATABASE_URL;
+      else process.env.SAGA_DATABASE_URL = previousUrl;
+    }
   });
 });

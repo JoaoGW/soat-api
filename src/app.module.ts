@@ -1,4 +1,5 @@
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
+import { SagaReplayWorker } from './infrastructure/saga/AgendarReaplicacao';
 import { APP_INTERCEPTOR } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
 import { AppController } from './app.controller';
@@ -89,6 +90,7 @@ import { HttpObservabilityInterceptor } from './interfaces/observability/HttpObs
     OrdemDeServicoController,
   ],
   providers: [
+    SagaReplayWorker,
     AppService,
     CorrelationIdMiddleware,
     {
