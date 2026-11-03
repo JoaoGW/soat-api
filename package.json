@@ -23,7 +23,8 @@
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/jest/bin/jest --runInBand",
     "test:e2e": "jest --config jest.e2e.config.ts",
     "security:snyk": "node scripts/security/run-snyk-scan.mjs",
-    "test:os-integration": "jest --config jest.os.integration.cjs --runInBand --watchman=false"
+    "test:os-integration": "jest --config jest.os.integration.cjs --runInBand --watchman=false",
+    "test:diagnosis-billing": "node scripts/integration/diagnosis-to-quote.cjs"
   },
   "engines": {
     "npm": ">=10.0.0",

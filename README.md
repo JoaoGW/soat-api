@@ -72,3 +72,14 @@ O deploy HML foi validado usando referência imutável por SHA. Os jobs de
 homologação e produção só executam se a variável protegida do ambiente
 `TF_APPLY_ENABLED` estiver como `true`; após a validação, ela foi restaurada
 para `false` para preservar o crédito Azure.
+
+## Integração local do diagnóstico com Billing
+
+`npm run test:diagnosis-billing` aplica a conclusão de diagnóstico no OS e
+entrega o comando gerado diretamente ao caso de uso de Billing; verifica preço,
+total e idempotência em dois bancos PostgreSQL distintos. É necessário executar
+builds de ambos os repositórios e migrations dos dois bancos, informar URLs de
+bancos locais terminados em `_test` em `OS_TEST_DATABASE_URL` e
+`BILLING_TEST_DATABASE_URL`, além do caminho absoluto do repositório Billing em
+`BILLING_REPO_DIR`. O teste falha sem essas configurações. Ele não exercita o
+broker, Cosmos, a Saga completa ou o Mercado Pago.
