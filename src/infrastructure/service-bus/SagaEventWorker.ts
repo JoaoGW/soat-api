@@ -35,6 +35,16 @@ import {
 import { ReceiveDiagnosisEvent } from '../saga/ReceberDiagnostico';
 import { ReceiveQuoteEvent } from '../saga/ReceberOrcamento';
 import { ReceiveReservationEvent } from '../saga/ReceberReserva';
+import { ReceiveRefundEvent } from '../saga/ReceberReembolso';
+import { ReceiveReleaseEvent } from '../saga/ReceberLiberacao';
+import {
+  ReleaseEventConsumer,
+  releaseEventValidator,
+} from './RepairEventConsumer';
+import {
+  RefundEventConsumer,
+  refundEventValidator,
+} from './RepairEventConsumer';
 import { ReceiveCancellationEvent } from '../saga/ReceberCancelamento';
 import {
   CancellationEventConsumer,
@@ -108,6 +118,8 @@ export class SagaEventWorker implements OnModuleInit, OnApplicationShutdown {
     const diagnosisValidate = diagnosisEventValidator(directory);
     const quoteValidate = quoteEventValidator(directory);
     const reservationValidate = reservationEventValidator(directory);
+    const refundValidate = refundEventValidator(directory);
+    const releaseValidate = releaseEventValidator(directory);
     const cancellationValidate = cancellationEventValidator(directory);
     this.db = new PrismaClient({ datasources: { db: { url: database } } });
     this.bus = new ServiceBusClient(
@@ -153,6 +165,14 @@ export class SagaEventWorker implements OnModuleInit, OnApplicationShutdown {
       new ReceiveCancellationEvent(this.db),
       cancellationValidate,
     );
+    const refund = new RefundEventConsumer(
+      new ReceiveRefundEvent(this.db),
+      refundValidate,
+    );
+    const release = new ReleaseEventConsumer(
+      new ReceiveReleaseEvent(this.db),
+      releaseValidate,
+    );
     this.subscription = receiver.subscribe(
       {
         processMessage: async (message) => {
@@ -190,10 +210,14 @@ export class SagaEventWorker implements OnModuleInit, OnApplicationShutdown {
             type === 'billing.quote-rejected.v1'
           )
             return quote.process(message, receiver);
+          if (type === 'billing.payment-refunded.v1')
+            return refund.process(message, receiver);
           if (type === 'billing.payment-confirmed.v1')
             return payment.process(message, receiver);
           if (type === 'execution.work-cancelled.v1')
             return cancellation.process(message, receiver);
+          if (type === 'execution.parts-released.v1')
+            return release.process(message, receiver);
           if (type === 'execution.parts-reserved.v1')
             return reservation.process(message, receiver);
           if (type === 'execution.work-enqueued.v1')

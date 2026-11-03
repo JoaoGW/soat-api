@@ -1,3 +1,12 @@
+import { StartCompensation } from '../../src/infrastructure/saga/IniciarCompensacao';
+import {
+  ReceiveRefundEvent,
+  RefundEvent,
+} from '../../src/infrastructure/saga/ReceberReembolso';
+import {
+  ReceiveReleaseEvent,
+  ReleaseEvent,
+} from '../../src/infrastructure/saga/ReceberLiberacao';
 import { randomUUID } from 'node:crypto';
 import { PrismaClient } from '@prisma/client';
 import {
@@ -92,5 +101,119 @@ describe('compensação de recusa antes de pagamento', () => {
       Array<{ status: string }>
     >`SELECT "status" FROM "OrdemDeServico" WHERE "id" = ${osId}`;
     expect(os[0].status).toBe('CANCELADA');
+  });
+  it('só solicita reembolso após cancelamento confirmado e só libera após reembolso', async () => {
+    const suffix = randomUUID();
+    const os2 = `os-${suffix}`;
+    const saga2 = `saga-${suffix}`;
+    const paymentId = `payment-${suffix}`;
+    const chargeId = `charge-${suffix}`;
+    const reservationId = `res-${suffix}`;
+    const quoteId = `quote-${suffix}`;
+    await db.$executeRaw`INSERT INTO "OrdemDeServico" ("id", "codigoAcompanhamento", "clienteId", "veiculoId", "filialId", "status", "updatedAt") VALUES (${os2}, ${suffix}, ${client}, ${vehicle}, 'branch', 'NA_FILA', NOW())`;
+    await db.$executeRaw`INSERT INTO "SagaInstance" ("id", "osId", "filialId", "status", "quoteId", "quoteVersion", "reservationId", "chargeId", "updatedAt") VALUES (${saga2}, ${os2}, 'branch', 'NA_FILA', ${quoteId}, 1, ${reservationId}, ${chargeId}, NOW())`;
+    expect(
+      await Promise.all([
+        new StartCompensation(db).execute(saga2, 'SAGA_COMPENSATION'),
+        new StartCompensation(db).execute(saga2, 'SAGA_COMPENSATION'),
+      ]),
+    ).toEqual(['STARTED', 'STARTED']);
+    const cancelCommands = await db.$queryRaw<
+      Array<{ operationId: string }>
+    >`SELECT "operationId" FROM "SagaOperation" WHERE "sagaId" = ${saga2} AND "commandType" = 'execution.cancel-work.v1'`;
+    expect(cancelCommands).toHaveLength(1);
+    const cancelOp = cancelCommands[0].operationId;
+    const payment = {
+      sagaId: saga2,
+      data: {
+        chargeId,
+        paymentId,
+        amountInCents: 500,
+        providerOrderId: 'order1',
+      },
+    };
+    await db.$executeRaw`INSERT INTO "Inbox" ("consumer", "messageId", "operationId", "type", "payload", "status") VALUES ('os.saga-events', ${`payment-event-${suffix}`}, ${`payment-op-${suffix}`}, 'billing.payment-confirmed.v1', ${JSON.stringify(payment)}::jsonb, 'APPLIED')`;
+    const cancelled: CancellationEvent = {
+      messageId: `cancel-event-${suffix}`,
+      operationId: cancelOp,
+      type: 'execution.work-cancelled.v1',
+      producer: 'soat-execution-service',
+      osId: os2,
+      sagaId: saga2,
+      filialId: 'branch',
+      data: { outcome: 'CANCELLED', reason: 'SAGA_COMPENSATION' },
+    };
+    expect(await new ReceiveCancellationEvent(db).execute(cancelled)).toBe(
+      'APPLIED',
+    );
+    const refunds = await db.$queryRaw<
+      Array<{
+        payload: {
+          operationId: string;
+          data: {
+            refundId: string;
+            paymentId: string;
+            cancelOperationId: string;
+          };
+        };
+      }>
+    >`SELECT "payload" FROM "Outbox" WHERE "type" = 'billing.refund-payment.v1' AND "payload"->>'sagaId' = ${saga2}`;
+    expect(refunds).toHaveLength(1);
+    const command = refunds[0].payload;
+    const refund: RefundEvent = {
+      messageId: `refund-event-${suffix}`,
+      operationId: command.operationId,
+      type: 'billing.payment-refunded.v1',
+      producer: 'soat-billing-service',
+      osId: os2,
+      sagaId: saga2,
+      filialId: 'branch',
+      correlationId: 'c1',
+      data: {
+        refundId: command.data.refundId,
+        paymentId,
+        chargeId,
+        quoteId,
+        quoteVersion: 1,
+        amountInCents: 500,
+        currency: 'BRL',
+        providerOrderId: 'order1',
+        providerRefundId: 'refund1',
+        cancelOperationId: cancelOp,
+      },
+    };
+    await expect(
+      new ReceiveRefundEvent(db).execute({
+        ...refund,
+        data: { ...refund.data, amountInCents: 999 },
+      }),
+    ).rejects.toThrow('Pagamento não corresponde');
+    expect(await new ReceiveRefundEvent(db).execute(refund)).toBe('APPLIED');
+    const release = await db.$queryRaw<
+      Array<{ payload: { operationId: string; data: ReleaseEvent['data'] } }>
+    >`SELECT "payload" FROM "Outbox" WHERE "type" = 'execution.release-parts.v1' AND "payload"->>'sagaId' = ${saga2}`;
+    expect(release).toHaveLength(1);
+    expect(release[0].payload.data.reservationId).toBe(reservationId);
+    const released: ReleaseEvent = {
+      messageId: `released-${suffix}`,
+      operationId: release[0].payload.operationId,
+      type: 'execution.parts-released.v1',
+      producer: 'soat-execution-service',
+      osId: os2,
+      sagaId: saga2,
+      filialId: 'branch',
+      data: { ...release[0].payload.data, outcome: 'RELEASED' },
+    };
+    const receiver = new ReceiveReleaseEvent(db);
+    expect(
+      await Promise.all([
+        receiver.execute(released),
+        receiver.execute(released),
+      ]),
+    ).toEqual(['APPLIED', 'APPLIED']);
+    const status = await db.$queryRaw<
+      Array<{ status: string }>
+    >`SELECT "status" FROM "SagaInstance" WHERE "id" = ${saga2}`;
+    expect(status[0].status).toBe('COMPENSADA');
   });
 });

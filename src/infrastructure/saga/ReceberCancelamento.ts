@@ -6,6 +6,7 @@ export type CancellationEvent = {
   osId: string;
   sagaId: string;
   filialId: string;
+  correlationId?: string;
   type: 'execution.work-cancelled.v1';
   producer: 'soat-execution-service';
   data: {
@@ -18,6 +19,7 @@ type Saga = {
   osId: string;
   filialId: string;
   status: string;
+  version: number;
   reservationId: string | null;
   chargeId: string | null;
   executionId: string | null;
@@ -53,7 +55,7 @@ export class ReceiveCancellationEvent {
     return this.db.$transaction(async (tx) => {
       const rows = await tx.$queryRaw<
         Saga[]
-      >`SELECT "osId", "filialId", "status", "reservationId", "chargeId", "executionId" FROM "SagaInstance" WHERE "id" = ${event.sagaId} FOR UPDATE`;
+      >`SELECT "osId", "filialId", "status", "version", "reservationId", "chargeId", "executionId" FROM "SagaInstance" WHERE "id" = ${event.sagaId} FOR UPDATE`;
       const saga = rows[0];
       if (!saga || saga.osId !== event.osId || saga.filialId !== event.filialId)
         throw new Error('Cancelamento não corresponde à Saga');
@@ -85,7 +87,85 @@ export class ReceiveCancellationEvent {
         !['PENDING', 'SENT'].includes(command.status)
       )
         return 'PENDING';
+      const payments = saga.chargeId
+        ? await tx.$queryRaw<
+            Array<{ paymentId: string }>
+          >`SELECT DISTINCT "payload"->'data'->>'paymentId' AS "paymentId" FROM "Inbox" WHERE "consumer" = 'os.saga-events' AND "type" = 'billing.payment-confirmed.v1' AND "status" = 'APPLIED' AND "payload"->>'sagaId' = ${event.sagaId} AND "payload"->'data'->>'chargeId' = ${saga.chargeId}`
+        : [];
+      const chargeOperations = await tx.$queryRaw<
+        Array<{ operationId: string }>
+      >`SELECT "operationId" FROM "SagaOperation" WHERE "sagaId" = ${event.sagaId} AND "commandType" = 'billing.create-charge.v1'`;
       if (
+        event.data.outcome === 'CANCELLED' &&
+        saga.chargeId &&
+        saga.reservationId &&
+        payments.length === 1 &&
+        payments[0].paymentId
+      ) {
+        const operationId = randomUUID();
+        const messageId = randomUUID();
+        const refundId = randomUUID();
+        const type = 'billing.refund-payment.v1';
+        const payload = {
+          messageId,
+          type,
+          schemaVersion: 1,
+          occurredAt: now.toISOString(),
+          producer: 'soat-os-service',
+          aggregateType: 'saga',
+          aggregateId: event.sagaId,
+          aggregateVersion: saga.version + 1,
+          osId: event.osId,
+          sagaId: event.sagaId,
+          filialId: event.filialId,
+          correlationId: event.correlationId ?? event.sagaId,
+          causationId: event.messageId,
+          operationId,
+          data: {
+            refundId,
+            paymentId: payments[0].paymentId,
+            cancelOperationId: event.operationId,
+            cancelEventId: event.messageId,
+            reason: 'SAGA_COMPENSATION',
+          },
+        };
+        await tx.$executeRaw`INSERT INTO "SagaOperation" ("operationId", "sagaId", "step", "businessAttempt", "commandType", "status", "updatedAt") VALUES (${operationId}, ${event.sagaId}, 'REFUND_PAYMENT', 1, ${type}, 'PENDING', NOW())`;
+        await tx.$executeRaw`INSERT INTO "Outbox" ("messageId", "type", "payload") VALUES (${messageId}, ${type}, ${JSON.stringify(payload)}::jsonb)`;
+        await tx.$executeRaw`UPDATE "SagaInstance" SET "status" = 'REEMBOLSO_PENDENTE', "version" = "version" + 1, "updatedAt" = NOW() WHERE "id" = ${event.sagaId}`;
+      } else if (
+        event.data.outcome === 'CANCELLED' &&
+        saga.reservationId &&
+        !saga.chargeId &&
+        chargeOperations.length === 0
+      ) {
+        const operationId = randomUUID();
+        const messageId = randomUUID();
+        const type = 'execution.release-parts.v1';
+        const payload = {
+          messageId,
+          type,
+          schemaVersion: 1,
+          occurredAt: now.toISOString(),
+          producer: 'soat-os-service',
+          aggregateType: 'saga',
+          aggregateId: event.sagaId,
+          aggregateVersion: saga.version + 1,
+          osId: event.osId,
+          sagaId: event.sagaId,
+          filialId: event.filialId,
+          correlationId: event.correlationId ?? event.sagaId,
+          causationId: event.messageId,
+          operationId,
+          data: {
+            reservationId: saga.reservationId,
+            cancelOperationId: event.operationId,
+            reason: 'SAGA_COMPENSATION',
+          },
+        };
+        await tx.$executeRaw`INSERT INTO "SagaOperation" ("operationId", "sagaId", "step", "businessAttempt", "commandType", "status", "updatedAt") VALUES (${operationId}, ${event.sagaId}, 'RELEASE_PARTS', 1, ${type}, 'PENDING', NOW())`;
+        await tx.$executeRaw`INSERT INTO "Outbox" ("messageId", "type", "payload") VALUES (${messageId}, ${type}, ${JSON.stringify(payload)}::jsonb)`;
+        await tx.$executeRaw`UPDATE "SagaInstance" SET "status" = 'LIBERACAO_PENDENTE', "version" = "version" + 1, "updatedAt" = NOW() WHERE "id" = ${event.sagaId}`;
+      } else if (
         event.data.outcome === 'ALREADY_STARTED' ||
         saga.reservationId ||
         saga.chargeId ||

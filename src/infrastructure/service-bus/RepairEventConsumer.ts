@@ -274,3 +274,107 @@ export class CancellationEventConsumer {
     await receiver.completeMessage(message);
   }
 }
+
+export function refundEventValidator(
+  directory: string,
+): (event: unknown) => boolean {
+  const ajv = new Ajv({ allErrors: true });
+  addFormats(ajv);
+  const read = (file: string): object =>
+    JSON.parse(readFileSync(resolve(directory, file), 'utf8')) as object;
+  ajv.addSchema(read('envelope.schema.json'));
+  const validate = ajv.compile(read('billing.payment-refunded.v1.schema.json'));
+  return (event) => validate(event) === true;
+}
+export class RefundEventConsumer {
+  constructor(
+    private readonly handler: {
+      execute(
+        event: import('../saga/ReceberReembolso').RefundEvent,
+      ): Promise<'APPLIED' | 'PENDING'>;
+    },
+    private readonly validate: (event: unknown) => boolean,
+  ) {}
+  async process(
+    message: ServiceBusReceivedMessage,
+    receiver: Receiver,
+  ): Promise<void> {
+    const body: unknown = message.body;
+    if (
+      !this.validate(body) ||
+      !body ||
+      typeof body !== 'object' ||
+      !('messageId' in body) ||
+      !('type' in body) ||
+      body.messageId !== message.messageId ||
+      (message.subject && message.subject !== body.type)
+    ) {
+      await receiver.deadLetterMessage(message, {
+        deadLetterReason: 'InvalidContract',
+        deadLetterErrorDescription: 'Evento inválido',
+      });
+      return;
+    }
+    try {
+      await this.handler.execute(
+        body as import('../saga/ReceberReembolso').RefundEvent,
+      );
+    } catch {
+      await receiver.abandonMessage(message);
+      return;
+    }
+    await receiver.completeMessage(message);
+  }
+}
+
+export function releaseEventValidator(
+  directory: string,
+): (event: unknown) => boolean {
+  const ajv = new Ajv({ allErrors: true });
+  addFormats(ajv);
+  const read = (file: string): object =>
+    JSON.parse(readFileSync(resolve(directory, file), 'utf8')) as object;
+  ajv.addSchema(read('envelope.schema.json'));
+  const validate = ajv.compile(read('execution.parts-released.v1.schema.json'));
+  return (event) => validate(event) === true;
+}
+export class ReleaseEventConsumer {
+  constructor(
+    private readonly handler: {
+      execute(
+        event: import('../saga/ReceberLiberacao').ReleaseEvent,
+      ): Promise<'APPLIED' | 'PENDING'>;
+    },
+    private readonly validate: (event: unknown) => boolean,
+  ) {}
+  async process(
+    message: ServiceBusReceivedMessage,
+    receiver: Receiver,
+  ): Promise<void> {
+    const body: unknown = message.body;
+    if (
+      !this.validate(body) ||
+      !body ||
+      typeof body !== 'object' ||
+      !('messageId' in body) ||
+      !('type' in body) ||
+      body.messageId !== message.messageId ||
+      (message.subject && message.subject !== body.type)
+    ) {
+      await receiver.deadLetterMessage(message, {
+        deadLetterReason: 'InvalidContract',
+        deadLetterErrorDescription: 'Evento inválido',
+      });
+      return;
+    }
+    try {
+      await this.handler.execute(
+        body as import('../saga/ReceberLiberacao').ReleaseEvent,
+      );
+    } catch {
+      await receiver.abandonMessage(message);
+      return;
+    }
+    await receiver.completeMessage(message);
+  }
+}

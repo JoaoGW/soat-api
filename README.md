@@ -104,7 +104,10 @@ A Saga processa emissão e decisão do orçamento, gera reserva a partir das pe�
 no snapshot e prepara cobrança após confirmação da reserva. A cobrança exige
 `MERCADO_PAGO_EXTERNAL_POS_ID`; sem ele, a confirmação da reserva fica na
 inbox até nova avaliação. A recusa antes de pagamento envia cancelamento para
-Execution e conclui após confirmação de que o trabalho não começou. As
-compensações após reserva ou cobrança e o acionamento de reembolso ainda não
-estão integrados; esses casos precisam de reconciliação e não devem ser
-considerados concluídos. Os testes locais não comprovam comportamento do broker.
+Execution e conclui após confirmação de que o trabalho não começou. Existe
+acionamento administrativo de compensação em
+`POST /fase4/ordens-servico/:sagaId/compensar`, protegido por JWT e desativado
+até `ENABLE_FASE4_COMPENSATION=true`. Se há pagamento confirmado, a Saga aguarda
+cancelamento, reembolso e liberação das peças; situações financeiras incertas
+vão para reconciliação. A implementação ainda requer tratamento das demais
+falhas e validação distribuída com broker e provedor antes da ativação.

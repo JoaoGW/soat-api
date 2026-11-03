@@ -23,6 +23,10 @@ import { reservationEventValidator } from '../service-bus/RepairEventConsumer';
 import { ReceiveReservationEvent } from './ReceberReserva';
 import { cancellationEventValidator } from '../service-bus/RepairEventConsumer';
 import { ReceiveCancellationEvent } from './ReceberCancelamento';
+import { refundEventValidator } from '../service-bus/RepairEventConsumer';
+import { ReceiveRefundEvent } from './ReceberReembolso';
+import { ReceiveReleaseEvent } from './ReceberLiberacao';
+import { releaseEventValidator } from '../service-bus/RepairEventConsumer';
 
 type Cursor = { receivedAt: Date; messageId: string };
 
@@ -86,6 +90,10 @@ export class SagaReplayWorker implements OnModuleInit, OnApplicationShutdown {
       cancellationEventValidator(
         resolve(process.cwd(), 'docs/contracts/messages'),
       ),
+      new ReceiveRefundEvent(this.db),
+      refundEventValidator(resolve(process.cwd(), 'docs/contracts/messages')),
+      new ReceiveReleaseEvent(this.db),
+      releaseEventValidator(resolve(process.cwd(), 'docs/contracts/messages')),
     );
     this.active = this.poll();
   }

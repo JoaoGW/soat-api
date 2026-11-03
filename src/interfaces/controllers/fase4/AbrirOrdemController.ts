@@ -5,6 +5,7 @@ import {
   Headers,
   Injectable,
   OnApplicationShutdown,
+  Param,
   Post,
   Req,
   ServiceUnavailableException,
@@ -13,6 +14,7 @@ import {
 import { PrismaClient } from '@prisma/client';
 import { JwtAuthGuard } from '../../guards/JwtAuthGuard';
 import { OpenOrderWithSaga } from '../../../infrastructure/saga/AbrirOrdem';
+import { StartCompensation } from '../../../infrastructure/saga/IniciarCompensacao';
 
 type BodyInput = {
   clienteId: string;
@@ -32,6 +34,13 @@ export class OpenOrderRuntime implements OnApplicationShutdown {
   }
   async onApplicationShutdown() {
     await this.db?.$disconnect();
+  }
+  async compensate(sagaId: string, reason: string) {
+    const url = process.env.SAGA_DATABASE_URL;
+    if (process.env.ENABLE_FASE4_COMPENSATION !== 'true' || !url)
+      throw new ServiceUnavailableException('Compensação indisponível');
+    if (!this.db) this.db = new PrismaClient({ datasources: { db: { url } } });
+    return new StartCompensation(this.db).execute(sagaId, reason);
   }
 }
 @Controller('fase4/ordens-servico')
@@ -59,5 +68,22 @@ export class OpenOrderController {
     )
       throw new BadRequestException('Dados inválidos');
     return this.runtime.execute(request.user.username, key, body);
+  }
+  @Post(':sagaId/compensar')
+  async compensate(
+    @Param('sagaId') sagaId: string,
+    @Body() body: { reason: string },
+  ) {
+    if (
+      !body ||
+      typeof body !== 'object' ||
+      Array.isArray(body) ||
+      Object.keys(body).some((field) => field !== 'reason') ||
+      typeof body.reason !== 'string' ||
+      !/^[a-z0-9_-]{1,128}$/i.test(body.reason) ||
+      !/^[a-z0-9_-]{1,128}$/i.test(sagaId)
+    )
+      throw new BadRequestException('Dados inválidos');
+    return { status: await this.runtime.compensate(sagaId, body.reason) };
   }
 }
