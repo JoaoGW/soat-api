@@ -17,6 +17,12 @@ import { ReceiveRepairEvent } from './ReceberReparo';
 import { repairEventValidator } from '../service-bus/RepairEventConsumer';
 import { diagnosisEventValidator } from '../service-bus/RepairEventConsumer';
 import { ReceiveDiagnosisEvent } from './ReceberDiagnostico';
+import { ReceiveQuoteEvent } from './ReceberOrcamento';
+import { quoteEventValidator } from '../service-bus/RepairEventConsumer';
+import { reservationEventValidator } from '../service-bus/RepairEventConsumer';
+import { ReceiveReservationEvent } from './ReceberReserva';
+import { cancellationEventValidator } from '../service-bus/RepairEventConsumer';
+import { ReceiveCancellationEvent } from './ReceberCancelamento';
 
 type Cursor = { receivedAt: Date; messageId: string };
 
@@ -65,6 +71,19 @@ export class SagaReplayWorker implements OnModuleInit, OnApplicationShutdown {
       repairEventValidator(resolve(process.cwd(), 'docs/contracts/messages')),
       new ReceiveDiagnosisEvent(this.db),
       diagnosisEventValidator(
+        resolve(process.cwd(), 'docs/contracts/messages'),
+      ),
+      new ReceiveQuoteEvent(this.db),
+      quoteEventValidator(resolve(process.cwd(), 'docs/contracts/messages')),
+      new ReceiveReservationEvent(
+        this.db,
+        process.env.MERCADO_PAGO_EXTERNAL_POS_ID,
+      ),
+      reservationEventValidator(
+        resolve(process.cwd(), 'docs/contracts/messages'),
+      ),
+      new ReceiveCancellationEvent(this.db),
+      cancellationEventValidator(
         resolve(process.cwd(), 'docs/contracts/messages'),
       ),
     );

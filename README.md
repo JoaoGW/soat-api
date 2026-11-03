@@ -99,3 +99,12 @@ habilitar o tráfego. A rota administrativa separada
 em `SERVICE_BUS_BILLING_QUEUE` e `SERVICE_BUS_EXECUTION_QUEUE`, identidade de
 workload e a chave privada do OS. O fluxo permanece incompleto e não deve ser
 ativado antes das transições e testes distribuídos.
+
+A Saga processa emissão e decisão do orçamento, gera reserva a partir das peças
+no snapshot e prepara cobrança após confirmação da reserva. A cobrança exige
+`MERCADO_PAGO_EXTERNAL_POS_ID`; sem ele, a confirmação da reserva fica na
+inbox até nova avaliação. A recusa antes de pagamento envia cancelamento para
+Execution e conclui após confirmação de que o trabalho não começou. As
+compensações após reserva ou cobrança e o acionamento de reembolso ainda não
+estão integrados; esses casos precisam de reconciliação e não devem ser
+considerados concluídos. Os testes locais não comprovam comportamento do broker.

@@ -33,6 +33,18 @@ import {
   diagnosisEventValidator,
 } from './RepairEventConsumer';
 import { ReceiveDiagnosisEvent } from '../saga/ReceberDiagnostico';
+import { ReceiveQuoteEvent } from '../saga/ReceberOrcamento';
+import { ReceiveReservationEvent } from '../saga/ReceberReserva';
+import { ReceiveCancellationEvent } from '../saga/ReceberCancelamento';
+import {
+  CancellationEventConsumer,
+  cancellationEventValidator,
+} from './RepairEventConsumer';
+import {
+  ReservationEventConsumer,
+  reservationEventValidator,
+} from './RepairEventConsumer';
+import { QuoteEventConsumer, quoteEventValidator } from './RepairEventConsumer';
 import { MessageVerifier } from '../messaging/message-signature';
 
 /** Disabled by default; unsupported events are never acknowledged. */
@@ -94,6 +106,9 @@ export class SagaEventWorker implements OnModuleInit, OnApplicationShutdown {
     const workValidate = workEnqueuedEventValidator(directory);
     const repairValidate = repairEventValidator(directory);
     const diagnosisValidate = diagnosisEventValidator(directory);
+    const quoteValidate = quoteEventValidator(directory);
+    const reservationValidate = reservationEventValidator(directory);
+    const cancellationValidate = cancellationEventValidator(directory);
     this.db = new PrismaClient({ datasources: { db: { url: database } } });
     this.bus = new ServiceBusClient(
       namespace,
@@ -122,6 +137,21 @@ export class SagaEventWorker implements OnModuleInit, OnApplicationShutdown {
     const diagnosis = new DiagnosisEventConsumer(
       new ReceiveDiagnosisEvent(this.db),
       diagnosisValidate,
+    );
+    const quote = new QuoteEventConsumer(
+      new ReceiveQuoteEvent(this.db),
+      quoteValidate,
+    );
+    const reservation = new ReservationEventConsumer(
+      new ReceiveReservationEvent(
+        this.db,
+        process.env.MERCADO_PAGO_EXTERNAL_POS_ID,
+      ),
+      reservationValidate,
+    );
+    const cancellation = new CancellationEventConsumer(
+      new ReceiveCancellationEvent(this.db),
+      cancellationValidate,
     );
     this.subscription = receiver.subscribe(
       {
@@ -154,8 +184,18 @@ export class SagaEventWorker implements OnModuleInit, OnApplicationShutdown {
             type === 'billing.charge-failed.v1'
           )
             return charge.process(message, receiver);
+          if (
+            type === 'billing.quote-issued.v1' ||
+            type === 'billing.quote-approved.v1' ||
+            type === 'billing.quote-rejected.v1'
+          )
+            return quote.process(message, receiver);
           if (type === 'billing.payment-confirmed.v1')
             return payment.process(message, receiver);
+          if (type === 'execution.work-cancelled.v1')
+            return cancellation.process(message, receiver);
+          if (type === 'execution.parts-reserved.v1')
+            return reservation.process(message, receiver);
           if (type === 'execution.work-enqueued.v1')
             return work.process(message, receiver);
           if (

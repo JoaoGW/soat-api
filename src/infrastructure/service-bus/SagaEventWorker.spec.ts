@@ -119,7 +119,7 @@ describe('SagaEventWorker', () => {
     const a = signed('billing.charge-created.v1', 'soat-billing-service');
     const b = signed('billing.payment-confirmed.v1', 'soat-billing-service');
     const c = signed('execution.work-enqueued.v1', 'soat-execution-service');
-    const d = signed('billing.quote-issued.v1', 'soat-billing-service');
+    const d = signed('billing.unknown.v1', 'soat-billing-service');
     await handlers.processMessage(a);
     await handlers.processMessage(b);
     await handlers.processMessage(c);

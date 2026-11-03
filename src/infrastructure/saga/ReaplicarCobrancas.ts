@@ -4,6 +4,9 @@ import { PaymentEvent } from './ReceberPagamento';
 import { WorkEnqueuedEvent } from './ReceberEnfileiramento';
 import { RepairEvent } from './ReceberReparo';
 import { DiagnosisEvent } from './ReceberDiagnostico';
+import { QuoteEvent } from './ReceberOrcamento';
+import { ReservationEvent } from './ReceberReserva';
+import { CancellationEvent } from './ReceberCancelamento';
 
 type Handler = { execute(event: ChargeEvent): Promise<'APPLIED' | 'PENDING'> };
 type PaymentHandler = {
@@ -32,6 +35,18 @@ export class ReplayPendingChargeEvents {
       execute(event: DiagnosisEvent): Promise<'APPLIED' | 'PENDING'>;
     },
     private readonly validateDiagnosis?: (event: unknown) => boolean,
+    private readonly quoteHandler?: {
+      execute(event: QuoteEvent): Promise<'APPLIED' | 'PENDING'>;
+    },
+    private readonly validateQuote?: (event: unknown) => boolean,
+    private readonly reservationHandler?: {
+      execute(event: ReservationEvent): Promise<'APPLIED' | 'PENDING'>;
+    },
+    private readonly validateReservation?: (event: unknown) => boolean,
+    private readonly cancellationHandler?: {
+      execute(event: CancellationEvent): Promise<'APPLIED' | 'PENDING'>;
+    },
+    private readonly validateCancellation?: (event: unknown) => boolean,
   ) {}
 
   async execute(
@@ -63,7 +78,7 @@ export class ReplayPendingChargeEvents {
     >`
       SELECT "payload", "receivedAt", "messageId", "type" FROM "Inbox"
       WHERE "consumer" = 'os.saga-events' AND "status" = 'PENDING'
-        AND ("type" = 'billing.charge-created.v1' OR (${Boolean(this.paymentHandler && this.validatePayment)} AND "type" = 'billing.payment-confirmed.v1') OR (${Boolean(this.workHandler && this.validateWork)} AND "type" = 'execution.work-enqueued.v1') OR (${Boolean(this.repairHandler && this.validateRepair)} AND "type" IN ('execution.work-started.v1', 'execution.work-completed.v1')) OR (${Boolean(this.diagnosisHandler && this.validateDiagnosis)} AND "type" IN ('execution.diagnosis-started.v1', 'execution.diagnosis-completed.v1')))
+        AND ("type" = 'billing.charge-created.v1' OR (${Boolean(this.paymentHandler && this.validatePayment)} AND "type" = 'billing.payment-confirmed.v1') OR (${Boolean(this.workHandler && this.validateWork)} AND "type" = 'execution.work-enqueued.v1') OR (${Boolean(this.repairHandler && this.validateRepair)} AND "type" IN ('execution.work-started.v1', 'execution.work-completed.v1')) OR (${Boolean(this.diagnosisHandler && this.validateDiagnosis)} AND "type" IN ('execution.diagnosis-started.v1', 'execution.diagnosis-completed.v1')) OR (${Boolean(this.quoteHandler && this.validateQuote)} AND "type" IN ('billing.quote-issued.v1', 'billing.quote-approved.v1', 'billing.quote-rejected.v1')) OR (${Boolean(this.reservationHandler && this.validateReservation)} AND "type" = 'execution.parts-reserved.v1') OR (${Boolean(this.cancellationHandler && this.validateCancellation)} AND "type" = 'execution.work-cancelled.v1'))
         AND (${date}::timestamp IS NULL OR ("receivedAt", "messageId") > (${date}::timestamp, ${id}::text))
       ORDER BY "receivedAt", "messageId" LIMIT ${limit}`;
     const result = {
@@ -80,6 +95,8 @@ export class ReplayPendingChargeEvents {
     };
     for (const row of rows) {
       const isPayment = row.type === 'billing.payment-confirmed.v1';
+      const isReservation = row.type === 'execution.parts-reserved.v1';
+      const isCancellation = row.type === 'execution.work-cancelled.v1';
       const isWork = row.type === 'execution.work-enqueued.v1';
       const isRepair =
         row.type === 'execution.work-started.v1' ||
@@ -87,32 +104,61 @@ export class ReplayPendingChargeEvents {
       const isDiagnosis =
         row.type === 'execution.diagnosis-started.v1' ||
         row.type === 'execution.diagnosis-completed.v1';
-      const valid = isDiagnosis
-        ? this.validateDiagnosis?.(row.payload)
-        : isRepair
-          ? this.validateRepair?.(row.payload)
-          : isPayment
-            ? this.validatePayment?.(row.payload)
-            : isWork
-              ? this.validateWork?.(row.payload)
-              : this.validate(row.payload);
+      const isQuote = [
+        'billing.quote-issued.v1',
+        'billing.quote-approved.v1',
+        'billing.quote-rejected.v1',
+      ].includes(row.type);
+      const valid = isCancellation
+        ? this.validateCancellation?.(row.payload)
+        : isReservation
+          ? this.validateReservation?.(row.payload)
+          : isQuote
+            ? this.validateQuote?.(row.payload)
+            : isDiagnosis
+              ? this.validateDiagnosis?.(row.payload)
+              : isRepair
+                ? this.validateRepair?.(row.payload)
+                : isPayment
+                  ? this.validatePayment?.(row.payload)
+                  : isWork
+                    ? this.validateWork?.(row.payload)
+                    : this.validate(row.payload);
       if (!valid) {
         result.errors++;
         continue;
       }
       try {
         const outcome =
-          isDiagnosis && this.diagnosisHandler
-            ? await this.diagnosisHandler.execute(row.payload as DiagnosisEvent)
-            : isRepair && this.repairHandler
-              ? await this.repairHandler.execute(row.payload as RepairEvent)
-              : isPayment && this.paymentHandler
-                ? await this.paymentHandler.execute(row.payload as PaymentEvent)
-                : isWork && this.workHandler
-                  ? await this.workHandler.execute(
-                      row.payload as WorkEnqueuedEvent,
+          isCancellation && this.cancellationHandler
+            ? await this.cancellationHandler.execute(
+                row.payload as CancellationEvent,
+              )
+            : isReservation && this.reservationHandler
+              ? await this.reservationHandler.execute(
+                  row.payload as ReservationEvent,
+                )
+              : isQuote && this.quoteHandler
+                ? await this.quoteHandler.execute(row.payload as QuoteEvent)
+                : isDiagnosis && this.diagnosisHandler
+                  ? await this.diagnosisHandler.execute(
+                      row.payload as DiagnosisEvent,
                     )
-                  : await this.handler.execute(row.payload as ChargeEvent);
+                  : isRepair && this.repairHandler
+                    ? await this.repairHandler.execute(
+                        row.payload as RepairEvent,
+                      )
+                    : isPayment && this.paymentHandler
+                      ? await this.paymentHandler.execute(
+                          row.payload as PaymentEvent,
+                        )
+                      : isWork && this.workHandler
+                        ? await this.workHandler.execute(
+                            row.payload as WorkEnqueuedEvent,
+                          )
+                        : await this.handler.execute(
+                            row.payload as ChargeEvent,
+                          );
         if (outcome === 'APPLIED') result.applied++;
         else result.pending++;
       } catch {
