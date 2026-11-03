@@ -93,8 +93,8 @@ export class ReceiveCancellationEvent {
           >`SELECT DISTINCT "payload"->'data'->>'paymentId' AS "paymentId" FROM "Inbox" WHERE "consumer" = 'os.saga-events' AND "type" = 'billing.payment-confirmed.v1' AND "status" = 'APPLIED' AND "payload"->>'sagaId' = ${event.sagaId} AND "payload"->'data'->>'chargeId' = ${saga.chargeId}`
         : [];
       const chargeOperations = await tx.$queryRaw<
-        Array<{ operationId: string }>
-      >`SELECT "operationId" FROM "SagaOperation" WHERE "sagaId" = ${event.sagaId} AND "commandType" = 'billing.create-charge.v1'`;
+        Array<{ status: string; reason: string | null }>
+      >`SELECT "status", "result"->'data'->>'reasonCode' AS "reason" FROM "SagaOperation" WHERE "sagaId" = ${event.sagaId} AND "commandType" = 'billing.create-charge.v1'`;
       if (
         event.data.outcome === 'CANCELLED' &&
         saga.chargeId &&
@@ -136,7 +136,10 @@ export class ReceiveCancellationEvent {
         event.data.outcome === 'CANCELLED' &&
         saga.reservationId &&
         !saga.chargeId &&
-        chargeOperations.length === 0
+        chargeOperations.every(
+          (operation) =>
+            operation.status === 'FAILED' && operation.reason === 'EXPIRED',
+        )
       ) {
         const operationId = randomUUID();
         const messageId = randomUUID();

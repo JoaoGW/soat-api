@@ -111,3 +111,19 @@ até `ENABLE_FASE4_COMPENSATION=true`. Se há pagamento confirmado, a Saga aguar
 cancelamento, reembolso e liberação das peças; situações financeiras incertas
 vão para reconciliação. A implementação ainda requer tratamento das demais
 falhas e validação distribuída com broker e provedor antes da ativação.
+
+`npm run test:broker-diagnosis-billing` é um teste parcial que entrega o
+comando assinado de orçamento pelo emulador Service Bus e verifica reentrega e
+idempotência em Billing. Exige builds e bancos locais de teste como acima,
+`SERVICE_BUS_TEST_CONNECTION_STRING` do emulador local e a fila
+`bdd.billing.commands`. Os arquivos de configuração estão em `test/broker`.
+O compose exige que o operador leia e aceite os termos de licença do emulador
+Service Bus e do SQL Server antes de iniciar os containers. Esse teste cobre
+somente OS → broker → Billing: não substitui o BDD completo dos três serviços.
+
+As falhas definitivas de geração de orçamento, reserva e cobrança expirada
+antes do envio são verificadas contra o comando original e iniciam cancelamento;
+resultado de orçamento já existente requer reconciliação. A revisão de prazos é
+opcional (`ENABLE_SAGA_DEADLINE_REVIEW=true`), a cada 60 segundos, e registra
+reconciliação sem presumir que pagamento ou execução foram revertidos. Falhas
+que ainda não possuem evento ou recuperação operacional continuam pendentes.

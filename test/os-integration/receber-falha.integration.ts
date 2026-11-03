@@ -1,0 +1,180 @@
+import { randomUUID } from 'node:crypto';
+import { PrismaClient } from '@prisma/client';
+import { ReviewSagaDeadlines } from '../../src/infrastructure/saga/RevisarPrazos';
+import {
+  ReceiveCancellationEvent,
+  CancellationEvent,
+} from '../../src/infrastructure/saga/ReceberCancelamento';
+import {
+  ReceiveFailureEvent,
+  FailureEvent,
+} from '../../src/infrastructure/saga/ReceberFalha';
+const url = process.env.DATABASE_URL;
+if (
+  !url ||
+  !['localhost', '127.0.0.1', '::1'].includes(new URL(url).hostname) ||
+  !new URL(url).pathname.endsWith('_test')
+)
+  throw new Error('Banco local de teste obrigatório');
+describe('falhas definitivas da Saga', () => {
+  const db = new PrismaClient();
+  const handler = new ReceiveFailureEvent(db);
+  const prefix = randomUUID();
+  const client = `client-${prefix}`;
+  const vehicle = `vehicle-${prefix}`;
+  beforeAll(async () => {
+    const doc = String(
+      BigInt('0x' + prefix.replaceAll('-', '').slice(0, 10)) % 100000000000n,
+    ).padStart(11, '0');
+    await db.$executeRaw`INSERT INTO "Cliente" ("id", "nome", "documento", "tipo", "contato", "updatedAt") VALUES (${client}, 'T', ${doc}, 'PF', 'x', NOW())`;
+    await db.$executeRaw`INSERT INTO "Veiculo" ("id", "clienteId", "placa", "marca", "modelo", "ano", "updatedAt") VALUES (${vehicle}, ${client}, ${prefix.slice(0, 7)}, 'X', 'Y', 2020, NOW())`;
+  });
+  afterAll(async () => {
+    await db.$disconnect();
+  });
+  async function setup(
+    kind: 'quote' | 'reservation' | 'charge',
+    ambiguous = false,
+  ) {
+    const id = randomUUID();
+    const sagaId = `saga-${id}`;
+    const osId = `os-${id}`;
+    const operationId = `op-${id}`;
+    const quoteId = `quote-${id}`;
+    const reservationId = `res-${id}`;
+    const chargeId = `charge-${id}`;
+    const map = {
+      quote: [
+        'ORCAMENTO_PENDENTE',
+        'billing.generate-quote.v1',
+        'billing.quote-failed.v1',
+        'soat-billing-service',
+      ],
+      reservation: [
+        'RESERVA_PENDENTE',
+        'execution.reserve-parts.v1',
+        'execution.parts-reservation-failed.v1',
+        'soat-execution-service',
+      ],
+      charge: [
+        'COBRANCA_PENDENTE',
+        'billing.create-charge.v1',
+        'billing.charge-failed.v1',
+        'soat-billing-service',
+      ],
+    } as const;
+    const [state, commandType, type, producer] = map[kind];
+    const data =
+      kind === 'quote'
+        ? {
+            diagnosisId: osId,
+            diagnosisVersion: 3,
+            reasonCode: ambiguous ? 'ALREADY_EXISTS' : 'EXPIRED',
+          }
+        : kind === 'reservation'
+          ? {
+              quoteId,
+              quoteVersion: 1,
+              reservationId,
+              reason: 'INSUFFICIENT_STOCK',
+            }
+          : {
+              quoteId,
+              quoteVersion: 1,
+              reservationId,
+              chargeId,
+              reasonCode: 'EXPIRED',
+            };
+    const payload = { operationId, sagaId, data };
+    const event: FailureEvent = {
+      messageId: `msg-${id}`,
+      operationId,
+      sagaId,
+      osId,
+      filialId: 'f1',
+      correlationId: id,
+      type,
+      producer,
+      data,
+    };
+    await db.$executeRaw`INSERT INTO "OrdemDeServico" ("id", "codigoAcompanhamento", "clienteId", "veiculoId", "filialId", "status", "updatedAt") VALUES (${osId}, ${id}, ${client}, ${vehicle}, 'f1', 'RECEBIDA', NOW())`;
+    await db.$executeRaw`INSERT INTO "SagaInstance" ("id", "osId", "filialId", "status", "quoteId", "quoteVersion", "reservationId", "updatedAt") VALUES (${sagaId}, ${osId}, 'f1', ${state}, ${quoteId}, 1, ${reservationId}, NOW())`;
+    await db.$executeRaw`INSERT INTO "SagaOperation" ("operationId", "sagaId", "step", "businessAttempt", "commandType", "status", "updatedAt") VALUES (${operationId}, ${sagaId}, 'TEST_FAILURE', 1, ${commandType}, 'PENDING', NOW())`;
+    await db.$executeRaw`INSERT INTO "Outbox" ("messageId", "type", "payload") VALUES (${`command-${id}`}, ${commandType}, ${JSON.stringify(payload)}::jsonb)`;
+    return event;
+  }
+  it.each(['quote', 'reservation', 'charge'] as const)(
+    'compensa a falha definitiva de %s uma vez',
+    async (kind) => {
+      const event = await setup(kind);
+      expect(
+        await Promise.all([handler.execute(event), handler.execute(event)]),
+      ).toEqual(['APPLIED', 'APPLIED']);
+      const state = await db.$queryRaw<
+        Array<{ status: string; reservationId: string | null }>
+      >`SELECT "status", "reservationId" FROM "SagaInstance" WHERE "id" = ${event.sagaId}`;
+      expect(state[0].status).toBe('COMPENSANDO');
+      if (kind === 'reservation') expect(state[0].reservationId).toBeNull();
+      const commands = await db.$queryRaw<
+        Array<{ count: bigint }>
+      >`SELECT COUNT(*) AS count FROM "Outbox" WHERE "type" = 'execution.cancel-work.v1' AND "payload"->>'sagaId' = ${event.sagaId}`;
+      expect(Number(commands[0].count)).toBe(1);
+    },
+  );
+  it('não presume que orçamento existente pode ser cancelado', async () => {
+    const event = await setup('quote', true);
+    expect(await handler.execute(event)).toBe('APPLIED');
+    const state = await db.$queryRaw<
+      Array<{ status: string; requiresAttention: boolean }>
+    >`SELECT "status", "requiresAttention" FROM "SagaInstance" WHERE "id" = ${event.sagaId}`;
+    expect(state[0]).toEqual({
+      status: 'RECONCILIACAO_NECESSARIA',
+      requiresAttention: true,
+    });
+  });
+  it('libera a reserva somente após falha definitiva e cancelamento confirmado', async () => {
+    const event = await setup('charge');
+    await handler.execute(event);
+    const commands = await db.$queryRaw<
+      Array<{ payload: { operationId: string; data: { reason: string } } }>
+    >`SELECT "payload" FROM "Outbox" WHERE "type" = 'execution.cancel-work.v1' AND "payload"->>'sagaId' = ${event.sagaId}`;
+    const cancelled: CancellationEvent = {
+      messageId: randomUUID(),
+      operationId: commands[0].payload.operationId,
+      osId: event.osId,
+      sagaId: event.sagaId,
+      filialId: event.filialId,
+      type: 'execution.work-cancelled.v1',
+      producer: 'soat-execution-service',
+      data: { outcome: 'CANCELLED', reason: commands[0].payload.data.reason },
+    };
+    expect(await new ReceiveCancellationEvent(db).execute(cancelled)).toBe(
+      'APPLIED',
+    );
+    const releases = await db.$queryRaw<
+      Array<{ count: bigint }>
+    >`SELECT COUNT(*) AS count FROM "Outbox" WHERE "type" = 'execution.release-parts.v1' AND "payload"->>'sagaId' = ${event.sagaId}`;
+    expect(Number(releases[0].count)).toBe(1);
+  });
+  it('prazo vencido gera reconciliação sem presumir estado financeiro', async () => {
+    const event = await setup('charge');
+    await db.$executeRaw`UPDATE "SagaInstance" SET "deadlineAt" = ${new Date('1990-01-01T00:00:00Z')} WHERE "id" = ${event.sagaId}`;
+    const review = new ReviewSagaDeadlines(db);
+    await Promise.all([
+      review.execute(new Date(), 100),
+      review.execute(new Date(), 100),
+    ]);
+    const rows = await db.$queryRaw<
+      Array<{ status: string; requiresAttention: boolean; lastError: string }>
+    >`SELECT "status", "requiresAttention", "lastError" FROM "SagaInstance" WHERE "id" = ${event.sagaId}`;
+    expect(rows[0]).toEqual({
+      status: 'RECONCILIACAO_NECESSARIA',
+      requiresAttention: true,
+      lastError: 'DEADLINE_EXPIRED',
+    });
+    const commands = await db.$queryRaw<
+      Array<{ count: bigint }>
+    >`SELECT COUNT(*) AS count FROM "Outbox" WHERE "type" IN ('execution.release-parts.v1', 'billing.refund-payment.v1') AND "payload"->>'sagaId' = ${event.sagaId}`;
+    expect(Number(commands[0].count)).toBe(0);
+  });
+});

@@ -378,3 +378,59 @@ export class ReleaseEventConsumer {
     await receiver.completeMessage(message);
   }
 }
+
+export function failureEventValidator(
+  directory: string,
+): (event: unknown) => boolean {
+  const ajv = new Ajv({ allErrors: true });
+  addFormats(ajv);
+  const read = (file: string): object =>
+    JSON.parse(readFileSync(resolve(directory, file), 'utf8')) as object;
+  ajv.addSchema(read('envelope.schema.json'));
+  const validators = [
+    'billing.quote-failed.v1',
+    'billing.charge-failed.v1',
+    'execution.parts-reservation-failed.v1',
+  ].map((name) => ajv.compile(read(`${name}.schema.json`)));
+  return (event) => validators.some((validate) => validate(event) === true);
+}
+export class FailureEventConsumer {
+  constructor(
+    private readonly handler: {
+      execute(
+        event: import('../saga/ReceberFalha').FailureEvent,
+      ): Promise<'APPLIED' | 'PENDING'>;
+    },
+    private readonly validate: (event: unknown) => boolean,
+  ) {}
+  async process(
+    message: ServiceBusReceivedMessage,
+    receiver: Receiver,
+  ): Promise<void> {
+    const body: unknown = message.body;
+    if (
+      !this.validate(body) ||
+      !body ||
+      typeof body !== 'object' ||
+      !('messageId' in body) ||
+      !('type' in body) ||
+      body.messageId !== message.messageId ||
+      (message.subject && message.subject !== body.type)
+    ) {
+      await receiver.deadLetterMessage(message, {
+        deadLetterReason: 'InvalidContract',
+        deadLetterErrorDescription: 'Evento inválido',
+      });
+      return;
+    }
+    try {
+      await this.handler.execute(
+        body as import('../saga/ReceberFalha').FailureEvent,
+      );
+    } catch {
+      await receiver.abandonMessage(message);
+      return;
+    }
+    await receiver.completeMessage(message);
+  }
+}

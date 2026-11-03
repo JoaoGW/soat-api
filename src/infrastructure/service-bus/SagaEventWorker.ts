@@ -37,6 +37,11 @@ import { ReceiveQuoteEvent } from '../saga/ReceberOrcamento';
 import { ReceiveReservationEvent } from '../saga/ReceberReserva';
 import { ReceiveRefundEvent } from '../saga/ReceberReembolso';
 import { ReceiveReleaseEvent } from '../saga/ReceberLiberacao';
+import { ReceiveFailureEvent } from '../saga/ReceberFalha';
+import {
+  FailureEventConsumer,
+  failureEventValidator,
+} from './RepairEventConsumer';
 import {
   ReleaseEventConsumer,
   releaseEventValidator,
@@ -120,6 +125,7 @@ export class SagaEventWorker implements OnModuleInit, OnApplicationShutdown {
     const reservationValidate = reservationEventValidator(directory);
     const refundValidate = refundEventValidator(directory);
     const releaseValidate = releaseEventValidator(directory);
+    const failureValidate = failureEventValidator(directory);
     const cancellationValidate = cancellationEventValidator(directory);
     this.db = new PrismaClient({ datasources: { db: { url: database } } });
     this.bus = new ServiceBusClient(
@@ -173,6 +179,10 @@ export class SagaEventWorker implements OnModuleInit, OnApplicationShutdown {
       new ReceiveReleaseEvent(this.db),
       releaseValidate,
     );
+    const failure = new FailureEventConsumer(
+      new ReceiveFailureEvent(this.db),
+      failureValidate,
+    );
     this.subscription = receiver.subscribe(
       {
         processMessage: async (message) => {
@@ -200,9 +210,14 @@ export class SagaEventWorker implements OnModuleInit, OnApplicationShutdown {
               ? body.type
               : undefined;
           if (
-            type === 'billing.charge-created.v1' ||
-            type === 'billing.charge-failed.v1'
+            [
+              'billing.quote-failed.v1',
+              'billing.charge-failed.v1',
+              'execution.parts-reservation-failed.v1',
+            ].includes(String(type))
           )
+            return failure.process(message, receiver);
+          if (type === 'billing.charge-created.v1')
             return charge.process(message, receiver);
           if (
             type === 'billing.quote-issued.v1' ||

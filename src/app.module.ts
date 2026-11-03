@@ -3,6 +3,7 @@ import {
   OpenOrderController,
   OpenOrderRuntime,
 } from './interfaces/controllers/fase4/AbrirOrdemController';
+import { SagaDeadlineWorker } from './infrastructure/saga/RevisarPrazos';
 import { SagaReplayWorker } from './infrastructure/saga/AgendarReaplicacao';
 import { SagaCommandWorker } from './infrastructure/service-bus/SagaCommandWorker';
 import { SagaEventWorker } from './infrastructure/service-bus/SagaEventWorker';
@@ -99,6 +100,7 @@ import { HttpObservabilityInterceptor } from './interfaces/observability/HttpObs
   providers: [
     OpenOrderRuntime,
     SagaReplayWorker,
+    SagaDeadlineWorker,
     SagaEventWorker,
     SagaCommandWorker,
     AppService,
