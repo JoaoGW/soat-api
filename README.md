@@ -83,3 +83,19 @@ bancos locais terminados em `_test` em `OS_TEST_DATABASE_URL` e
 `BILLING_TEST_DATABASE_URL`, além do caminho absoluto do repositório Billing em
 `BILLING_REPO_DIR`. O teste falha sem essas configurações. Ele não exercita o
 broker, Cosmos, a Saga completa ou o Mercado Pago.
+
+A mensageria da Fase 4 usa assinatura Ed25519 do JSON canônico (chaves de
+objetos ordenadas, UTF-8, prefixo `soat-message-v1` e assinatura em base64 na
+propriedade AMQP `signature`). Cada serviço possui uma chave privada própria;
+os consumidores recebem somente as chaves públicas dos produtores. O OS usa
+`OS_MESSAGE_PRIVATE_KEY`, `BILLING_MESSAGE_PUBLIC_KEY` e
+`EXECUTION_MESSAGE_PUBLIC_KEY`. Os workers falham ao iniciar sem as chaves e
+estão desativados por padrão. Não usar as mesmas chaves entre produtores.
+Distribuir segredos por Key Vault e validar configuração/rotação antes de
+habilitar o tráfego. A rota administrativa separada
+`POST /fase4/ordens-servico` requer `ENABLE_FASE4_OPEN=true`,
+`SAGA_DATABASE_URL`, JWT administrativo e `Idempotency-Key`. A outbox usa
+`ENABLE_SAGA_COMMAND_PUBLISHER=true`, filas distintas para Billing e Execution
+em `SERVICE_BUS_BILLING_QUEUE` e `SERVICE_BUS_EXECUTION_QUEUE`, identidade de
+workload e a chave privada do OS. O fluxo permanece incompleto e não deve ser
+ativado antes das transições e testes distribuídos.

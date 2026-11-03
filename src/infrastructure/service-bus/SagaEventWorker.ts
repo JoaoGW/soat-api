@@ -33,6 +33,7 @@ import {
   diagnosisEventValidator,
 } from './RepairEventConsumer';
 import { ReceiveDiagnosisEvent } from '../saga/ReceberDiagnostico';
+import { MessageVerifier } from '../messaging/message-signature';
 
 /** Disabled by default; unsupported events are never acknowledged. */
 @Injectable()
@@ -46,11 +47,15 @@ export class SagaEventWorker implements OnModuleInit, OnApplicationShutdown {
   onModuleInit(): void {
     if (process.env.ENABLE_SAGA_EVENT_CONSUMER !== 'true') return;
     const database = process.env.SAGA_DATABASE_URL;
+    const billingKey = process.env.BILLING_MESSAGE_PUBLIC_KEY;
+    const executionKey = process.env.EXECUTION_MESSAGE_PUBLIC_KEY;
     const namespace = process.env.SERVICE_BUS_NAMESPACE;
     const topic = process.env.SERVICE_BUS_EVENT_TOPIC;
     const subscription = process.env.SERVICE_BUS_SAGA_SUBSCRIPTION;
     if (
       !database ||
+      !billingKey ||
+      !executionKey ||
       !namespace ||
       !/^[a-z0-9-]+\.servicebus\.windows\.net$/i.test(namespace) ||
       !topic ||
@@ -60,6 +65,16 @@ export class SagaEventWorker implements OnModuleInit, OnApplicationShutdown {
       !process.env.AZURE_FEDERATED_TOKEN_FILE
     )
       throw new Error('Configuração incompleta do consumidor da Saga');
+    const verifiers = {
+      'soat-billing-service': new MessageVerifier(
+        billingKey,
+        'soat-billing-service',
+      ),
+      'soat-execution-service': new MessageVerifier(
+        executionKey,
+        'soat-execution-service',
+      ),
+    };
     let parsed: URL;
     try {
       parsed = new URL(database);
@@ -112,6 +127,24 @@ export class SagaEventWorker implements OnModuleInit, OnApplicationShutdown {
       {
         processMessage: async (message) => {
           const body: unknown = message.body;
+          const producer =
+            body && typeof body === 'object' && 'producer' in body
+              ? body.producer
+              : undefined;
+          const verifier =
+            producer === 'soat-billing-service' ||
+            producer === 'soat-execution-service'
+              ? verifiers[producer]
+              : undefined;
+          if (
+            !verifier?.verify(body, message.applicationProperties?.signature)
+          ) {
+            await receiver.deadLetterMessage(message, {
+              deadLetterReason: 'UnauthenticatedProducer',
+              deadLetterErrorDescription: 'Assinatura inválida',
+            });
+            return;
+          }
           const type =
             body && typeof body === 'object' && 'type' in body
               ? body.type

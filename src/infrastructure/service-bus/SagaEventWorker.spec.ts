@@ -1,3 +1,5 @@
+import { generateKeyPairSync } from 'node:crypto';
+import { MessageSigner } from '../messaging/message-signature';
 import { PrismaClient } from '@prisma/client';
 import { WorkloadIdentityCredential } from '@azure/identity';
 import { ServiceBusClient } from '@azure/service-bus';
@@ -23,11 +25,23 @@ jest.mock('./WorkEnqueuedEventConsumer', () => ({
 }));
 
 describe('SagaEventWorker', () => {
+  const keys = generateKeyPairSync('ed25519');
+  const publicKey = keys.publicKey
+    .export({ type: 'spki', format: 'pem' })
+    .toString();
+  const signer = new MessageSigner(
+    keys.privateKey.export({ type: 'pkcs8', format: 'pem' }).toString(),
+  );
+  const signed = (type: string, producer: string) => {
+    const body = { type, producer };
+    return { body, applicationProperties: { signature: signer.sign(body) } };
+  };
   const original = process.env;
   const subscription = { close: jest.fn().mockResolvedValue(undefined) };
   const receiver = {
     subscribe: jest.fn(),
     abandonMessage: jest.fn().mockResolvedValue(undefined),
+    deadLetterMessage: jest.fn().mockResolvedValue(undefined),
     close: jest.fn().mockResolvedValue(undefined),
   };
   const bus = {
@@ -40,7 +54,11 @@ describe('SagaEventWorker', () => {
   const work = { process: jest.fn().mockResolvedValue(undefined) };
   beforeEach(() => {
     jest.clearAllMocks();
-    process.env = { ...original };
+    process.env = {
+      ...original,
+      BILLING_MESSAGE_PUBLIC_KEY: publicKey,
+      EXECUTION_MESSAGE_PUBLIC_KEY: publicKey,
+    };
     delete process.env.ENABLE_SAGA_EVENT_CONSUMER;
     receiver.subscribe.mockReturnValue(subscription);
     bus.createReceiver.mockReturnValue(receiver);
@@ -98,14 +116,24 @@ describe('SagaEventWorker', () => {
     const handlers = receiver.subscribe.mock.calls[0][0] as {
       processMessage(message: unknown): Promise<void>;
     };
-    const a = { body: { type: 'billing.charge-created.v1' } };
-    const b = { body: { type: 'billing.payment-confirmed.v1' } };
-    const c = { body: { type: 'execution.work-enqueued.v1' } };
-    const d = { body: { type: 'billing.quote-issued.v1' } };
+    const a = signed('billing.charge-created.v1', 'soat-billing-service');
+    const b = signed('billing.payment-confirmed.v1', 'soat-billing-service');
+    const c = signed('execution.work-enqueued.v1', 'soat-execution-service');
+    const d = signed('billing.quote-issued.v1', 'soat-billing-service');
     await handlers.processMessage(a);
     await handlers.processMessage(b);
     await handlers.processMessage(c);
     await handlers.processMessage(d);
+    const forged = signed(
+      'billing.payment-confirmed.v1',
+      'soat-billing-service',
+    );
+    forged.body.type = 'billing.charge-created.v1';
+    await handlers.processMessage(forged);
+    expect(receiver.deadLetterMessage).toHaveBeenCalledWith(
+      forged,
+      expect.objectContaining({ deadLetterReason: 'UnauthenticatedProducer' }),
+    );
     expect(charge.process).toHaveBeenCalledWith(a, receiver);
     expect(payment.process).toHaveBeenCalledWith(b, receiver);
     expect(work.process).toHaveBeenCalledWith(c, receiver);

@@ -1,5 +1,10 @@
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
+import {
+  OpenOrderController,
+  OpenOrderRuntime,
+} from './interfaces/controllers/fase4/AbrirOrdemController';
 import { SagaReplayWorker } from './infrastructure/saga/AgendarReaplicacao';
+import { SagaCommandWorker } from './infrastructure/service-bus/SagaCommandWorker';
 import { SagaEventWorker } from './infrastructure/service-bus/SagaEventWorker';
 import { APP_INTERCEPTOR } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
@@ -89,10 +94,13 @@ import { HttpObservabilityInterceptor } from './interfaces/observability/HttpObs
     ServicoController,
     PecaController,
     OrdemDeServicoController,
+    OpenOrderController,
   ],
   providers: [
+    OpenOrderRuntime,
     SagaReplayWorker,
     SagaEventWorker,
+    SagaCommandWorker,
     AppService,
     CorrelationIdMiddleware,
     {
