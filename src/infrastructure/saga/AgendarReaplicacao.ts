@@ -13,6 +13,8 @@ import { ReceiveWorkEnqueuedEvent } from './ReceberEnfileiramento';
 import { workEnqueuedEventValidator } from '../service-bus/WorkEnqueuedEventConsumer';
 import { ReceiveChargeEvent } from './ReceberCobranca';
 import { ReplayPendingChargeEvents } from './ReaplicarCobrancas';
+import { ReceiveRepairEvent } from './ReceberReparo';
+import { repairEventValidator } from '../service-bus/RepairEventConsumer';
 
 type Cursor = { receivedAt: Date; messageId: string };
 
@@ -57,6 +59,8 @@ export class SagaReplayWorker implements OnModuleInit, OnApplicationShutdown {
       workEnqueuedEventValidator(
         resolve(process.cwd(), 'docs/contracts/messages'),
       ),
+      new ReceiveRepairEvent(this.db),
+      repairEventValidator(resolve(process.cwd(), 'docs/contracts/messages')),
     );
     this.active = this.poll();
   }
