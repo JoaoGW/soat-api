@@ -7,6 +7,8 @@ import {
 import {
   RepairEventConsumer,
   repairEventValidator,
+  DiagnosisEventConsumer,
+  diagnosisEventValidator,
 } from './RepairEventConsumer';
 
 describe('consumidor de reparo', () => {
@@ -48,5 +50,38 @@ describe('consumidor de reparo', () => {
     await deliver(body);
     expect(receiver.abandonMessage).toHaveBeenCalledTimes(1);
     expect(receiver.completeMessage).not.toHaveBeenCalled();
+  });
+});
+
+describe('consumidor de diagnóstico', () => {
+  const directory = resolve(process.cwd(), 'docs/contracts/messages');
+  const body = JSON.parse(
+    readFileSync(
+      resolve(directory, 'examples/execution.diagnosis-completed.v1.json'),
+      'utf8',
+    ),
+  ) as { messageId: string };
+  const handler = { execute: jest.fn().mockResolvedValue('PENDING') };
+  const receiver = {
+    completeMessage: jest.fn(),
+    abandonMessage: jest.fn(),
+    deadLetterMessage: jest.fn(),
+  };
+  const consumer = new DiagnosisEventConsumer(
+    handler,
+    diagnosisEventValidator(directory),
+  );
+  it('confirma após persistência e rejeita identificador divergente', async () => {
+    await consumer.process(
+      { body, messageId: body.messageId } as ServiceBusReceivedMessage,
+      receiver as unknown as ServiceBusReceiver,
+    );
+    expect(handler.execute).toHaveBeenCalledWith(body);
+    expect(receiver.completeMessage).toHaveBeenCalledTimes(1);
+    await consumer.process(
+      { body, messageId: 'wrong' } as ServiceBusReceivedMessage,
+      receiver as unknown as ServiceBusReceiver,
+    );
+    expect(receiver.deadLetterMessage).toHaveBeenCalledTimes(1);
   });
 });

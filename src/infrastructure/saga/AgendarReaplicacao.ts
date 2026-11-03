@@ -15,6 +15,8 @@ import { ReceiveChargeEvent } from './ReceberCobranca';
 import { ReplayPendingChargeEvents } from './ReaplicarCobrancas';
 import { ReceiveRepairEvent } from './ReceberReparo';
 import { repairEventValidator } from '../service-bus/RepairEventConsumer';
+import { diagnosisEventValidator } from '../service-bus/RepairEventConsumer';
+import { ReceiveDiagnosisEvent } from './ReceberDiagnostico';
 
 type Cursor = { receivedAt: Date; messageId: string };
 
@@ -61,6 +63,10 @@ export class SagaReplayWorker implements OnModuleInit, OnApplicationShutdown {
       ),
       new ReceiveRepairEvent(this.db),
       repairEventValidator(resolve(process.cwd(), 'docs/contracts/messages')),
+      new ReceiveDiagnosisEvent(this.db),
+      diagnosisEventValidator(
+        resolve(process.cwd(), 'docs/contracts/messages'),
+      ),
     );
     this.active = this.poll();
   }

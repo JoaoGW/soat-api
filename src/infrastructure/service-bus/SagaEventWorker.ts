@@ -28,6 +28,11 @@ import {
   repairEventValidator,
 } from './RepairEventConsumer';
 import { ReceiveRepairEvent } from '../saga/ReceberReparo';
+import {
+  DiagnosisEventConsumer,
+  diagnosisEventValidator,
+} from './RepairEventConsumer';
+import { ReceiveDiagnosisEvent } from '../saga/ReceberDiagnostico';
 
 /** Disabled by default; unsupported events are never acknowledged. */
 @Injectable()
@@ -73,6 +78,7 @@ export class SagaEventWorker implements OnModuleInit, OnApplicationShutdown {
     const paymentValidate = paymentEventValidator(directory);
     const workValidate = workEnqueuedEventValidator(directory);
     const repairValidate = repairEventValidator(directory);
+    const diagnosisValidate = diagnosisEventValidator(directory);
     this.db = new PrismaClient({ datasources: { db: { url: database } } });
     this.bus = new ServiceBusClient(
       namespace,
@@ -98,6 +104,10 @@ export class SagaEventWorker implements OnModuleInit, OnApplicationShutdown {
       new ReceiveRepairEvent(this.db),
       repairValidate,
     );
+    const diagnosis = new DiagnosisEventConsumer(
+      new ReceiveDiagnosisEvent(this.db),
+      diagnosisValidate,
+    );
     this.subscription = receiver.subscribe(
       {
         processMessage: async (message) => {
@@ -115,6 +125,11 @@ export class SagaEventWorker implements OnModuleInit, OnApplicationShutdown {
             return payment.process(message, receiver);
           if (type === 'execution.work-enqueued.v1')
             return work.process(message, receiver);
+          if (
+            type === 'execution.diagnosis-started.v1' ||
+            type === 'execution.diagnosis-completed.v1'
+          )
+            return diagnosis.process(message, receiver);
           if (
             type === 'execution.work-started.v1' ||
             type === 'execution.work-completed.v1'
