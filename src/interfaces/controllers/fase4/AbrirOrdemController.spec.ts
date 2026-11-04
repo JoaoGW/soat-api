@@ -9,6 +9,7 @@ describe('ações administrativas da Fase 4', () => {
     deliver: jest.fn(),
     retry: jest.fn(),
     recoverLatePayment: jest.fn(),
+    recoverCompletedRepair: jest.fn(),
   };
   const controller = new OpenOrderController(
     runtime as unknown as OpenOrderRuntime,
@@ -66,6 +67,23 @@ describe('ações administrativas da Fase 4', () => {
       controller.recoverLatePayment(request, 'saga-1', {
         reason: 'invalid.reason',
       }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+  it('protege e valida a reconciliação de reparo', async () => {
+    runtime.recoverCompletedRepair.mockResolvedValue('CONCLUIDA');
+    await expect(
+      controller.recoverCompletedRepair(
+        { user: { username: 'admin' } },
+        'saga-1',
+        { reason: 'REPAIR_CONFIRMED' },
+      ),
+    ).resolves.toEqual({ status: 'CONCLUIDA' });
+    await expect(
+      controller.recoverCompletedRepair(
+        { user: { username: 'admin' } },
+        'saga-1',
+        { reason: 'invalid.reason' },
+      ),
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 });

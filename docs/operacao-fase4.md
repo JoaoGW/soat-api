@@ -58,6 +58,15 @@ estoque até receber a confirmação autenticada de que o reparo não começou.
 Se Execution informar que o trabalho já começou, a Saga retorna à
 reconciliação. Pagamento, reserva ou compensação conflitantes impedem a ação.
 
+Se o reparo físico começou e posteriormente terminou, o administrador pode
+chamar `POST /fase4/ordens-servico/:sagaId/reconciliar-reparo` com o corpo
+`{"reason":"REPAIR_CONFIRMED"}`. O OS exige evidências autenticadas e
+consistentes de início, conclusão, fila e pagamento, além de ausência de
+operações de cancelamento, reembolso ou liberação. A ação audita a decisão,
+encerra a Saga e registra o histórico físico; a entrega segue a verificação
+administrativa própria. Se houver compensação ou evidência divergente, a
+recuperação é recusada para análise operacional.
+
 ## DLQ e mensagens fora de ordem
 
 Revise motivo, versão de contrato, assinatura, produtor, IDs e causa do erro.

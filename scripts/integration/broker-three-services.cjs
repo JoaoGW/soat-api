@@ -45,6 +45,9 @@ const {
   RecoverLatePayment,
 } = require('../../dist/src/infrastructure/saga/RecuperarPagamentoTardio');
 const {
+  RecoverCompletedRepair,
+} = require('../../dist/src/infrastructure/saga/RecuperarReparoConcluido');
+const {
   ReviewSagaDeadlines,
 } = require('../../dist/src/infrastructure/saga/RevisarPrazos');
 const {
@@ -317,7 +320,8 @@ async function scenario(mode) {
       create: async (input) => {
         createCalls++;
         providerCharge = input.externalReference;
-        if (mode === 'charge-timeout') throw new Error('timeout após criação no provedor simulado');
+        if (mode === 'charge-timeout')
+          throw new Error('timeout após criação no provedor simulado');
         return {
           id: providerOrder,
           type: 'qr',
@@ -572,10 +576,31 @@ async function scenario(mode) {
       billCharge,
     );
     const hookId = `hook-${tag}`;
-    await billing.receivedWebhook.create({ data: { provider: 'mercado-pago-orders', eventId: hookId, status: 'RECEIVED', payload: { type: 'order', action: 'order.processed', data: { id: providerOrder } } } });
+    await billing.receivedWebhook.create({
+      data: {
+        provider: 'mercado-pago-orders',
+        eventId: hookId,
+        status: 'RECEIVED',
+        payload: {
+          type: 'order',
+          action: 'order.processed',
+          data: { id: providerOrder },
+        },
+      },
+    });
     if (mode === 'charge-timeout') {
-      assert.equal(await new ReconcileChargeFromWebhook(billing, paymentProvider).execute(hookId), 'RECOVERED');
-      await receive(billReceiver, 'billing.create-charge.v1', keys.os, billCharge);
+      assert.equal(
+        await new ReconcileChargeFromWebhook(billing, paymentProvider).execute(
+          hookId,
+        ),
+        'RECOVERED',
+      );
+      await receive(
+        billReceiver,
+        'billing.create-charge.v1',
+        keys.os,
+        billCharge,
+      );
       assert.equal(createCalls, 1);
     }
     assert.equal(await billingDispatch.dispatchOne(), 'SENT');
@@ -773,7 +798,7 @@ async function scenario(mode) {
     });
     assert.equal(await executionDispatch.dispatchOne(), 'SENT');
     await receive(osReceiver, 'execution.work-started.v1', keys.exec, osRepair);
-    if (mode === 'started') {
+    if (mode === 'started' || mode === 'started-completed') {
       const before = (await container.item('stock:p1', 'branch').read())
         .resource;
       assert.equal(
@@ -794,6 +819,39 @@ async function scenario(mode) {
         }),
         0,
       );
+      if (mode === 'started-completed') {
+        const recover = new RecoverCompletedRepair(os);
+        const input = {
+          sagaId: opened.sagaId,
+          actorId: 'test-admin',
+          reason: 'REPAIR_CONFIRMED',
+        };
+        await assert.rejects(() => recover.execute(input));
+        await work.complete({
+          ...action,
+          executionId: task.executionId,
+          messageId: `work-end-${tag}`,
+          operationId: `work-end-${tag}`,
+        });
+        assert.equal(await executionDispatch.dispatchOne(), 'SENT');
+        await receive(
+          osReceiver,
+          'execution.work-completed.v1',
+          keys.exec,
+          osRepair,
+        );
+        const conflict = `conflict-${tag}`;
+        await os.$executeRaw`INSERT INTO "SagaOperation" ("operationId","sagaId","step","businessAttempt","commandType","status","updatedAt") VALUES (${conflict},${opened.sagaId},'TEST_CANCEL',1,'execution.cancel-work.v1','PENDING',NOW())`;
+        await assert.rejects(() => recover.execute(input));
+        await os.$executeRaw`DELETE FROM "SagaOperation" WHERE "operationId"=${conflict}`;
+        assert.equal(await recover.execute(input), 'CONCLUIDA');
+        assert.equal(await new DeliverOrder(os).execute(opened.id), 'ENTREGUE');
+        assert.equal(refundCalls, 0);
+        process.stdout.write(
+          'Reparo concluído após reconciliação: evidências verificadas e entrega autorizada sem reembolso.\n',
+        );
+        return;
+      }
       process.stdout.write(
         'Falha após início do reparo: reconciliação exigida, sem reembolso ou liberação automáticos.\n',
       );
@@ -841,6 +899,7 @@ async function main() {
   await scenario('late-payment');
   await scenario('no-stock');
   await scenario('started');
+  await scenario('started-completed');
 }
 main()
   .finally(async () => {

@@ -5,6 +5,7 @@ import {
   RepairEvent,
 } from '../../src/infrastructure/saga/ReceberReparo';
 import { ReplayPendingChargeEvents } from '../../src/infrastructure/saga/ReaplicarCobrancas';
+import { RecoverCompletedRepair } from '../../src/infrastructure/saga/RecuperarReparoConcluido';
 
 const url = process.env.DATABASE_URL;
 if (
@@ -61,6 +62,48 @@ describe('eventos de reparo na Saga', () => {
     };
     return { start, finish };
   }
+  it('reconcilia reparo concluído somente com pagamento e fila coerentes, sem compensação', async () => {
+    const { start, finish } = await setup();
+    const chargeId = `charge-${randomUUID()}`,
+      paymentId = `payment-${randomUUID()}`;
+    await db.$executeRaw`UPDATE "SagaInstance" SET "chargeId"=${chargeId} WHERE "id"=${start.sagaId}`;
+    const paid = {
+      sagaId: start.sagaId,
+      osId: start.osId,
+      filialId: start.filialId,
+      producer: 'soat-billing-service',
+      data: { chargeId, paymentId },
+    };
+    await db.$executeRaw`INSERT INTO "Inbox" ("consumer","messageId","operationId","type","payload","status") VALUES ('os.saga-events',${randomUUID()},${randomUUID()},'billing.payment-confirmed.v1',${JSON.stringify(paid)}::jsonb,'APPLIED')`;
+    const queue = {
+      data: {
+        executionId: start.data.executionId,
+        reservationId: start.data.reservationId,
+        chargeId,
+        paymentId,
+      },
+    };
+    await db.$executeRaw`INSERT INTO "SagaOperation" ("operationId","sagaId","step","businessAttempt","commandType","status","result","updatedAt") VALUES (${randomUUID()},${start.sagaId},'ENQUEUE_WORK',1,'execution.enqueue-work.v1','SUCCEEDED',${JSON.stringify(queue)}::jsonb,NOW())`;
+    await service.execute(start);
+    await db.$executeRaw`UPDATE "SagaInstance" SET "status"='RECONCILIACAO_NECESSARIA',"requiresAttention"=true WHERE "id"=${start.sagaId}`;
+    const recover = new RecoverCompletedRepair(db);
+    const input = {
+      sagaId: start.sagaId,
+      actorId: 'admin',
+      reason: 'REPAIR_CONFIRMED',
+    };
+    await expect(recover.execute(input)).rejects.toThrow();
+    await service.execute(finish);
+    const conflict = randomUUID();
+    await db.$executeRaw`INSERT INTO "SagaOperation" ("operationId","sagaId","step","businessAttempt","commandType","status","updatedAt") VALUES (${conflict},${start.sagaId},'CANCEL_WORK',1,'execution.cancel-work.v1','PENDING',NOW())`;
+    await expect(recover.execute(input)).rejects.toThrow();
+    await db.$executeRaw`DELETE FROM "SagaOperation" WHERE "operationId"=${conflict}`;
+    expect(await recover.execute(input)).toBe('CONCLUIDA');
+    const state = await db.$queryRaw<
+      Array<{ status: string; requiresAttention: boolean }>
+    >`SELECT "status","requiresAttention" FROM "SagaInstance" WHERE "id"=${start.sagaId}`;
+    expect(state[0]).toEqual({ status: 'CONCLUIDA', requiresAttention: false });
+  });
   it('persiste conclusão fora de ordem e depois atualiza projeção sem duplicar histórico', async () => {
     const { start, finish } = await setup();
     expect(await service.execute(finish)).toBe('PENDING');

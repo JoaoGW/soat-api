@@ -18,6 +18,7 @@ import { StartCompensation } from '../../../infrastructure/saga/IniciarCompensac
 import { DeliverOrder } from '../../../infrastructure/saga/EntregarOrdem';
 import { RetryFailedCommand } from '../../../infrastructure/saga/ReprocessarComando';
 import { RecoverLatePayment } from '../../../infrastructure/saga/RecuperarPagamentoTardio';
+import { RecoverCompletedRepair } from '../../../infrastructure/saga/RecuperarReparoConcluido';
 
 type BodyInput = {
   clienteId: string;
@@ -74,6 +75,17 @@ export class OpenOrderRuntime implements OnApplicationShutdown {
       throw new ServiceUnavailableException('Recuperação indisponível');
     if (!this.db) this.db = new PrismaClient({ datasources: { db: { url } } });
     return new RecoverLatePayment(this.db).execute(input);
+  }
+  async recoverCompletedRepair(input: {
+    sagaId: string;
+    actorId: string;
+    reason: string;
+  }) {
+    const url = process.env.SAGA_DATABASE_URL;
+    if (process.env.ENABLE_FASE4_RECOVERY !== 'true' || !url)
+      throw new ServiceUnavailableException('Recuperação indisponível');
+    if (!this.db) this.db = new PrismaClient({ datasources: { db: { url } } });
+    return new RecoverCompletedRepair(this.db).execute(input);
   }
 }
 @Controller('fase4/ordens-servico')
@@ -173,6 +185,33 @@ export class OpenOrderController {
       throw new BadRequestException('Dados inválidos');
     return {
       status: await this.runtime.recoverLatePayment({
+        sagaId,
+        actorId: request.user.username,
+        reason: body.reason,
+      }),
+    };
+  }
+  @Post(':sagaId/reconciliar-reparo')
+  async recoverCompletedRepair(
+    @Req() request: { user?: { username?: unknown } },
+    @Param('sagaId') sagaId: string,
+    @Body() body: { reason: string },
+  ) {
+    if (
+      typeof request.user?.username !== 'string' ||
+      !/^[a-z0-9_@.-]{1,128}$/i.test(request.user.username) ||
+      !body ||
+      typeof body !== 'object' ||
+      Array.isArray(body) ||
+      Object.keys(body).some((field) => field !== 'reason') ||
+      ![sagaId, body.reason].every(
+        (value) =>
+          typeof value === 'string' && /^[a-z0-9_-]{1,128}$/i.test(value),
+      )
+    )
+      throw new BadRequestException('Dados inválidos');
+    return {
+      status: await this.runtime.recoverCompletedRepair({
         sagaId,
         actorId: request.user.username,
         reason: body.reason,

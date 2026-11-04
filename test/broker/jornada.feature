@@ -45,3 +45,9 @@ Funcionalidade: Jornada distribuída pela mensageria
     Quando a compensação é solicitada
     Então a Saga exige reconciliação operacional
     E não ocorre reembolso nem liberação automática da reserva
+
+  Cenário: Reparo físico termina enquanto a Saga está em reconciliação
+    Dadas evidências autenticadas de pagamento, fila, início e conclusão
+    Quando o administrador reconcilia o reparo sem compensação pendente
+    Então a Saga pode ser concluída e o veículo entregue
+    E a recuperação recusa evidências de compensação conflitantes
