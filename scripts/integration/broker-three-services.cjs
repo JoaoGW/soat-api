@@ -171,6 +171,7 @@ const {
 const { PrepareRefundService, SubmitRefundService, ConfirmRefundService } = b(
   'application/reembolsar-pagamento',
 );
+const { ReconcileRefundService } = b('application/reconciliar-reembolso');
 const dirOs = path.resolve('docs/contracts/messages');
 const dirBilling = path.join(billingDir, 'docs/contracts/messages');
 const dirExec = path.join(execDir, 'docs/contracts/messages');
@@ -353,6 +354,7 @@ async function scenario(mode) {
       refund: async () => {
         refundCalls++;
         refunded = true;
+        if (mode === 'refund-timeout') throw new Error('timeout após reembolso no provedor simulado');
         return {
           id: providerOrder,
           transactions: {
@@ -605,7 +607,7 @@ async function scenario(mode) {
       keys.exec,
       osEnqueued,
     );
-    if (mode === 'compensate') {
+    if (mode === 'compensate' || mode === 'refund-timeout') {
       assert.equal(
         await new StartCompensation(os).execute(opened.sagaId, 'TEST_FAILURE'),
         'STARTED',
@@ -663,7 +665,11 @@ async function scenario(mode) {
         new ConfirmRefundService(billing, paymentProvider),
         refundCommandValidator(dirBilling),
       );
-      assert.equal(await processor.processOne(), 'REFUNDED');
+      if (mode === 'refund-timeout') {
+        assert.equal(await processor.processOne(), 'RECONCILIACAO_NECESSARIA');
+        const record = await billing.refund.findFirstOrThrow({ where: { payment: { charge: { osId: opened.id } } } });
+        assert.equal(await new ReconcileRefundService(billing, paymentProvider).execute(record.operationId), 'REFUNDED');
+      } else assert.equal(await processor.processOne(), 'REFUNDED');
       assert.equal(refundCalls, 1);
       const refundConsumer = new RefundEventConsumer(
         new ReceiveRefundEvent(os),
@@ -713,7 +719,9 @@ async function scenario(mode) {
       assert.equal(await processor.processOne(), 'EMPTY');
       assert.equal(refundCalls, 1);
       process.stdout.write(
-        'Falha após pagamento: cancelamento, reembolso simulado e liberação de estoque confirmados pelo broker.\n',
+        mode === 'refund-timeout'
+          ? 'Timeout de reembolso: consulta canônica simulada confirmou reembolso e liberação sem novo pedido.\n'
+          : 'Falha após pagamento: cancelamento, reembolso simulado e liberação de estoque confirmados pelo broker.\n',
       );
       return;
     }
@@ -788,6 +796,7 @@ async function scenario(mode) {
 async function main() {
   await scenario('happy');
   await scenario('compensate');
+  await scenario('refund-timeout');
   await scenario('no-stock');
   await scenario('started');
 }

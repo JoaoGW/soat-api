@@ -16,6 +16,12 @@ Funcionalidade: Jornada distribuída pela mensageria
     E Execution libera a reserva após confirmação do reembolso
     E a Saga é compensada sem duplicar o reembolso ao repetir o evento
 
+  Cenário: Timeout após o provedor efetivar o reembolso
+    Dado que o provedor realizou o reembolso e a resposta foi perdida
+    Quando Billing consulta o estado canônico do provedor
+    Então Billing confirma o reembolso sem enviar outra solicitação
+    E a reserva é liberada após a confirmação pelo broker
+
   Cenário: Estoque insuficiente
     Dado um orçamento aprovado sem estoque suficiente
     Quando Execution rejeita a reserva

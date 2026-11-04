@@ -37,6 +37,12 @@ execução nem fatos conflitantes. Nesse caso a Saga inicia o cancelamento e
 registra a evidência em auditoria. Outros casos em reconciliação ainda não
 possuem retomada automatizada; não altere o estado manualmente.
 
+No Billing, a reconciliação opcional de reembolso consulta a ordem canônica
+quando a resposta do envio é incerta. Ela só confirma um reembolso integral e
+único correspondente à ordem, pagamento, valor e moeda; não envia outro pedido
+financeiro. Veja `ENABLE_MERCADO_PAGO_REFUND_RECONCILIATION` no README do
+Billing. Os demais resultados financeiros incertos continuam em reconciliação.
+
 ## DLQ e mensagens fora de ordem
 
 Revise motivo, versão de contrato, assinatura, produtor, IDs e causa do erro.
