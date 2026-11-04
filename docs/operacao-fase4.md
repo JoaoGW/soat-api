@@ -43,6 +43,12 @@ quando a resposta do envio é incerta. Ela só confirma um reembolso integral e
 financeiro. Veja `ENABLE_MERCADO_PAGO_REFUND_RECONCILIATION` no README do
 Billing. Os demais resultados financeiros incertos continuam em reconciliação.
 
+Para uma cobrança de criação incerta, o Billing também pode usar uma
+notificação autenticada pendente para consultar a order e relacioná-la à
+intenção original. A opção `ENABLE_MERCADO_PAGO_CHARGE_RECONCILIATION` nunca
+repete a criação da cobrança. Sem notificação com ID ou com dados divergentes,
+ela mantém a pendência para análise; consulte o README do Billing.
+
 Quando o pagamento tardio já tiver sido confirmado e a reserva e a cobrança
 corresponderem às operações registradas, um administrador pode chamar
 `POST /fase4/ordens-servico/:sagaId/reconciliar-pagamento` com o corpo

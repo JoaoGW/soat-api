@@ -22,6 +22,12 @@ Funcionalidade: Jornada distribuída pela mensageria
     Então Billing confirma o reembolso sem enviar outra solicitação
     E a reserva é liberada após a confirmação pelo broker
 
+  Cenário: Timeout após o provedor criar a cobrança
+    Dada uma notificação registrada por fixture com o identificador da order
+    Quando Billing consulta a order canônica e confirma sua referência e valor
+    Então a cobrança é recuperada sem criar outra order
+    E o pagamento e o reparo seguem pelo broker
+
   Cenário: Pagamento confirmado após expiração da Saga
     Dada uma Saga em reconciliação com pagamento tardio confirmado
     Quando o administrador inicia a recuperação

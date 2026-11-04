@@ -178,6 +178,7 @@ const { PrepareRefundService, SubmitRefundService, ConfirmRefundService } = b(
   'application/reembolsar-pagamento',
 );
 const { ReconcileRefundService } = b('application/reconciliar-reembolso');
+const { ReconcileChargeFromWebhook } = b('application/reconciliar-cobranca');
 const dirOs = path.resolve('docs/contracts/messages');
 const dirBilling = path.join(billingDir, 'docs/contracts/messages');
 const dirExec = path.join(execDir, 'docs/contracts/messages');
@@ -308,12 +309,15 @@ async function scenario(mode) {
       BigInt(`0x${tag.replaceAll('-', '').slice(0, 12)}`),
     );
     let providerCharge;
+    let createCalls = 0;
     let refunded = false;
     let refundCalls = 0;
     const providerRefund = `REF${tag.replaceAll('-', '').slice(0, 26)}`;
     const paymentProvider = {
       create: async (input) => {
+        createCalls++;
         providerCharge = input.externalReference;
+        if (mode === 'charge-timeout') throw new Error('timeout após criação no provedor simulado');
         return {
           id: providerOrder,
           type: 'qr',
@@ -567,6 +571,13 @@ async function scenario(mode) {
       keys.os,
       billCharge,
     );
+    const hookId = `hook-${tag}`;
+    await billing.receivedWebhook.create({ data: { provider: 'mercado-pago-orders', eventId: hookId, status: 'RECEIVED', payload: { type: 'order', action: 'order.processed', data: { id: providerOrder } } } });
+    if (mode === 'charge-timeout') {
+      assert.equal(await new ReconcileChargeFromWebhook(billing, paymentProvider).execute(hookId), 'RECOVERED');
+      await receive(billReceiver, 'billing.create-charge.v1', keys.os, billCharge);
+      assert.equal(createCalls, 1);
+    }
     assert.equal(await billingDispatch.dispatchOne(), 'SENT');
     await receive(
       osReceiver,
@@ -578,19 +589,6 @@ async function scenario(mode) {
       await os.$executeRaw`UPDATE "SagaInstance" SET "deadlineAt"=${new Date('1990-01-01T00:00:00Z')} WHERE "id"=${opened.sagaId}`;
       await new ReviewSagaDeadlines(os).execute();
     }
-    const hookId = `hook-${tag}`;
-    await billing.receivedWebhook.create({
-      data: {
-        provider: 'mercado-pago-orders',
-        eventId: hookId,
-        status: 'RECEIVED',
-        payload: {
-          type: 'order',
-          action: 'order.processed',
-          data: { id: providerOrder },
-        },
-      },
-    });
     assert.equal(
       await new ProcessMercadoPagoWebhook(billing, paymentProvider).execute(
         hookId,
@@ -825,8 +823,11 @@ async function scenario(mode) {
     const delivered =
       await os.$queryRaw`SELECT "status" FROM "OrdemDeServico" WHERE "id"=${opened.id}`;
     assert.equal(delivered[0].status, 'ENTREGUE');
+    if (mode === 'charge-timeout') assert.equal(createCalls, 1);
     process.stdout.write(
-      'Jornada pelo broker e bancos emulados: OS, diagnóstico, orçamento, pagamento simulado, reparo e entrega concluídos.\n',
+      mode === 'charge-timeout'
+        ? 'Timeout de cobrança: order simulada recuperada sem nova criação; reparo e entrega concluídos pelo broker.\n'
+        : 'Jornada pelo broker e bancos emulados: OS, diagnóstico, orçamento, pagamento simulado, reparo e entrega concluídos.\n',
     );
   } finally {
     await database.delete();
@@ -834,6 +835,7 @@ async function scenario(mode) {
 }
 async function main() {
   await scenario('happy');
+  await scenario('charge-timeout');
   await scenario('compensate');
   await scenario('refund-timeout');
   await scenario('late-payment');
