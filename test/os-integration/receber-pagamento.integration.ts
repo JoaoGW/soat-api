@@ -21,6 +21,8 @@ import { ReplayPendingChargeEvents } from '../../src/infrastructure/saga/Reaplic
 import { ReceivePaymentEvent } from '../../src/infrastructure/saga/ReceberPagamento';
 import { ReceiveWorkEnqueuedEvent } from '../../src/infrastructure/saga/ReceberEnfileiramento';
 import { ReceiveChargeEvent } from '../../src/infrastructure/saga/ReceberCobranca';
+import { RecoverLatePayment } from '../../src/infrastructure/saga/RecuperarPagamentoTardio';
+import { ReceiveCancellationEvent } from '../../src/infrastructure/saga/ReceberCancelamento';
 
 const url = process.env.DATABASE_URL;
 if (!url) throw new Error('DATABASE_URL de teste é obrigatória');
@@ -180,6 +182,102 @@ describe('pagamento e autorização da fila em PostgreSQL', () => {
       Array<{ messageId: string }>
     >`SELECT "messageId" FROM "Outbox" WHERE "type" = 'execution.enqueue-work.v1' AND "payload"->>'sagaId' = ${paymentEvent.sagaId}`;
     expect(events).toHaveLength(0);
+  });
+  it('recupera pagamento tardio somente após cerca de execução e evidência de cancelamento', async () => {
+    const { paymentEvent, chargeEvent } = await setup();
+    await chargeService.execute(chargeEvent);
+    await db.$executeRaw`UPDATE "SagaInstance" SET "status"='RECONCILIACAO_NECESSARIA', "requiresAttention"=true WHERE "id"=${paymentEvent.sagaId}`;
+    await paymentService.execute(paymentEvent);
+    const recovery = new RecoverLatePayment(db);
+    const input = {
+      sagaId: paymentEvent.sagaId,
+      actorId: 'admin',
+      reason: 'LATE_PAYMENT',
+    };
+    const outcomes = await Promise.allSettled([
+      recovery.execute(input),
+      recovery.execute(input),
+    ]);
+    expect(outcomes.filter((item) => item.status === 'fulfilled')).toHaveLength(
+      1,
+    );
+    const commands = await db.$queryRaw<
+      Array<{ payload: { operationId: string; data: { reason: string } } }>
+    >`SELECT "payload" FROM "Outbox" WHERE "type"='execution.cancel-work.v1' AND "payload"->>'sagaId'=${paymentEvent.sagaId}`;
+    expect(commands).toHaveLength(1);
+    const refundsBefore = await db.$queryRaw<
+      Array<{ count: bigint }>
+    >`SELECT count(*) FROM "Outbox" WHERE "type"='billing.refund-payment.v1' AND "payload"->>'sagaId'=${paymentEvent.sagaId}`;
+    expect(refundsBefore[0].count).toBe(0n);
+    await new ReceiveCancellationEvent(db).execute({
+      messageId: randomUUID(),
+      operationId: commands[0].payload.operationId,
+      osId: paymentEvent.osId,
+      sagaId: paymentEvent.sagaId,
+      filialId: paymentEvent.filialId,
+      type: 'execution.work-cancelled.v1',
+      producer: 'soat-execution-service',
+      data: { outcome: 'CANCELLED', reason: commands[0].payload.data.reason },
+    });
+    const refunds = await db.$queryRaw<
+      Array<{ count: bigint }>
+    >`SELECT count(*) FROM "Outbox" WHERE "type"='billing.refund-payment.v1' AND "payload"->>'sagaId'=${paymentEvent.sagaId}`;
+    expect(refunds[0].count).toBe(1n);
+  });
+  it('não recupera Saga sem pagamento aplicado ou reserva confirmada', async () => {
+    const { paymentEvent, chargeEvent } = await setup(
+      'COBRANCA_PENDENTE',
+      false,
+    );
+    await chargeService.execute(chargeEvent);
+    await db.$executeRaw`UPDATE "SagaInstance" SET "status"='RECONCILIACAO_NECESSARIA', "requiresAttention"=true WHERE "id"=${paymentEvent.sagaId}`;
+    const recovery = new RecoverLatePayment(db);
+    const input = {
+      sagaId: paymentEvent.sagaId,
+      actorId: 'admin',
+      reason: 'LATE_PAYMENT',
+    };
+    await expect(recovery.execute(input)).rejects.toThrow();
+    await paymentService.execute(paymentEvent);
+    await expect(recovery.execute(input)).rejects.toThrow();
+  });
+  it('não reembolsa se Execution informa que o reparo já começou', async () => {
+    const { paymentEvent, chargeEvent } = await setup();
+    await chargeService.execute(chargeEvent);
+    await db.$executeRaw`UPDATE "SagaInstance" SET "status"='RECONCILIACAO_NECESSARIA', "requiresAttention"=true WHERE "id"=${paymentEvent.sagaId}`;
+    await paymentService.execute(paymentEvent);
+    await new RecoverLatePayment(db).execute({
+      sagaId: paymentEvent.sagaId,
+      actorId: 'admin',
+      reason: 'LATE_PAYMENT',
+    });
+    const commands = await db.$queryRaw<
+      Array<{ payload: { operationId: string; data: { reason: string } } }>
+    >`SELECT "payload" FROM "Outbox" WHERE "type"='execution.cancel-work.v1' AND "payload"->>'sagaId'=${paymentEvent.sagaId}`;
+    await new ReceiveCancellationEvent(db).execute({
+      messageId: randomUUID(),
+      operationId: commands[0].payload.operationId,
+      osId: paymentEvent.osId,
+      sagaId: paymentEvent.sagaId,
+      filialId: paymentEvent.filialId,
+      type: 'execution.work-cancelled.v1',
+      producer: 'soat-execution-service',
+      data: {
+        outcome: 'ALREADY_STARTED',
+        reason: commands[0].payload.data.reason,
+      },
+    });
+    const rows = await db.$queryRaw<
+      Array<{ status: string; requiresAttention: boolean }>
+    >`SELECT "status", "requiresAttention" FROM "SagaInstance" WHERE "id"=${paymentEvent.sagaId}`;
+    expect(rows[0]).toEqual({
+      status: 'RECONCILIACAO_NECESSARIA',
+      requiresAttention: true,
+    });
+    const refunds = await db.$queryRaw<
+      Array<{ count: bigint }>
+    >`SELECT count(*) FROM "Outbox" WHERE "type"='billing.refund-payment.v1' AND "payload"->>'sagaId'=${paymentEvent.sagaId}`;
+    expect(refunds[0].count).toBe(0n);
   });
   it('reverte inbox, estado e operação quando falha a outbox', async () => {
     const { paymentEvent, chargeEvent } = await setup();

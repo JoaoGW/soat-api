@@ -5,7 +5,11 @@ import { JwtAuthGuard } from '../../guards/JwtAuthGuard';
 import { OpenOrderController, OpenOrderRuntime } from './AbrirOrdemController';
 
 describe('ações administrativas da Fase 4', () => {
-  const runtime = { deliver: jest.fn(), retry: jest.fn() };
+  const runtime = {
+    deliver: jest.fn(),
+    retry: jest.fn(),
+    recoverLatePayment: jest.fn(),
+  };
   const controller = new OpenOrderController(
     runtime as unknown as OpenOrderRuntime,
   );
@@ -43,6 +47,25 @@ describe('ações administrativas da Fase 4', () => {
         reason: 'X',
         extra: 'Y',
       } as { reason: string }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+  it('encaminha recuperação financeira com ator autenticado e motivo compatível com o comando', async () => {
+    const request = { user: { username: 'admin@example.test' } };
+    runtime.recoverLatePayment.mockResolvedValue('STARTED');
+    await expect(
+      controller.recoverLatePayment(request, 'saga-1', {
+        reason: 'LATE_PAYMENT',
+      }),
+    ).resolves.toEqual({ status: 'STARTED' });
+    expect(runtime.recoverLatePayment).toHaveBeenCalledWith({
+      sagaId: 'saga-1',
+      actorId: request.user.username,
+      reason: 'LATE_PAYMENT',
+    });
+    await expect(
+      controller.recoverLatePayment(request, 'saga-1', {
+        reason: 'invalid.reason',
+      }),
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 });

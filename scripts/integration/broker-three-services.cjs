@@ -42,6 +42,12 @@ const {
   StartCompensation,
 } = require('../../dist/src/infrastructure/saga/IniciarCompensacao');
 const {
+  RecoverLatePayment,
+} = require('../../dist/src/infrastructure/saga/RecuperarPagamentoTardio');
+const {
+  ReviewSagaDeadlines,
+} = require('../../dist/src/infrastructure/saga/RevisarPrazos');
+const {
   ReceiveCancellationEvent,
 } = require('../../dist/src/infrastructure/saga/ReceberCancelamento');
 const {
@@ -354,7 +360,8 @@ async function scenario(mode) {
       refund: async () => {
         refundCalls++;
         refunded = true;
-        if (mode === 'refund-timeout') throw new Error('timeout após reembolso no provedor simulado');
+        if (mode === 'refund-timeout')
+          throw new Error('timeout após reembolso no provedor simulado');
         return {
           id: providerOrder,
           transactions: {
@@ -567,6 +574,10 @@ async function scenario(mode) {
       keys.billing,
       osCharge,
     );
+    if (mode === 'late-payment') {
+      await os.$executeRaw`UPDATE "SagaInstance" SET "deadlineAt"=${new Date('1990-01-01T00:00:00Z')} WHERE "id"=${opened.sagaId}`;
+      await new ReviewSagaDeadlines(os).execute();
+    }
     const hookId = `hook-${tag}`;
     await billing.receivedWebhook.create({
       data: {
@@ -593,25 +604,44 @@ async function scenario(mode) {
       keys.billing,
       osPayment,
     );
-    assert.equal(await osDispatch.execute(), 'SENT');
-    await receive(
-      execReceiver,
-      'execution.enqueue-work.v1',
-      keys.os,
-      execEnqueue,
-    );
-    assert.equal(await executionDispatch.dispatchOne(), 'SENT');
-    await receive(
-      osReceiver,
-      'execution.work-enqueued.v1',
-      keys.exec,
-      osEnqueued,
-    );
-    if (mode === 'compensate' || mode === 'refund-timeout') {
-      assert.equal(
-        await new StartCompensation(os).execute(opened.sagaId, 'TEST_FAILURE'),
-        'STARTED',
+    if (mode !== 'late-payment') {
+      assert.equal(await osDispatch.execute(), 'SENT');
+      await receive(
+        execReceiver,
+        'execution.enqueue-work.v1',
+        keys.os,
+        execEnqueue,
       );
+      assert.equal(await executionDispatch.dispatchOne(), 'SENT');
+      await receive(
+        osReceiver,
+        'execution.work-enqueued.v1',
+        keys.exec,
+        osEnqueued,
+      );
+    }
+    if (
+      mode === 'compensate' ||
+      mode === 'refund-timeout' ||
+      mode === 'late-payment'
+    ) {
+      if (mode === 'late-payment')
+        assert.equal(
+          await new RecoverLatePayment(os).execute({
+            sagaId: opened.sagaId,
+            actorId: 'test-admin',
+            reason: 'LATE_PAYMENT',
+          }),
+          'STARTED',
+        );
+      else
+        assert.equal(
+          await new StartCompensation(os).execute(
+            opened.sagaId,
+            'TEST_FAILURE',
+          ),
+          'STARTED',
+        );
       const work = new CosmosWorkStore(container);
       assert.equal(await osDispatch.execute(), 'SENT');
       await receive(
@@ -667,8 +697,15 @@ async function scenario(mode) {
       );
       if (mode === 'refund-timeout') {
         assert.equal(await processor.processOne(), 'RECONCILIACAO_NECESSARIA');
-        const record = await billing.refund.findFirstOrThrow({ where: { payment: { charge: { osId: opened.id } } } });
-        assert.equal(await new ReconcileRefundService(billing, paymentProvider).execute(record.operationId), 'REFUNDED');
+        const record = await billing.refund.findFirstOrThrow({
+          where: { payment: { charge: { osId: opened.id } } },
+        });
+        assert.equal(
+          await new ReconcileRefundService(billing, paymentProvider).execute(
+            record.operationId,
+          ),
+          'REFUNDED',
+        );
       } else assert.equal(await processor.processOne(), 'REFUNDED');
       assert.equal(refundCalls, 1);
       const refundConsumer = new RefundEventConsumer(
@@ -719,9 +756,11 @@ async function scenario(mode) {
       assert.equal(await processor.processOne(), 'EMPTY');
       assert.equal(refundCalls, 1);
       process.stdout.write(
-        mode === 'refund-timeout'
-          ? 'Timeout de reembolso: consulta canônica simulada confirmou reembolso e liberação sem novo pedido.\n'
-          : 'Falha após pagamento: cancelamento, reembolso simulado e liberação de estoque confirmados pelo broker.\n',
+        mode === 'late-payment'
+          ? 'Pagamento tardio: execução cercada, reembolso simulado e liberação confirmados pelo broker.\n'
+          : mode === 'refund-timeout'
+            ? 'Timeout de reembolso: consulta canônica simulada confirmou reembolso e liberação sem novo pedido.\n'
+            : 'Falha após pagamento: cancelamento, reembolso simulado e liberação de estoque confirmados pelo broker.\n',
       );
       return;
     }
@@ -797,6 +836,7 @@ async function main() {
   await scenario('happy');
   await scenario('compensate');
   await scenario('refund-timeout');
+  await scenario('late-payment');
   await scenario('no-stock');
   await scenario('started');
 }

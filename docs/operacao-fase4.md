@@ -43,6 +43,15 @@ quando a resposta do envio é incerta. Ela só confirma um reembolso integral e
 financeiro. Veja `ENABLE_MERCADO_PAGO_REFUND_RECONCILIATION` no README do
 Billing. Os demais resultados financeiros incertos continuam em reconciliação.
 
+Quando o pagamento tardio já tiver sido confirmado e a reserva e a cobrança
+corresponderem às operações registradas, um administrador pode chamar
+`POST /fase4/ordens-servico/:sagaId/reconciliar-pagamento` com o corpo
+`{"reason":"LATE_PAYMENT"}` e `ENABLE_FASE4_RECOVERY=true`. O OS audita a
+ação e envia cancelamento para cercar o trabalho; não reembolsa nem libera
+estoque até receber a confirmação autenticada de que o reparo não começou.
+Se Execution informar que o trabalho já começou, a Saga retorna à
+reconciliação. Pagamento, reserva ou compensação conflitantes impedem a ação.
+
 ## DLQ e mensagens fora de ordem
 
 Revise motivo, versão de contrato, assinatura, produtor, IDs e causa do erro.

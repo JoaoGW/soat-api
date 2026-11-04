@@ -128,10 +128,11 @@ opcional (`ENABLE_SAGA_DEADLINE_REVIEW=true`), a cada 60 segundos, e registra
 reconciliação sem presumir que pagamento ou execução foram revertidos. Falhas
 que ainda não possuem evento ou recuperação operacional continuam pendentes.
 
-`npm run test:broker-three-services` executa cinco cenários descritos em
+`npm run test:broker-three-services` executa seis cenários descritos em
 `test/broker/jornada.feature` com filas e tópico do emulador Service Bus,
 PostgreSQL local e emulador Cosmos: reparo concluído, falha após pagamento com
-compensação, timeout após reembolso, estoque insuficiente e falha após início do reparo. O provedor de
+compensação, timeout após reembolso, pagamento tardio, estoque insuficiente e
+falha após início do reparo. O provedor de
 pagamento é simulado; os
 consumidores e casos de uso dos serviços são carregados no mesmo processo do
 teste. `npm run test:broker-independent-processes` executa a jornada até a
@@ -146,3 +147,8 @@ publicação esgotada é habilitada por `ENABLE_FASE4_RECOVERY=true` em
 `{"reason":"BROKER_RESTORED"}`. Ambas exigem JWT administrativo e o banco da
 Saga; aplique as migrations próprias do OS antes de habilitá-las. Consulte o
 [procedimento operacional](docs/operacao-fase4.md).
+
+Para pagamento tardio já confirmado em uma Saga em reconciliação, a rota
+administrativa `POST /fase4/ordens-servico/:sagaId/reconciliar-pagamento`,
+habilitada por `ENABLE_FASE4_RECOVERY=true`, inicia uma cerca de execução com
+auditoria; o reembolso depende da confirmação de cancelamento por Execution.

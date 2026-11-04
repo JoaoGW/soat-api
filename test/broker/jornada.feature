@@ -22,6 +22,12 @@ Funcionalidade: Jornada distribuída pela mensageria
     Então Billing confirma o reembolso sem enviar outra solicitação
     E a reserva é liberada após a confirmação pelo broker
 
+  Cenário: Pagamento confirmado após expiração da Saga
+    Dada uma Saga em reconciliação com pagamento tardio confirmado
+    Quando o administrador inicia a recuperação
+    Então Execution cerca e confirma o cancelamento do trabalho
+    E o reembolso e a liberação da reserva são confirmados pelo broker
+
   Cenário: Estoque insuficiente
     Dado um orçamento aprovado sem estoque suficiente
     Quando Execution rejeita a reserva
