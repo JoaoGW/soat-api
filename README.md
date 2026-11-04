@@ -127,3 +127,12 @@ resultado de orçamento já existente requer reconciliação. A revisão de praz
 opcional (`ENABLE_SAGA_DEADLINE_REVIEW=true`), a cada 60 segundos, e registra
 reconciliação sem presumir que pagamento ou execução foram revertidos. Falhas
 que ainda não possuem evento ou recuperação operacional continuam pendentes.
+
+`npm run test:broker-three-services` executa quatro cenários descritos em
+`test/broker/jornada.feature` com filas e tópico do emulador Service Bus,
+PostgreSQL local e emulador Cosmos: reparo concluído, falha após pagamento com
+compensação, estoque insuficiente e falha após início do reparo. O provedor de pagamento é simulado; os
+consumidores e casos de uso dos serviços são carregados no mesmo processo do
+teste. Entrega do veículo, workloads separados, Kubernetes, identidade Azure e
+Mercado Pago real não são validados por essa execução. Consulte
+[`test/broker/README.md`](test/broker/README.md) para preparar e executar.
