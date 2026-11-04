@@ -17,7 +17,7 @@ continuar pendente e a Saga não pode exigir atenção. Duas chamadas concorrent
 não geram duas recuperações. A publicação pode já ter chegado ao destinatário;
 acompanhe a deduplicação e o fato de resposta, sem criar outro comando.
 
-O procedimento não rearma mensagens `SENT`, não corrige DLQ nem altera Saga em
+O procedimento não rearma mensagens `SENT` nem altera Saga em
 reconciliação. Não altere manualmente status, identificadores ou payloads para
 contornar essas verificações. Para outros serviços, use seus procedimentos e
 confirme suas garantias de deduplicação antes de reenviar mensagens.
@@ -30,9 +30,12 @@ liberação da reserva nem reembolso. Identifique o último fato autenticado e
 compare as operações e eventos entre OS, Billing e Execution. Consulte o
 estado canônico no Mercado Pago quando houver cobrança ou reembolso, e a tarefa
 e a reserva no Execution. Preserve a pendência e abra incidente quando houver
-divergência ou trabalho físico já iniciado. A retomada segura de uma Saga em
-reconciliação ainda requer ferramenta específica e validação das evidências;
-não há retorno automático ao fluxo neste procedimento.
+divergência ou trabalho físico já iniciado. A exceção automatizada é o evento
+autenticado `billing.quote-failed.v1` com `EXPIRED`, quando o prazo expirou,
+o evento corresponde ao comando e não há orçamento, reservas, cobrança,
+execução nem fatos conflitantes. Nesse caso a Saga inicia o cancelamento e
+registra a evidência em auditoria. Outros casos em reconciliação ainda não
+possuem retomada automatizada; não altere o estado manualmente.
 
 ## DLQ e mensagens fora de ordem
 
@@ -41,8 +44,28 @@ Mensagens incompatíveis ou não autenticadas não devem ser reenviadas como se
 fossem válidas. Corrija configuração ou consumidor e só então reenvie a mensagem
 original quando a origem e a segurança da operação forem comprovadas. Eventos
 aceitos fora de ordem permanecem na inbox e podem ser reaplicados pelo worker
-`ENABLE_SAGA_REPLAY=true`; acompanhe pendências e erros. A DLQ não é recuperada
-automaticamente por esta implementação.
+`ENABLE_SAGA_REPLAY=true`; acompanhe pendências e erros.
+
+Para a DLQ da assinatura de eventos do OS, o operador pode executar
+`npm run ops:recover-saga-dlq` com `ENABLE_SAGA_DLQ_RECOVERY=true`, as mesmas
+variáveis de banco, identidade e chaves públicas do consumidor da Saga e mais
+`SAGA_DLQ_MESSAGE_ID`, `SAGA_DLQ_ACTOR` e `SAGA_DLQ_REASON`. A identidade de
+workload precisa de permissão para receber da assinatura; o ator é informado
+pelo ambiente de execução e deve ser correlacionado ao registro de acesso do
+operador. Execute em ambiente controlado e registre o identificador do primeiro
+evento disponível na DLQ: o comando recebe uma mensagem por vez e interrompe
+sem confirmá-la se o identificador não corresponder. Não percorre nem altera as
+demais mensagens.
+
+O comando verifica assinatura do produtor, contrato, assunto e ID; registra a
+tentativa em `SagaRecoveryAudit` antes de chamar o handler normal. Só confirma
+a mensagem depois que o fato correspondente estiver persistido na inbox. A
+auditoria registra tentativas, inclusive aquelas interrompidas; confira inbox e
+estado da Saga para determinar o resultado. Uma interrupção após o commit pode
+causar nova entrega, tratada pela deduplicação. Eventos inválidos não são
+modificados nem confirmados. O teste local usa a DLQ de uma fila: a confirmação
+da DLQ de assinatura de tópico falhou no emulador usado e precisa ser validada
+no Service Bus real antes do uso operacional.
 
 ## Entrega
 

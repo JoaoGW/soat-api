@@ -177,4 +177,37 @@ describe('falhas definitivas da Saga', () => {
     >`SELECT COUNT(*) AS count FROM "Outbox" WHERE "type" IN ('execution.release-parts.v1', 'billing.refund-payment.v1') AND "payload"->>'sagaId' = ${event.sagaId}`;
     expect(Number(commands[0].count)).toBe(0);
   });
+  it('retoma prazo vencido apenas com falha definitiva de orçamento e registra a evidência', async () => {
+    const event = await setup('quote');
+    await db.$executeRaw`UPDATE "SagaInstance" SET "quoteId"=NULL, "quoteVersion"=NULL, "reservationId"=NULL, "deadlineAt"=${new Date('1990-01-01T00:00:00Z')} WHERE "id"=${event.sagaId}`;
+    await new ReviewSagaDeadlines(db).execute(new Date(), 100);
+    expect(await handler.execute(event)).toBe('APPLIED');
+    expect(await handler.execute(event)).toBe('APPLIED');
+    const rows = await db.$queryRaw<
+      Array<{
+        status: string;
+        requiresAttention: boolean;
+        lastError: string | null;
+      }>
+    >`SELECT "status", "requiresAttention", "lastError" FROM "SagaInstance" WHERE "id"=${event.sagaId}`;
+    expect(rows[0]).toEqual({
+      status: 'COMPENSANDO',
+      requiresAttention: false,
+      lastError: null,
+    });
+    const audit = await db.$queryRaw<
+      Array<{ count: bigint }>
+    >`SELECT count(*) FROM "SagaRecoveryAudit" WHERE "sagaId"=${event.sagaId} AND "messageId"=${event.messageId}`;
+    expect(audit[0].count).toBe(1n);
+  });
+  it('mantém reconciliação se existir evidência conflitante de orçamento emitido', async () => {
+    const event = await setup('quote');
+    await db.$executeRaw`UPDATE "SagaInstance" SET "quoteId"=NULL, "quoteVersion"=NULL, "reservationId"=NULL, "status"='RECONCILIACAO_NECESSARIA', "requiresAttention"=true, "lastError"='DEADLINE_EXPIRED' WHERE "id"=${event.sagaId}`;
+    await db.$executeRaw`INSERT INTO "Inbox" ("consumer","messageId","operationId","type","payload","status") VALUES ('os.saga-events',${randomUUID()},${event.operationId},'billing.quote-issued.v1',${JSON.stringify({ sagaId: event.sagaId })}::jsonb,'PENDING')`;
+    expect(await handler.execute(event)).toBe('PENDING');
+    const rows = await db.$queryRaw<
+      Array<{ status: string }>
+    >`SELECT "status" FROM "SagaInstance" WHERE "id"=${event.sagaId}`;
+    expect(rows[0].status).toBe('RECONCILIACAO_NECESSARIA');
+  });
 });

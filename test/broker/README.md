@@ -50,6 +50,7 @@ export COSMOS_TEST_ENDPOINT='http://127.0.0.1:8081'
 export SERVICE_BUS_TEST_CONNECTION_STRING='Endpoint=sb://localhost/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;'
 npm run test:broker-three-services
 npm run test:broker-independent-processes
+npm run test:broker-recover-dlq
 ```
 
 Instale as dependências dos três repositórios antes dos builds. Use uma instância

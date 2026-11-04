@@ -23,6 +23,9 @@ type Saga = {
   quoteVersion: number | null;
   reservationId: string | null;
   executionId: string | null;
+  chargeId: string | null;
+  requiresAttention: boolean;
+  lastError: string | null;
 };
 export class ReceiveFailureEvent {
   constructor(private readonly db: PrismaClient) {}
@@ -72,7 +75,7 @@ export class ReceiveFailureEvent {
     return this.db.$transaction(async (tx) => {
       const rows = await tx.$queryRaw<
         Saga[]
-      >`SELECT "osId", "filialId", "status", "version", "quoteId", "quoteVersion", "reservationId", "executionId" FROM "SagaInstance" WHERE "id" = ${event.sagaId} FOR UPDATE`;
+      >`SELECT "osId", "filialId", "status", "version", "quoteId", "quoteVersion", "reservationId", "executionId", "chargeId", "requiresAttention", "lastError" FROM "SagaInstance" WHERE "id" = ${event.sagaId} FOR UPDATE`;
       const saga = rows[0];
       if (!saga || saga.osId !== event.osId || saga.filialId !== event.filialId)
         throw new Error('Falha não corresponde à Saga');
@@ -122,6 +125,31 @@ export class ReceiveFailureEvent {
       if (!inbox[0]?.matches)
         throw new Error('Mensagem reutilizada com outro conteúdo');
       if (inbox[0].status === 'APPLIED') return 'APPLIED';
+      // Um prazo vencido não prova nada por si só. A falha EXPIRED assinada
+      // do Billing, vinculada ao comando e sem fatos posteriores, comprova
+      // que esse orçamento não foi criado e permite iniciar o cancelamento.
+      if (
+        saga.status === 'RECONCILIACAO_NECESSARIA' &&
+        saga.requiresAttention &&
+        saga.lastError === 'DEADLINE_EXPIRED' &&
+        event.type === 'billing.quote-failed.v1' &&
+        event.data.reasonCode === 'EXPIRED' &&
+        !saga.quoteId &&
+        !saga.reservationId &&
+        !saga.chargeId &&
+        !saga.executionId &&
+        ['PENDING', 'SENT'].includes(command.status)
+      ) {
+        const conflicts = await tx.$queryRaw<Array<{ count: bigint }>>`
+          SELECT (SELECT count(*) FROM "SagaOperation" WHERE "sagaId"=${event.sagaId} AND "commandType" IN ('execution.reserve-parts.v1','billing.create-charge.v1','execution.enqueue-work.v1','execution.cancel-work.v1','billing.refund-payment.v1','execution.release-parts.v1')) +
+                 (SELECT count(*) FROM "Inbox" WHERE "consumer"=${consumer} AND "payload"->>'sagaId'=${event.sagaId} AND "type" IN ('billing.quote-issued.v1','billing.quote-approved.v1','billing.quote-rejected.v1','billing.payment-confirmed.v1','execution.work-started.v1')) AS count`;
+        if (conflicts[0].count === 0n) {
+          await tx.$executeRaw`UPDATE "SagaInstance" SET "status"='ORCAMENTO_PENDENTE', "requiresAttention"=false, "lastError"=NULL, "deadlineAt"=NULL, "version"="version"+1, "updatedAt"=NOW() WHERE "id"=${event.sagaId}`;
+          await tx.$executeRaw`INSERT INTO "SagaRecoveryAudit" ("id","sagaId","messageId","actorId","reason") VALUES (${randomUUID()},${event.sagaId},${event.messageId},'saga-worker','AUTHENTICATED_QUOTE_EXPIRED')`;
+          saga.status = 'ORCAMENTO_PENDENTE';
+          saga.version++;
+        }
+      }
       if (command.status === 'FAILED') {
         if (!command.sameResult) throw new Error('Falha divergente');
         await tx.$executeRaw`UPDATE "Inbox" SET "status" = 'APPLIED', "appliedAt" = NOW() WHERE "consumer" = ${consumer} AND "messageId" = ${event.messageId}`;
