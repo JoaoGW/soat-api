@@ -131,8 +131,18 @@ que ainda não possuem evento ou recuperação operacional continuam pendentes.
 `npm run test:broker-three-services` executa quatro cenários descritos em
 `test/broker/jornada.feature` com filas e tópico do emulador Service Bus,
 PostgreSQL local e emulador Cosmos: reparo concluído, falha após pagamento com
-compensação, estoque insuficiente e falha após início do reparo. O provedor de pagamento é simulado; os
+compensação, estoque insuficiente e falha após início do reparo. O provedor de
+pagamento é simulado; os
 consumidores e casos de uso dos serviços são carregados no mesmo processo do
-teste. Entrega do veículo, workloads separados, Kubernetes, identidade Azure e
-Mercado Pago real não são validados por essa execução. Consulte
+teste. `npm run test:broker-independent-processes` executa a jornada até a
+entrega com três processos separados. Servidores Nest, Kubernetes, identidade
+Azure e Mercado Pago real não são validados por essas execuções. Consulte
 [`test/broker/README.md`](test/broker/README.md) para preparar e executar.
+
+A entrega administrativa é habilitada por `ENABLE_FASE4_DELIVERY=true` em
+`POST /fase4/ordens-servico/:osId/entregar`. A recuperação auditada de uma
+publicação esgotada é habilitada por `ENABLE_FASE4_RECOVERY=true` em
+`POST /fase4/ordens-servico/:sagaId/comandos/:messageId/reprocessar`, com corpo
+`{"reason":"BROKER_RESTORED"}`. Ambas exigem JWT administrativo e o banco da
+Saga; aplique as migrations próprias do OS antes de habilitá-las. Consulte o
+[procedimento operacional](docs/operacao-fase4.md).

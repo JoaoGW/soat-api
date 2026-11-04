@@ -156,3 +156,14 @@ model IdempotencyRequest {
 
   @@id([actorId, route, key])
 }
+
+model SagaRecoveryAudit {
+  id        String   @id
+  sagaId    String
+  messageId String
+  actorId   String
+  reason    String
+  createdAt DateTime @default(now())
+
+  @@index([sagaId, createdAt])
+}

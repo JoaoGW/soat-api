@@ -7,7 +7,15 @@ Todos os comandos e eventos atravessam filas ou tópico do emulador Service Bus.
 As assinaturas Ed25519 são geradas para o teste e verificadas na recepção. Os
 casos de uso são instanciados no mesmo processo, sem servidores HTTP; apenas a
 fronteira do Mercado Pago é simulada. O teste não prova isolamento entre
-workloads, infraestrutura Azure, segurança do Cosmos ou entrega do veículo.
+workloads reais, infraestrutura Azure ou segurança do Cosmos.
+
+`npm run test:broker-independent-processes` inicia três processos Node isolados
+para OS, Billing e Execution. Cada processo recebe somente sua própria chave
+privada e, quando aplicável, a URL de seu banco. Os consumidores e despachantes
+de produção usam o broker local; ações do operador são acionadas por IPC no
+teste. O cenário chega à entrega. O teste não inicia os servidores Nest nem os
+workers de produção com identidade Azure e não demonstra isolamento de rede ou
+credenciais no Kubernetes.
 
 Use Docker local, Node compatível e checkouts dos três repositórios. Leia e
 aceite os termos do Service Bus Emulator e do SQL Server antes de configurar
@@ -41,6 +49,7 @@ npm run build
 export COSMOS_TEST_ENDPOINT='http://127.0.0.1:8081'
 export SERVICE_BUS_TEST_CONNECTION_STRING='Endpoint=sb://localhost/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;'
 npm run test:broker-three-services
+npm run test:broker-independent-processes
 ```
 
 Instale as dependências dos três repositórios antes dos builds. Use uma instância

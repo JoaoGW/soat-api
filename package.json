@@ -26,7 +26,8 @@
     "test:os-integration": "jest --config jest.os.integration.cjs --runInBand --watchman=false",
     "test:diagnosis-billing": "node scripts/integration/diagnosis-to-quote.cjs",
     "test:broker-diagnosis-billing": "node scripts/integration/diagnosis-broker-billing.cjs",
-    "test:broker-three-services": "node scripts/integration/broker-three-services.cjs"
+    "test:broker-three-services": "node scripts/integration/broker-three-services.cjs",
+    "test:broker-independent-processes": "node scripts/integration/broker-independent-processes.cjs"
   },
   "engines": {
     "npm": ">=10.0.0",

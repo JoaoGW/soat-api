@@ -6,6 +6,7 @@ Funcionalidade: Jornada distribuída pela mensageria
     Quando o cliente aprova o orçamento e o pagamento é confirmado
     E o trabalho é enfileirado, iniciado e concluído
     Então a Saga é concluída e as peças são consumidas
+    E o veículo pode ser entregue após a confirmação financeira
 
   Cenário: Falha após pagamento e antes do reparo
     Dada uma ordem paga com trabalho enfileirado
