@@ -25,6 +25,15 @@ When('executo o cenário distribuído {string} pelo broker', async function (sce
   await this.attach(result.stdout, 'text/plain');
 });
 
+When('executo a jornada com três processos independentes pelo broker', async function () {
+  const result = await run(process.execPath, [path.resolve('scripts/integration/broker-independent-processes.cjs')], {
+    cwd: process.cwd(), env: process.env, timeout: 100000, maxBuffer: 1024 * 1024,
+  });
+  this.output = result.stdout;
+  if (result.stderr) await this.attach(result.stderr, 'text/plain');
+  await this.attach(result.stdout, 'text/plain');
+});
+
 Then('a execução confirma {string}', function (expected) {
   assert.ok(this.output?.includes(expected), `Evidência ausente: ${expected}`);
 });

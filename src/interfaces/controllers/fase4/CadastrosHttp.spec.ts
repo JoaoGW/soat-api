@@ -2,9 +2,15 @@ import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import jwt from 'jsonwebtoken';
 import request from 'supertest';
+import { ConfigService } from '@nestjs/config';
+import { PassportModule } from '@nestjs/passport';
+import { JwtStrategy } from '../../strategies/JwtStrategy';
+import { JwtClienteStrategy } from '../../strategies/JwtClienteStrategy';
 import {
   Phase4InternalClientController,
   Phase4RegistryRuntime,
+  Phase4AdminOrderQueryController,
+  Phase4CustomerOrderQueryController,
 } from './CadastrosController';
 
 describe('consulta de cliente interno da Fase 4', () => {
@@ -65,5 +71,79 @@ describe('consulta de cliente interno da Fase 4', () => {
       .set('Authorization', `Bearer ${token}`)
       .send({ cpf: '52998224725', extra: true })
       .expect(400);
+  });
+});
+
+describe('consultas de ordens com JWT real', () => {
+  let app: INestApplication;
+  const customerSecret = 'segredo-cliente-para-teste-maior-que-32';
+  const adminSecret = 'segredo-admin-para-teste-maior-que-32';
+  const orders = {
+    list: jest.fn(),
+    get: jest.fn(),
+    history: jest.fn(),
+    saga: jest.fn(),
+  };
+  beforeAll(async () => {
+    const values: Record<string, string> = {
+      JWT_CLIENT_SECRET: customerSecret,
+      JWT_SECRET: adminSecret,
+      JWT_CLIENT_ISSUER: 'soat-auth-function',
+      JWT_CLIENT_AUDIENCE: 'soat-api',
+    };
+    const module = await Test.createTestingModule({
+      imports: [PassportModule],
+      controllers: [
+        Phase4AdminOrderQueryController,
+        Phase4CustomerOrderQueryController,
+      ],
+      providers: [
+        JwtStrategy,
+        JwtClienteStrategy,
+        {
+          provide: ConfigService,
+          useValue: { getOrThrow: (key: string) => values[key] },
+        },
+        { provide: Phase4RegistryRuntime, useValue: { orders: () => orders } },
+      ],
+    }).compile();
+    app = module.createNestApplication();
+    await app.init();
+  });
+  afterAll(async () => {
+    await app.close();
+  });
+  beforeEach(() => {
+    jest.clearAllMocks();
+    orders.get.mockResolvedValue({ id: 'os-1' });
+    orders.list.mockResolvedValue({ items: [] });
+  });
+  it('usa o sujeito assinado e rejeita acesso do cliente à rota administrativa', async () => {
+    const token = jwt.sign(
+      { sub: 'cliente-a', cpf: '52998224725', role: 'cliente' },
+      customerSecret,
+      { issuer: 'soat-auth-function', audience: 'soat-api', expiresIn: '1h' },
+    );
+    await request(app.getHttpServer())
+      .get('/fase4/cliente/ordens-servico/os-1?clienteId=cliente-b')
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200);
+    expect(orders.get).toHaveBeenCalledWith('os-1', 'cliente-a');
+    await request(app.getHttpServer())
+      .get('/fase4/ordens-servico')
+      .set('Authorization', `Bearer ${token}`)
+      .expect(401);
+    await request(app.getHttpServer())
+      .get('/fase4/cliente/ordens-servico')
+      .expect(401);
+  });
+  it('rejeita JWT de administrador na rota de cliente', async () => {
+    const token = jwt.sign({ sub: 'admin', role: 'admin' }, adminSecret, {
+      expiresIn: '1h',
+    });
+    await request(app.getHttpServer())
+      .get('/fase4/cliente/ordens-servico')
+      .set('Authorization', `Bearer ${token}`)
+      .expect(401);
   });
 });

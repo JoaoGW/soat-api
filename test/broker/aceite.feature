@@ -18,3 +18,8 @@ Funcionalidade: Aceite distribuído da oficina pelo broker
       | no-stock          | ausência de cobrança                          |
       | started           | sem reembolso ou liberação automáticos        |
       | started-completed | entrega autorizada sem reembolso              |
+
+  Cenário: Jornada com três processos independentes
+    Dado que os serviços e seus bancos locais de teste estão configurados
+    Quando executo a jornada com três processos independentes pelo broker
+    Então a execução confirma "Três processos independentes"
