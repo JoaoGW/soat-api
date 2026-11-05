@@ -1,4 +1,4 @@
-# Saga OS — implementação parcial
+# Saga OS — estado e validações
 
 `ReceiveChargeEvent` registra eventos de cobrança na inbox e verifica se o
 identificador, filial, OS e dados correspondem à operação e ao comando já
@@ -10,10 +10,12 @@ opcional, desativado por padrão.
 
 Os consumidores de eventos de cobrança e pagamento validam JSON Schema e confirmam mensagens
 somente após a gravação da inbox. O consumidor do broker está ligado ao processo, mas é desativado por padrão.
-Ele roteia cobrança, pagamento e confirmação de fila; outros eventos são
-devolvidos e podem chegar à DLQ após as tentativas. É necessário completar
-os handlers, validar identidade por produtor, compensações e testes reais antes
-de habilitá-lo; o módulo ainda não está pronto para tráfego.
+Ele roteia orçamento, diagnóstico, reserva, cobrança, pagamento, fila, reparo
+e eventos de compensação; eventos desconhecidos são devolvidos e podem chegar à
+DLQ após as tentativas. Assinaturas Ed25519 são verificadas por produtor. O
+fluxo e compensações foram exercitados com emuladores locais; antes de tráfego,
+é necessário validar identidade e transporte no ambiente real e concluir as
+verificações de operação descritas em `operacao-fase4.md`.
 
 `npm run test:os-integration` exige `DATABASE_URL` apontando para PostgreSQL
 local com nome terminado em `_test`, após `npm run db:migrate:deploy` no banco
@@ -32,8 +34,9 @@ fluxos no ambiente isolado.
 Pagamento confirmado fica pendente até associar cobrança, orçamento e reserva
 confirmada à mesma Saga. Quando os pré-requisitos existem, a Saga, operação e
 comando `execution.enqueue-work.v1` são gravados atomicamente. Pagamento
-tardio ou order divergente exige reconciliação. A execução ainda não consome
-esse comando no runtime.
+tardio ou order divergente exige reconciliação. Execution possui consumidor
+para o comando de fila, desativado por padrão e sujeito à configuração e
+validação do broker e Cosmos no ambiente real.
 
 O recebimento exige `ENABLE_SAGA_EVENT_CONSUMER=true`, `SAGA_DATABASE_URL`,
 namespace, topic, subscription e identidade de workload. Sua ativação exige
