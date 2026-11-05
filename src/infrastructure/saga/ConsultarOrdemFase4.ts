@@ -15,6 +15,27 @@ function validate(page: number, limit: number) {
 }
 export class Phase4OrderQueries {
   constructor(private readonly db: PrismaClient) {}
+  async operationalQueue(input: {
+    page: number;
+    limit: number;
+    filialId?: string;
+    status?: string;
+  }) {
+    validate(input.page, input.limit);
+    if (
+      [input.filialId, input.status].some(
+        (value) => value !== undefined && !idOk(value),
+      )
+    )
+      throw new BadRequestException('Filtro inválido');
+    const branch = input.filialId ?? null,
+      status = input.status ?? null,
+      offset = (input.page - 1) * input.limit;
+    const items = await this.db.$queryRaw<
+      Array<Record<string, unknown>>
+    >`SELECT o."id",o."codigoAcompanhamento",o."clienteId",o."veiculoId",o."filialId",o."status",o."createdAt",s."status" AS "sagaStatus",s."requiresAttention" FROM "OrdemDeServico" o LEFT JOIN "SagaInstance" s ON s."osId"=o."id" WHERE o."status" IN ('EM_EXECUCAO','AGUARDANDO_APROVACAO','EM_DIAGNOSTICO','RECEBIDA') AND (${branch}::text IS NULL OR o."filialId"=${branch}) AND (${status}::text IS NULL OR o."status"=${status}) ORDER BY CASE o."status" WHEN 'EM_EXECUCAO' THEN 1 WHEN 'AGUARDANDO_APROVACAO' THEN 2 WHEN 'EM_DIAGNOSTICO' THEN 3 ELSE 4 END,o."createdAt",o."id" LIMIT ${input.limit} OFFSET ${offset}`;
+    return { items, page: input.page, limit: input.limit };
+  }
   async list(input: {
     page: number;
     limit: number;

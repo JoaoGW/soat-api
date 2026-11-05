@@ -72,15 +72,36 @@ describe('cadastros no banco OS da Fase 4', () => {
     expect(
       await registry.updateVehicle(vehicle.id, { ano: 2021 }),
     ).toMatchObject({ ano: 2021 });
+    const branch = `branch-${doc}`;
     const opened = await new OpenOrderWithSaga(db).execute({
       actorId: 'admin',
       key: `key-${randomUUID()}`,
       clienteId: client.id,
       veiculoId: vehicle.id,
-      filialId: 'branch',
+      filialId: branch,
     });
     expect(opened.status).toBe('RECEBIDA');
     const orders = new Phase4OrderQueries(db);
+    const second = await new OpenOrderWithSaga(db).execute({
+      actorId: 'admin',
+      key: `key-${randomUUID()}`,
+      clienteId: client.id,
+      veiculoId: vehicle.id,
+      filialId: branch,
+    });
+    await db.$executeRaw`UPDATE "OrdemDeServico" SET "status"='EM_EXECUCAO' WHERE "id"=${second.id}`;
+    const queue = await orders.operationalQueue({
+      page: 1,
+      limit: 1,
+      filialId: branch,
+    });
+    expect(queue.items).toEqual([
+      expect.objectContaining({ id: second.id, status: 'EM_EXECUCAO' }),
+    ]);
+    expect(
+      (await orders.operationalQueue({ page: 2, limit: 1, filialId: branch }))
+        .items,
+    ).toEqual([expect.objectContaining({ id: opened.id, status: 'RECEBIDA' })]);
     expect(await orders.get(opened.id, client.id)).toMatchObject({
       id: opened.id,
       clienteId: client.id,

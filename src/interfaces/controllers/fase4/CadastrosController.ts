@@ -58,6 +58,19 @@ function page(value: string | undefined, fallback: number): number {
 @UseGuards(JwtAuthGuard)
 export class Phase4AdminOrderQueryController {
   constructor(private readonly runtime: Phase4RegistryRuntime) {}
+  @Get('fila-operacional') queue(
+    @Query('page') p?: string,
+    @Query('limit') l?: string,
+    @Query('filialId') filialId?: string,
+    @Query('status') status?: string,
+  ) {
+    return this.runtime.orders().operationalQueue({
+      page: page(p, 1),
+      limit: page(l, 20),
+      ...(filialId === undefined ? {} : { filialId }),
+      ...(status === undefined ? {} : { status }),
+    });
+  }
   @Get() list(
     @Query('page') p?: string,
     @Query('limit') l?: string,

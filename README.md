@@ -157,6 +157,8 @@ histórico e Saga são administrativas; `/fase4/cliente/ordens-servico` oferece
 listagem, detalhe e histórico restritos ao cliente autenticado. O relatório
 `GET /fase4/relatorios/tempo-medio-execucao` calcula os tempos com os dados e
 histórico do banco novo. Estas rotas coexistem com as legadas até o cutover.
+`GET /fase4/ordens-servico/fila-operacional` preserva a ordenação por prioridade
+e antiguidade, com filtros por filial e status antes da paginação.
 
 A entrega administrativa é habilitada por `ENABLE_FASE4_DELIVERY=true` em
 `POST /fase4/ordens-servico/:osId/entregar`. A recuperação auditada de uma
