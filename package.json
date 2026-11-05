@@ -27,6 +27,7 @@
     "test:diagnosis-billing": "node scripts/integration/diagnosis-to-quote.cjs",
     "test:broker-diagnosis-billing": "node scripts/integration/diagnosis-broker-billing.cjs",
     "test:broker-three-services": "node scripts/integration/broker-three-services.cjs",
+    "test:bdd-distributed": "cucumber-js --require test/broker/steps.cjs test/broker/aceite.feature",
     "test:broker-independent-processes": "node scripts/integration/broker-independent-processes.cjs",
     "test:broker-recover-dlq": "node scripts/integration/broker-recover-dlq.cjs",
     "ops:recover-saga-dlq": "node scripts/operations/recover-saga-dlq.cjs"
@@ -73,6 +74,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@cucumber/cucumber": "11.3.0",
     "@eslint/eslintrc": "^3.2.0",
     "@eslint/js": "^9.18.0",
     "@nestjs/cli": "^11.0.0",

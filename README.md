@@ -140,6 +140,10 @@ entrega com três processos separados. Servidores Nest, Kubernetes, identidade
 Azure e Mercado Pago real não são validados por essas execuções. Consulte
 [`test/broker/README.md`](test/broker/README.md) para preparar e executar.
 
+`npm run test:bdd-distributed` executa os oito cenários pelo Cucumber, com
+broker e bancos locais explicitamente configurados; o webhook e o provedor de
+pagamento usam fixtures de teste.
+
 A entrega administrativa é habilitada por `ENABLE_FASE4_DELIVERY=true` em
 `POST /fase4/ordens-servico/:osId/entregar`. A recuperação auditada de uma
 publicação esgotada é habilitada por `ENABLE_FASE4_RECOVERY=true` em

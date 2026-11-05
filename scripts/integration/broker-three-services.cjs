@@ -139,6 +139,7 @@ const { CosmosDiagnosisActions } = e(
   'infrastructure/cosmos/diagnostico-operacoes',
 );
 const { CosmosReservationStore } = e('infrastructure/cosmos/reservas');
+const { CosmosStockActions } = e('infrastructure/cosmos/estoque');
 const { CosmosEnqueueStore } = e('infrastructure/cosmos/enfileirar');
 const { CosmosWorkStore } = e('infrastructure/cosmos/reparo');
 const { EnqueueCommandConsumer, createEnqueueValidator } = e(
@@ -254,6 +255,15 @@ async function receive(receiver, expected, key, consumer) {
   );
   await consumer.process(msg, receiver);
   return msg.body;
+}
+async function expectSent(dispatch) {
+  const deadline = Date.now() + 10000;
+  do {
+    const result = await dispatch();
+    if (result !== 'EMPTY') { assert.equal(result, 'SENT'); return; }
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  } while (Date.now() < deadline);
+  throw Error('Outbox permaneceu vazia até o prazo de teste');
 }
 async function scenario(mode) {
   const tag = randomUUID();
@@ -426,7 +436,7 @@ async function scenario(mode) {
       veiculoId: vehicle,
       filialId: 'branch',
     });
-    assert.equal(await osDispatch.execute(), 'SENT');
+    await expectSent(() => osDispatch.execute());
     await receive(
       execReceiver,
       'execution.request-diagnosis.v1',
@@ -441,12 +451,13 @@ async function scenario(mode) {
       unitPriceInCents: 500,
       active: true,
     });
-    await container.items.create({
-      id: 'stock:p1',
+    await new CosmosStockActions(container).set({
       filialId: 'branch',
       sku: 'p1',
       balance: mode === 'no-stock' ? 1 : 5,
-      reserved: 0,
+      operationId: `stock-${tag}`,
+      actorId: 'test-admin',
+      reason: 'BDD_SETUP',
     });
     const action = {
       osId: opened.id,
@@ -455,7 +466,7 @@ async function scenario(mode) {
       correlationId: opened.sagaId,
     };
     await diagnosis.apply('start', { ...action, operationId: `start-${tag}` });
-    assert.equal(await executionDispatch.dispatchOne(), 'SENT');
+    await expectSent(() => executionDispatch.dispatchOne());
     await receive(
       osReceiver,
       'execution.diagnosis-started.v1',
@@ -467,14 +478,14 @@ async function scenario(mode) {
       operationId: `complete-${tag}`,
       items: [{ sourceId: 'p1', itemType: 'PART', quantity: 2 }],
     });
-    assert.equal(await executionDispatch.dispatchOne(), 'SENT');
+    await expectSent(() => executionDispatch.dispatchOne());
     await receive(
       osReceiver,
       'execution.diagnosis-completed.v1',
       keys.exec,
       osDiag,
     );
-    assert.equal(await osDispatch.execute(), 'SENT');
+    await expectSent(() => osDispatch.execute());
     await receive(
       billReceiver,
       'billing.generate-quote.v1',
@@ -485,7 +496,7 @@ async function scenario(mode) {
       where: { osId: opened.id },
     });
     assert.equal(quote.totalInCents, 1000);
-    assert.equal(await billingDispatch.dispatchOne(), 'SENT');
+    await expectSent(() => billingDispatch.dispatchOne());
     await receive(osReceiver, 'billing.quote-issued.v1', keys.billing, osQuote);
     await new QuoteDecisionService(billing).execute({
       quoteId: quote.id,
@@ -495,14 +506,14 @@ async function scenario(mode) {
       idempotencyKey: `approve-${tag}`,
       correlationId: opened.sagaId,
     });
-    assert.equal(await billingDispatch.dispatchOne(), 'SENT');
+    await expectSent(() => billingDispatch.dispatchOne());
     await receive(
       osReceiver,
       'billing.quote-approved.v1',
       keys.billing,
       osQuote,
     );
-    assert.equal(await osDispatch.execute(), 'SENT');
+    await expectSent(() => osDispatch.execute());
     await receive(
       execReceiver,
       'execution.reserve-parts.v1',
@@ -510,7 +521,7 @@ async function scenario(mode) {
       execReserve,
     );
     if (mode === 'no-stock') {
-      assert.equal(await executionDispatch.dispatchOne(), 'SENT');
+      await expectSent(() => executionDispatch.dispatchOne());
       await receive(
         osReceiver,
         'execution.parts-reservation-failed.v1',
@@ -520,7 +531,7 @@ async function scenario(mode) {
           failureEventValidator(dirOs),
         ),
       );
-      assert.equal(await osDispatch.execute(), 'SENT');
+      await expectSent(() => osDispatch.execute());
       await receive(
         execReceiver,
         'execution.cancel-work.v1',
@@ -530,7 +541,7 @@ async function scenario(mode) {
           createCancelValidator(dirExec),
         ),
       );
-      assert.equal(await executionDispatch.dispatchOne(), 'SENT');
+      await expectSent(() => executionDispatch.dispatchOne());
       await receive(
         osReceiver,
         'execution.work-cancelled.v1',
@@ -556,7 +567,7 @@ async function scenario(mode) {
       );
       return;
     }
-    assert.equal(await executionDispatch.dispatchOne(), 'SENT');
+    await expectSent(() => executionDispatch.dispatchOne());
     await receive(
       osReceiver,
       'execution.parts-reserved.v1',
@@ -568,7 +579,7 @@ async function scenario(mode) {
     assert.equal(saga[0].status, 'COBRANCA_PENDENTE');
     const stock = (await container.item('stock:p1', 'branch').read()).resource;
     assert.equal(stock.reserved, 2);
-    assert.equal(await osDispatch.execute(), 'SENT');
+    await expectSent(() => osDispatch.execute());
     await receive(
       billReceiver,
       'billing.create-charge.v1',
@@ -603,7 +614,7 @@ async function scenario(mode) {
       );
       assert.equal(createCalls, 1);
     }
-    assert.equal(await billingDispatch.dispatchOne(), 'SENT');
+    await expectSent(() => billingDispatch.dispatchOne());
     await receive(
       osReceiver,
       'billing.charge-created.v1',
@@ -620,7 +631,7 @@ async function scenario(mode) {
       ),
       'APPLIED',
     );
-    assert.equal(await billingDispatch.dispatchOne(), 'SENT');
+    await expectSent(() => billingDispatch.dispatchOne());
     await receive(
       osReceiver,
       'billing.payment-confirmed.v1',
@@ -628,14 +639,14 @@ async function scenario(mode) {
       osPayment,
     );
     if (mode !== 'late-payment') {
-      assert.equal(await osDispatch.execute(), 'SENT');
+      await expectSent(() => osDispatch.execute());
       await receive(
         execReceiver,
         'execution.enqueue-work.v1',
         keys.os,
         execEnqueue,
       );
-      assert.equal(await executionDispatch.dispatchOne(), 'SENT');
+      await expectSent(() => executionDispatch.dispatchOne());
       await receive(
         osReceiver,
         'execution.work-enqueued.v1',
@@ -666,14 +677,14 @@ async function scenario(mode) {
           'STARTED',
         );
       const work = new CosmosWorkStore(container);
-      assert.equal(await osDispatch.execute(), 'SENT');
+      await expectSent(() => osDispatch.execute());
       await receive(
         execReceiver,
         'execution.cancel-work.v1',
         keys.os,
         new CancelCommandConsumer(work, createCancelValidator(dirExec)),
       );
-      assert.equal(await executionDispatch.dispatchOne(), 'SENT');
+      await expectSent(() => executionDispatch.dispatchOne());
       await receive(
         osReceiver,
         'execution.work-cancelled.v1',
@@ -704,7 +715,7 @@ async function scenario(mode) {
         }
         await evidenceReceiver.completeMessage(message);
       }
-      assert.equal(await osDispatch.execute(), 'SENT');
+      await expectSent(() => osDispatch.execute());
       await receive(
         billReceiver,
         'billing.refund-payment.v1',
@@ -735,7 +746,7 @@ async function scenario(mode) {
         new ReceiveRefundEvent(os),
         refundEventValidator(dirOs),
       );
-      assert.equal(await billingDispatch.dispatchOne(), 'SENT');
+      await expectSent(() => billingDispatch.dispatchOne());
       const refundEvent = await receive(
         osReceiver,
         'billing.payment-refunded.v1',
@@ -752,14 +763,14 @@ async function scenario(mode) {
       const releaseCommands =
         await os.$queryRaw`SELECT count(*)::int AS "total" FROM "SagaOperation" WHERE "sagaId"=${opened.sagaId} AND "commandType"='execution.release-parts.v1'`;
       assert.equal(releaseCommands[0].total, 1);
-      assert.equal(await osDispatch.execute(), 'SENT');
+      await expectSent(() => osDispatch.execute());
       await receive(
         execReceiver,
         'execution.release-parts.v1',
         keys.os,
         new ReleaseCommandConsumer(work, createReleaseValidator(dirExec)),
       );
-      assert.equal(await executionDispatch.dispatchOne(), 'SENT');
+      await expectSent(() => executionDispatch.dispatchOne());
       await receive(
         osReceiver,
         'execution.parts-released.v1',
@@ -796,7 +807,7 @@ async function scenario(mode) {
       messageId: `work-start-${tag}`,
       operationId: `work-start-${tag}`,
     });
-    assert.equal(await executionDispatch.dispatchOne(), 'SENT');
+    await expectSent(() => executionDispatch.dispatchOne());
     await receive(osReceiver, 'execution.work-started.v1', keys.exec, osRepair);
     if (mode === 'started' || mode === 'started-completed') {
       const before = (await container.item('stock:p1', 'branch').read())
@@ -833,7 +844,7 @@ async function scenario(mode) {
           messageId: `work-end-${tag}`,
           operationId: `work-end-${tag}`,
         });
-        assert.equal(await executionDispatch.dispatchOne(), 'SENT');
+        await expectSent(() => executionDispatch.dispatchOne());
         await receive(
           osReceiver,
           'execution.work-completed.v1',
@@ -863,7 +874,7 @@ async function scenario(mode) {
       messageId: `work-end-${tag}`,
       operationId: `work-end-${tag}`,
     });
-    assert.equal(await executionDispatch.dispatchOne(), 'SENT');
+    await expectSent(() => executionDispatch.dispatchOne());
     await receive(
       osReceiver,
       'execution.work-completed.v1',
@@ -892,14 +903,11 @@ async function scenario(mode) {
   }
 }
 async function main() {
-  await scenario('happy');
-  await scenario('charge-timeout');
-  await scenario('compensate');
-  await scenario('refund-timeout');
-  await scenario('late-payment');
-  await scenario('no-stock');
-  await scenario('started');
-  await scenario('started-completed');
+  const scenarios = ['happy', 'charge-timeout', 'compensate', 'refund-timeout', 'late-payment', 'no-stock', 'started', 'started-completed'];
+  const args = process.argv.slice(2);
+  if (args.length && (args.length !== 2 || args[0] !== '--scenario' || !scenarios.includes(args[1]))) throw Error('Cenário BDD desconhecido');
+  const selected = args[1];
+  for (const mode of selected ? [selected] : scenarios) await scenario(mode);
 }
 main()
   .finally(async () => {

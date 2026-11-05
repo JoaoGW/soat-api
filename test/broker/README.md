@@ -9,6 +9,12 @@ casos de uso são instanciados no mesmo processo, sem servidores HTTP; apenas a
 fronteira do Mercado Pago é simulada. O teste não prova isolamento entre
 workloads reais, infraestrutura Azure ou segurança do Cosmos.
 
+`aceite.feature` é executável pelo Cucumber via `npm run test:bdd-distributed`.
+Cada exemplo invoca um cenário correspondente do script e falha se o processo
+ou qualquer verificação falhar. A execução é sequencial e exige as variáveis e
+emuladores abaixo; ela não ignora ambientes ausentes. O webhook do provedor é
+preparado por fixture e o Mercado Pago é simulado, como nos demais testes locais.
+
 `npm run test:broker-independent-processes` inicia três processos Node isolados
 para OS, Billing e Execution. Cada processo recebe somente sua própria chave
 privada e, quando aplicável, a URL de seu banco. Os consumidores e despachantes
@@ -49,6 +55,7 @@ npm run build
 export COSMOS_TEST_ENDPOINT='http://127.0.0.1:8081'
 export SERVICE_BUS_TEST_CONNECTION_STRING='Endpoint=sb://localhost/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;'
 npm run test:broker-three-services
+npm run test:bdd-distributed
 npm run test:broker-independent-processes
 npm run test:broker-recover-dlq
 ```
