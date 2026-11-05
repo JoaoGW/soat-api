@@ -34,6 +34,42 @@ When('executo a jornada com três processos independentes pelo broker', async fu
   await this.attach(result.stdout, 'text/plain');
 });
 
+When('executo os workers Nest de produção em três processos pelo broker', async function () {
+  const result = await run(process.execPath, [path.resolve('scripts/integration/broker-independent-processes.cjs')], {
+    cwd: process.cwd(), env: { ...process.env, SOAT_TEST_PRODUCTION_WORKERS: '1' }, timeout: 100000, maxBuffer: 1024 * 1024,
+  });
+  this.output = result.stdout;
+  if (result.stderr) await this.attach(result.stderr, 'text/plain');
+  await this.attach(result.stdout, 'text/plain');
+});
+
+When('executo a falha de estoque nos workers Nest pelo broker', async function () {
+  const result = await run(process.execPath, [path.resolve('scripts/integration/broker-independent-processes.cjs')], {
+    cwd: process.cwd(), env: { ...process.env, SOAT_TEST_PRODUCTION_WORKERS: '1', SOAT_TEST_NO_STOCK: '1' }, timeout: 100000, maxBuffer: 1024 * 1024,
+  });
+  this.output = result.stdout;
+  if (result.stderr) await this.attach(result.stderr, 'text/plain');
+  await this.attach(result.stdout, 'text/plain');
+});
+
+When('executo a compensação após pagamento nos workers Nest pelo broker', async function () {
+  const result = await run(process.execPath, [path.resolve('scripts/integration/broker-independent-processes.cjs')], {
+    cwd: process.cwd(), env: { ...process.env, SOAT_TEST_PRODUCTION_WORKERS: '1', SOAT_TEST_COMPENSATE: '1' }, timeout: 100000, maxBuffer: 1024 * 1024,
+  });
+  this.output = result.stdout;
+  if (result.stderr) await this.attach(result.stderr, 'text/plain');
+  await this.attach(result.stdout, 'text/plain');
+});
+
+When('reinicio o processo OS durante a Saga com workers Nest', async function () {
+  const result = await run(process.execPath, [path.resolve('scripts/integration/broker-independent-processes.cjs')], {
+    cwd: process.cwd(), env: { ...process.env, SOAT_TEST_PRODUCTION_WORKERS: '1', SOAT_TEST_RESTART_OS: '1' }, timeout: 100000, maxBuffer: 1024 * 1024,
+  });
+  this.output = result.stdout;
+  if (result.stderr) await this.attach(result.stderr, 'text/plain');
+  await this.attach(result.stdout, 'text/plain');
+});
+
 Then('a execução confirma {string}', function (expected) {
   assert.ok(this.output?.includes(expected), `Evidência ausente: ${expected}`);
 });

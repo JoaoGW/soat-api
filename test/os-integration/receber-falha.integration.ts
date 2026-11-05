@@ -210,4 +210,37 @@ describe('falhas definitivas da Saga', () => {
     >`SELECT "status" FROM "SagaInstance" WHERE "id"=${event.sagaId}`;
     expect(rows[0].status).toBe('RECONCILIACAO_NECESSARIA');
   });
+  it.each(['reservation', 'charge'] as const)(
+    'retoma %s após prazo somente com falha definitiva sem conflito',
+    async (kind) => {
+      const event = await setup(kind);
+      await db.$executeRaw`UPDATE "SagaInstance" SET "status"='RECONCILIACAO_NECESSARIA',"requiresAttention"=true,"lastError"='DEADLINE_EXPIRED' WHERE "id"=${event.sagaId}`;
+      expect(await handler.execute(event)).toBe('APPLIED');
+      expect(await handler.execute(event)).toBe('APPLIED');
+      const state = await db.$queryRaw<
+        Array<{ status: string; requiresAttention: boolean }>
+      >`SELECT "status","requiresAttention" FROM "SagaInstance" WHERE "id"=${event.sagaId}`;
+      expect(state[0]).toEqual({
+        status: 'COMPENSANDO',
+        requiresAttention: false,
+      });
+      const audit = await db.$queryRaw<
+        Array<{ count: bigint }>
+      >`SELECT count(*) FROM "SagaRecoveryAudit" WHERE "sagaId"=${event.sagaId} AND "messageId"=${event.messageId}`;
+      expect(audit[0].count).toBe(1n);
+    },
+  );
+  it.each(['reservation', 'charge'] as const)(
+    'não retoma %s se existir fato financeiro conflitante',
+    async (kind) => {
+      const event = await setup(kind);
+      await db.$executeRaw`UPDATE "SagaInstance" SET "status"='RECONCILIACAO_NECESSARIA',"requiresAttention"=true,"lastError"='DEADLINE_EXPIRED' WHERE "id"=${event.sagaId}`;
+      await db.$executeRaw`INSERT INTO "Inbox" ("consumer","messageId","operationId","type","payload","status") VALUES ('os.saga-events',${randomUUID()},${event.operationId},'billing.payment-confirmed.v1',${JSON.stringify({ sagaId: event.sagaId })}::jsonb,'PENDING')`;
+      expect(await handler.execute(event)).toBe('PENDING');
+      const state = await db.$queryRaw<
+        Array<{ status: string }>
+      >`SELECT "status" FROM "SagaInstance" WHERE "id"=${event.sagaId}`;
+      expect(state[0].status).toBe('RECONCILIACAO_NECESSARIA');
+    },
+  );
 });

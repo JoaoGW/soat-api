@@ -150,6 +150,36 @@ export class ReceiveFailureEvent {
           saga.version++;
         }
       }
+      // A falha definitiva vinculada ao comando prova que a reserva não foi
+      // criada ou que a cobrança expirou antes do envio. Somente retoma se
+      // não houver fatos/ações posteriores que contradigam essa prova.
+      if (
+        saga.status === 'RECONCILIACAO_NECESSARIA' &&
+        saga.requiresAttention &&
+        saga.lastError === 'DEADLINE_EXPIRED' &&
+        [
+          'execution.parts-reservation-failed.v1',
+          'billing.charge-failed.v1',
+        ].includes(event.type) &&
+        saga.quoteId === event.data.quoteId &&
+        saga.quoteVersion === event.data.quoteVersion &&
+        saga.reservationId === event.data.reservationId &&
+        !saga.chargeId &&
+        !saga.executionId &&
+        ['PENDING', 'SENT'].includes(command.status)
+      ) {
+        const reservationFailure =
+          event.type === 'execution.parts-reservation-failed.v1';
+        const conflicts = await tx.$queryRaw<Array<{ count: bigint }>>`
+          SELECT (SELECT count(*) FROM "SagaOperation" WHERE "sagaId"=${event.sagaId} AND ("commandType" IN ('execution.enqueue-work.v1','execution.cancel-work.v1','billing.refund-payment.v1','execution.release-parts.v1') OR (${reservationFailure} AND "commandType"='billing.create-charge.v1'))) +
+                 (SELECT count(*) FROM "Inbox" WHERE "consumer"=${consumer} AND "payload"->>'sagaId'=${event.sagaId} AND ("type" IN ('billing.charge-created.v1','billing.payment-confirmed.v1','execution.work-enqueued.v1','execution.work-started.v1') OR (${reservationFailure} AND "type"='execution.parts-reserved.v1'))) AS count`;
+        if (conflicts[0].count === 0n) {
+          await tx.$executeRaw`UPDATE "SagaInstance" SET "status"=${config.state}, "requiresAttention"=false, "lastError"=NULL, "deadlineAt"=NULL, "version"="version"+1, "updatedAt"=NOW() WHERE "id"=${event.sagaId}`;
+          await tx.$executeRaw`INSERT INTO "SagaRecoveryAudit" ("id","sagaId","messageId","actorId","reason") VALUES (${randomUUID()},${event.sagaId},${event.messageId},'saga-worker',${reservationFailure ? 'AUTHENTICATED_RESERVATION_FAILED' : 'AUTHENTICATED_CHARGE_EXPIRED'})`;
+          saga.status = config.state;
+          saga.version++;
+        }
+      }
       if (command.status === 'FAILED') {
         if (!command.sameResult) throw new Error('Falha divergente');
         await tx.$executeRaw`UPDATE "Inbox" SET "status" = 'APPLIED', "appliedAt" = NOW() WHERE "consumer" = ${consumer} AND "messageId" = ${event.messageId}`;

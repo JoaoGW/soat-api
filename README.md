@@ -140,10 +140,14 @@ entrega com três processos separados. Servidores Nest, Kubernetes, identidade
 Azure e Mercado Pago real não são validados por essas execuções. Consulte
 [`test/broker/README.md`](test/broker/README.md) para preparar e executar.
 
-`npm run test:bdd-distributed` executa nove cenários pelo Cucumber, incluindo a
-jornada em três processos de teste independentes, com broker e bancos locais
-explicitamente configurados; o webhook e o provedor de pagamento usam fixtures
-de teste. Esses processos não inicializam os servidores Nest de produção.
+`npm run test:bdd-distributed` inclui cenários que inicializam os workers Nest
+de produção em três processos separados, usando broker e bancos emulados; o
+webhook e o provedor de pagamento usam fixtures. A aplicação HTTP completa,
+identidade Azure e o comportamento real da nuvem não são validados localmente.
+`npm run test:coverage-messaging` aplica adicionalmente o mínimo de 80% à
+mensageria do OS; `npm run test:coverage-saga` aplica o mesmo limite à
+infraestrutura da Saga usando integração com PostgreSQL de teste. São medições
+separadas e não incluem todos os demais adapters ou controladores do OS.
 
 Os cadastros no banco novo usam `ENABLE_FASE4_REGISTRY=true` e
 `SAGA_DATABASE_URL`: `/fase4/clientes` e `/fase4/veiculos` oferecem criação,

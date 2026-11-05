@@ -67,6 +67,10 @@ for (const [role, producer] of Object.entries({
   };
 }
 const config = {
+  productionWorkers: process.env.SOAT_TEST_PRODUCTION_WORKERS === '1',
+  noStock: process.env.SOAT_TEST_NO_STOCK === '1',
+  compensateAfterPayment: process.env.SOAT_TEST_COMPENSATE === '1',
+  restartOs: process.env.SOAT_TEST_RESTART_OS === '1',
   billingDir,
   execDir,
   osUrl,
@@ -156,8 +160,8 @@ async function main() {
   });
   const container = database.container('operations');
   try {
-    const o = child('os'),
-      b = child('billing'),
+    let o = child('os');
+    const b = child('billing'),
       e = child('execution');
     const ready = await Promise.all([
       o.call('init'),
@@ -206,6 +210,13 @@ async function main() {
         await os.$queryRaw`SELECT "status" FROM "SagaInstance" WHERE "id"=${opened.sagaId}`;
       return x[0]?.status === 'AGUARDANDO_APROVACAO';
     });
+    if (config.restartOs) {
+      const oldPid = o.pid;
+      await o.call('stop');
+      o = child('os');
+      const restarted = await o.call('init');
+      assert.notEqual(restarted.pid, oldPid);
+    }
     await b.call('approve', {
       quoteId: quote.id,
       clientId: client,
@@ -214,6 +225,17 @@ async function main() {
       idempotencyKey: `approve-${tag}`,
       correlationId: opened.sagaId,
     });
+    if (config.noStock) {
+      await waitFor('compensação por estoque insuficiente', async () => {
+        const rows = await os.$queryRaw`SELECT "status" FROM "SagaInstance" WHERE "id"=${opened.sagaId}`;
+        return rows[0]?.status === 'COMPENSADA';
+      });
+      const order = await os.$queryRaw`SELECT "status" FROM "OrdemDeServico" WHERE "id"=${opened.id}`;
+      assert.equal(order[0].status, 'CANCELADA');
+      assert.equal(await billing.charge.count({ where: { osId: opened.id } }), 0);
+      process.stdout.write('Estoque insuficiente: workers compensaram pelo broker sem criar cobrança.\n');
+      return;
+    }
     await waitFor('cobrança criada', () =>
       billing.charge.findFirst({
         where: { osId: opened.id, providerOrderId: config.providerOrder },
@@ -225,6 +247,21 @@ async function main() {
         await os.$queryRaw`SELECT "status" FROM "SagaInstance" WHERE "id"=${opened.sagaId}`;
       return x[0]?.status === 'NA_FILA';
     });
+    if (config.compensateAfterPayment) {
+      assert.equal((await o.call('compensate', { sagaId: opened.sagaId })).result, 'STARTED');
+      await waitFor('reembolso e compensação', async () => {
+        const rows = await os.$queryRaw`SELECT "status" FROM "SagaInstance" WHERE "id"=${opened.sagaId}`;
+        return rows[0]?.status === 'COMPENSADA';
+      });
+      const refunds = await billing.refund.findMany({ where: { payment: { charge: { osId: opened.id } } } });
+      assert.equal(refunds.length, 1);
+      assert.equal(refunds[0].status, 'REFUNDED');
+      const stock = (await container.item('stock:p1', 'branch').read()).resource;
+      assert.equal(stock.reserved, 0);
+      assert.equal(stock.balance, 5);
+      process.stdout.write('Workers Nest: reembolso simulado confirmado e reserva liberada pelo broker.\n');
+      return;
+    }
     await e.call('start', action);
     await waitFor('reparo iniciado', async () => {
       const x =
@@ -247,6 +284,8 @@ async function main() {
     process.stdout.write(
       'Três processos independentes: diagnóstico, orçamento, pagamento simulado, reparo e entrega passaram pelo broker.\n',
     );
+    if (config.productionWorkers) process.stdout.write('Workers Nest de produção iniciados nos três processos.\n');
+    if (config.restartOs) process.stdout.write('Saga retomada após reinício do processo OS.\n');
   } finally {
     await Promise.allSettled(
       children.filter((p) => p.connected).map((p) => p.call('stop')),

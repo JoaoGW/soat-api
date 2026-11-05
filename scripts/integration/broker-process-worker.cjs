@@ -79,6 +79,7 @@ async function init(c) {
   const subscriptions = [];
   let db, cosmos;
   function poll(fn) {
+    if (c.productionWorkers) return;
     let busy = false;
     const timer = setInterval(async () => {
       if (busy) return;
@@ -95,6 +96,7 @@ async function init(c) {
   }
   function subscribe(receiver, route) {
     receivers.push(receiver);
+    if (c.productionWorkers) return;
     subscriptions.push(
       receiver.subscribe(
         {
@@ -122,6 +124,7 @@ async function init(c) {
       ),
     );
   }
+  let provider;
   if (c.role === 'os') {
     const { PrismaClient } = require('@prisma/client');
     db = new PrismaClient({ datasources: { db: { url: c.osUrl } } });
@@ -196,12 +199,15 @@ async function init(c) {
       new (os('infrastructure/saga/EntregarOrdem').DeliverOrder)(db).execute(
         d.osId,
       );
+    actions.compensate = (d) => new (os('infrastructure/saga/IniciarCompensacao').StartCompensation)(db).execute(d.sagaId, 'STEP_FAILED');
   } else if (c.role === 'billing') {
     const { PrismaClient } = require(
       path.join(c.billingDir, 'node_modules/@prisma/client'),
     );
     db = new PrismaClient({ datasources: { db: { url: c.billingUrl } } });
-    const provider = {
+    let refunded = false;
+    const refundId = `REF${c.tag.replaceAll('-', '').slice(0, 26)}`;
+    provider = {
       create: async (input) => ({
         id: c.providerOrder,
         type: 'qr',
@@ -221,21 +227,24 @@ async function init(c) {
           external_reference: charge.externalReference,
           currency: 'BRL',
           total_amount: '10.00',
-          status: 'processed',
+          status: refunded ? 'refunded' : 'processed',
           status_detail: 'accredited',
           transactions: {
             payments: [
               {
                 id: `txn-${c.tag}`,
                 reference_id: c.providerPayment,
-                status: 'processed',
+                status: refunded ? 'refunded' : 'processed',
                 status_detail: 'accredited',
                 paid_amount: '10.00',
+                ...(refunded ? { refunded_amount: '10.00' } : {}),
               },
             ],
+            ...(refunded ? { refunds: [{ id: refundId, transaction_id: `txn-${c.tag}`, status: 'processed', amount: '10.00' }] } : {}),
           },
         };
       },
+      refund: async () => { refunded = true; return { id: c.providerOrder, transactions: { refunds: [{ id: refundId, transaction_id: `txn-${c.tag}` }] } }; },
       getPayment: async () => ({
         id: Number(c.providerPayment),
         status: 'approved',
@@ -354,7 +363,7 @@ async function init(c) {
         id: 'stock:p1',
         filialId: 'branch',
         sku: 'p1',
-        balance: 5,
+        balance: c.noStock ? 0 : 5,
         reserved: 0,
       });
     };
@@ -390,7 +399,12 @@ async function init(c) {
       });
     };
   } else throw Error('Serviço inválido');
+  let application;
+  if (c.productionWorkers) {
+    application = await startProductionWorkers(c, provider);
+  }
   close = async () => {
+    await application?.close();
     for (const timer of timerRefs) clearInterval(timer);
     await Promise.allSettled(subscriptions.map((x) => x.close()));
     await Promise.allSettled(receivers.map((x) => x.close()));
@@ -403,4 +417,50 @@ async function init(c) {
     await db?.$disconnect();
     cosmos?.dispose();
   };
+}
+
+// Adapta somente as fronteiras de rede deste processo de teste. Os próprios
+// workers, roteamento, assinatura, ACK, polling e ciclo Nest são de produção.
+async function startProductionWorkers(c, provider) {
+  const Module = require('node:module');
+  const originalLoad = Module._load;
+  const roleDir = c.role === 'os' ? root : c.role === 'billing' ? c.billingDir : c.execDir;
+  const roleRequire = Module.createRequire(path.join(roleDir, 'package.json'));
+  const realBus = roleRequire('@azure/service-bus');
+  const realCosmos = c.role === 'execution' ? roleRequire('@azure/cosmos') : undefined;
+  const keys = c.keys;
+  Object.assign(process.env, {
+    AZURE_TENANT_ID: 'test', AZURE_CLIENT_ID: 'test', AZURE_FEDERATED_TOKEN_FILE: '/test-only',
+    SERVICE_BUS_NAMESPACE: 'local-test.servicebus.windows.net',
+    SERVICE_BUS_EVENT_TOPIC: 'bdd.events', SERVICE_BUS_COMMAND_QUEUE: `bdd.${c.role}.commands`,
+    SERVICE_BUS_BILLING_QUEUE: 'bdd.billing.commands', SERVICE_BUS_EXECUTION_QUEUE: 'bdd.execution.commands',
+    SERVICE_BUS_SAGA_SUBSCRIPTION: 'bdd.os', SERVICE_BUS_BILLING_EVIDENCE_SUBSCRIPTION: 'bdd.billing.evidence',
+    OS_MESSAGE_PUBLIC_KEY: keys.os.publicKey, BILLING_MESSAGE_PUBLIC_KEY: keys.billing.publicKey,
+    EXECUTION_MESSAGE_PUBLIC_KEY: keys.execution.publicKey, MERCADO_PAGO_EXTERNAL_POS_ID: 'pos-test',
+    COSMOS_ENDPOINT: 'https://local-test.documents.azure.com', COSMOS_DATABASE: c.cosmosDatabase, COSMOS_CONTAINER: 'operations',
+  });
+  if (c.role === 'os') Object.assign(process.env, { SAGA_DATABASE_URL: c.osUrl, OS_MESSAGE_PRIVATE_KEY: keys.os.privateKey, ENABLE_SAGA_COMMAND_PUBLISHER: 'true', ENABLE_SAGA_EVENT_CONSUMER: 'true' });
+  if (c.role === 'billing') Object.assign(process.env, { DATABASE_URL: c.billingUrl, BILLING_MESSAGE_PRIVATE_KEY: keys.billing.privateKey, ENABLE_SERVICE_BUS_WORKER: 'true', ENABLE_MERCADO_PAGO_COMMANDS: 'true', ENABLE_BILLING_COMPENSATION_EVIDENCE: 'true', ENABLE_MERCADO_PAGO_REFUND_COMMANDS: 'true', MERCADO_PAGO_ACCESS_TOKEN: 'local-fixture-only' });
+  if (c.role === 'execution') Object.assign(process.env, { EXECUTION_MESSAGE_PRIVATE_KEY: keys.execution.privateKey, ENABLE_EXECUTION_COMMANDS: 'true', ENABLE_EXECUTION_OUTBOX: 'true' });
+  process.chdir(roleDir);
+  Module._load = function(request, parent, isMain) {
+    if (request === '@azure/service-bus') return { ...realBus, ServiceBusClient: class { constructor() { return new realBus.ServiceBusClient(c.connection); } } };
+    if (request === '@azure/cosmos' && realCosmos) return { ...realCosmos, CosmosClient: class { constructor() { return new realCosmos.CosmosClient({ endpoint: c.cosmosEndpoint, key: Buffer.from('local-test-key').toString('base64') }); } } };
+    if (request === '@azure/identity') return { WorkloadIdentityCredential: class {} };
+    if (c.role === 'billing' && request === '../mercado-pago/orders-client') return { MercadoPagoOrdersClient: class { constructor() { return provider; } } };
+    return originalLoad.call(this, request, parent, isMain);
+  };
+  try {
+    const { Module: NestModule } = roleRequire('@nestjs/common');
+    const { NestFactory } = roleRequire('@nestjs/core');
+    const dist = name => require(path.join(roleDir, 'dist', c.role === 'os' ? 'src' : '', name));
+    const workers = c.role === 'os'
+      ? [dist('infrastructure/service-bus/SagaCommandWorker').SagaCommandWorker, dist('infrastructure/service-bus/SagaEventWorker').SagaEventWorker]
+      : c.role === 'billing'
+        ? [dist('infrastructure/service-bus/worker').BillingMessageWorker]
+        : [dist('infrastructure/service-bus/command-worker').ExecutionCommandWorker, dist('infrastructure/service-bus/outbox-worker').ExecutionOutboxWorker];
+    class WorkersModule {}
+    NestModule({ providers: workers })(WorkersModule);
+    return await NestFactory.createApplicationContext(WorkersModule, { logger: ['error', 'warn'], abortOnError: false });
+  } finally { Module._load = originalLoad; }
 }

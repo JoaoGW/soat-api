@@ -58,7 +58,13 @@ jobs:
       - run: npm run build
       - run: npx prisma migrate deploy
       - run: npm run test:cov -- --runInBand
+      - run: npm run test:coverage-messaging
       - run: npm run test:e2e -- --runInBand
+      - uses: actions/upload-artifact@v4
+        with:
+          name: os-unit-messaging-coverage-${{ github.sha }}
+          path: coverage/
+          if-no-files-found: error
 
   saga_os:
     name: Saga OS PostgreSQL
@@ -88,7 +94,12 @@ jobs:
       - run: npm ci
       - run: npx prisma generate
       - run: npm run db:migrate:deploy
-      - run: npm run test:os-integration
+      - run: npm run test:coverage-saga
+      - uses: actions/upload-artifact@v4
+        with:
+          name: os-saga-coverage-${{ github.sha }}
+          path: coverage/saga/
+          if-no-files-found: error
 
   manifests:
     name: Validar manifests Kustomize

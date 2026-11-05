@@ -34,8 +34,12 @@ divergência ou trabalho físico já iniciado. A exceção automatizada é o eve
 autenticado `billing.quote-failed.v1` com `EXPIRED`, quando o prazo expirou,
 o evento corresponde ao comando e não há orçamento, reservas, cobrança,
 execução nem fatos conflitantes. Nesse caso a Saga inicia o cancelamento e
-registra a evidência em auditoria. Outros casos em reconciliação ainda não
-possuem retomada automatizada; não altere o estado manualmente.
+registra a evidência em auditoria. A mesma retomada é possível para falha
+autenticada de reserva ou expiração definitiva de cobrança, desde que vinculada
+ao comando e sem efeitos ou fatos posteriores conflitantes. A recuperação
+inicia a compensação: a reserva existente só é liberada após confirmação de
+cancelamento. Outros casos em reconciliação ainda não possuem retomada
+automatizada; não altere o estado manualmente.
 
 No Billing, a reconciliação opcional de reembolso consulta a ordem canônica
 quando a resposta do envio é incerta. Ela só confirma um reembolso integral e

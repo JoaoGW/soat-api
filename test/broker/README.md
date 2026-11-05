@@ -23,6 +23,15 @@ teste. O cenário chega à entrega. O teste não inicia os servidores Nest nem o
 workers de produção com identidade Azure e não demonstra isolamento de rede ou
 credenciais no Kubernetes.
 
+Com `SOAT_TEST_PRODUCTION_WORKERS=1`, o mesmo executor inicia os workers Nest
+de produção nos três processos. Um adaptador exclusivo do teste redireciona os
+clientes Azure para os emuladores locais e substitui o cliente Mercado Pago por
+fixture; as validações, assinatura, roteamento, ACK, outbox e ciclo Nest usam
+as classes de produção. O BDD executa essa modalidade na jornada completa, na
+falha de estoque, no reembolso após pagamento e na retomada depois de reiniciar
+o processo OS. Ele não comprova identidade de
+workload, servidores HTTP completos nem o comportamento dos serviços Azure.
+
 Use Docker local, Node compatível e checkouts dos três repositórios. Leia e
 aceite os termos do Service Bus Emulator e do SQL Server antes de configurar
 `SOAT_TEST_ACCEPT_EULA=Y`. São necessárias portas locais 5672, 5300, 8081,

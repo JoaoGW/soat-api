@@ -9,6 +9,18 @@ import {
   repairEventValidator,
   DiagnosisEventConsumer,
   diagnosisEventValidator,
+  QuoteEventConsumer,
+  quoteEventValidator,
+  ReservationEventConsumer,
+  reservationEventValidator,
+  CancellationEventConsumer,
+  cancellationEventValidator,
+  RefundEventConsumer,
+  refundEventValidator,
+  ReleaseEventConsumer,
+  releaseEventValidator,
+  FailureEventConsumer,
+  failureEventValidator,
 } from './RepairEventConsumer';
 
 describe('consumidor de reparo', () => {
@@ -51,6 +63,63 @@ describe('consumidor de reparo', () => {
     expect(receiver.abandonMessage).toHaveBeenCalledTimes(1);
     expect(receiver.completeMessage).not.toHaveBeenCalled();
   });
+});
+
+describe('consumidores de eventos críticos', () => {
+  const directory = resolve(process.cwd(), 'docs/contracts/messages');
+  const cases = [
+    ['billing.quote-approved.v1', QuoteEventConsumer, quoteEventValidator],
+    [
+      'execution.parts-reserved.v1',
+      ReservationEventConsumer,
+      reservationEventValidator,
+    ],
+    [
+      'execution.work-cancelled.v1',
+      CancellationEventConsumer,
+      cancellationEventValidator,
+    ],
+    ['billing.payment-refunded.v1', RefundEventConsumer, refundEventValidator],
+    [
+      'execution.parts-released.v1',
+      ReleaseEventConsumer,
+      releaseEventValidator,
+    ],
+    ['billing.charge-failed.v1', FailureEventConsumer, failureEventValidator],
+  ] as const;
+  it.each(cases)(
+    '%s confirma após persistência e trata falhas e contrato inválido',
+    async (name, Consumer, validator) => {
+      const body = JSON.parse(
+        readFileSync(resolve(directory, `examples/${name}.json`), 'utf8'),
+      ) as { messageId: string; type: string };
+      const handler = { execute: jest.fn().mockResolvedValue('PENDING') };
+      const receiver = {
+        completeMessage: jest.fn(),
+        abandonMessage: jest.fn(),
+        deadLetterMessage: jest.fn(),
+      };
+      const consumer = new Consumer(handler, validator(directory));
+      const message = {
+        body,
+        messageId: body.messageId,
+        subject: body.type,
+      } as ServiceBusReceivedMessage;
+      const broker = receiver as unknown as ServiceBusReceiver;
+      await consumer.process(message, broker);
+      expect(handler.execute).toHaveBeenCalledWith(body);
+      expect(receiver.completeMessage).toHaveBeenCalledWith(message);
+      await consumer.process({ ...message, subject: 'outro' }, broker);
+      await consumer.process({ ...message, messageId: 'outro' }, broker);
+      expect(receiver.deadLetterMessage).toHaveBeenCalledTimes(2);
+      handler.execute.mockRejectedValueOnce(new Error('banco'));
+      await consumer.process(message, broker);
+      expect(receiver.abandonMessage).toHaveBeenCalledWith(message);
+      receiver.completeMessage.mockRejectedValueOnce(new Error('ACK'));
+      await expect(consumer.process(message, broker)).rejects.toThrow('ACK');
+      expect(receiver.abandonMessage).toHaveBeenCalledTimes(1);
+    },
+  );
 });
 
 describe('consumidor de diagnóstico', () => {
