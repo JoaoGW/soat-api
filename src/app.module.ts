@@ -3,6 +3,15 @@ import {
   OpenOrderController,
   OpenOrderRuntime,
 } from './interfaces/controllers/fase4/AbrirOrdemController';
+import {
+  Phase4RegistryRuntime,
+  Phase4ClientController,
+  Phase4VehicleController,
+  Phase4InternalClientController,
+  Phase4AdminOrderQueryController,
+  Phase4CustomerOrderQueryController,
+  Phase4ReportController,
+} from './interfaces/controllers/fase4/CadastrosController';
 import { SagaDeadlineWorker } from './infrastructure/saga/RevisarPrazos';
 import { SagaReplayWorker } from './infrastructure/saga/AgendarReaplicacao';
 import { SagaCommandWorker } from './infrastructure/service-bus/SagaCommandWorker';
@@ -96,9 +105,16 @@ import { HttpObservabilityInterceptor } from './interfaces/observability/HttpObs
     PecaController,
     OrdemDeServicoController,
     OpenOrderController,
+    Phase4ClientController,
+    Phase4VehicleController,
+    Phase4InternalClientController,
+    Phase4AdminOrderQueryController,
+    Phase4CustomerOrderQueryController,
+    Phase4ReportController,
   ],
   providers: [
     OpenOrderRuntime,
+    Phase4RegistryRuntime,
     SagaReplayWorker,
     SagaDeadlineWorker,
     SagaEventWorker,

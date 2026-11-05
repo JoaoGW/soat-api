@@ -144,6 +144,19 @@ Azure e Mercado Pago real não são validados por essas execuções. Consulte
 broker e bancos locais explicitamente configurados; o webhook e o provedor de
 pagamento usam fixtures de teste.
 
+Os cadastros no banco novo usam `ENABLE_FASE4_REGISTRY=true` e
+`SAGA_DATABASE_URL`: `/fase4/clientes` e `/fase4/veiculos` oferecem criação,
+consulta, listagem paginada, atualização e desativação lógica com JWT
+administrativo. A integração de CPF fica em
+`/fase4/internal/clientes/validar-cpf`, com bearer exclusivo. Para a Function,
+o `OS_INTERNAL_BASE_URL` pode incluir o prefixo HTTPS `/fase4`; a troca de rota
+e a validação de identidade continuam sendo parte do cutover.
+Com a mesma configuração, `GET /fase4/ordens-servico` e as consultas por ID,
+histórico e Saga são administrativas; `/fase4/cliente/ordens-servico` oferece
+listagem, detalhe e histórico restritos ao cliente autenticado. O relatório
+`GET /fase4/relatorios/tempo-medio-execucao` calcula os tempos com os dados e
+histórico do banco novo. Estas rotas coexistem com as legadas até o cutover.
+
 A entrega administrativa é habilitada por `ENABLE_FASE4_DELIVERY=true` em
 `POST /fase4/ordens-servico/:osId/entregar`. A recuperação auditada de uma
 publicação esgotada é habilitada por `ENABLE_FASE4_RECOVERY=true` em

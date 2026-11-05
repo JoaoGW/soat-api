@@ -12,6 +12,9 @@ const {
   OpenOrderWithSaga,
 } = require('../../dist/src/infrastructure/saga/AbrirOrdem');
 const {
+  Phase4Registry,
+} = require('../../dist/src/infrastructure/saga/CadastrosFase4');
+const {
   DeliverOrder,
 } = require('../../dist/src/infrastructure/saga/EntregarOrdem');
 const {
@@ -234,6 +237,32 @@ const keys = {
   billing: pair('soat-billing-service'),
   exec: pair('soat-execution-service'),
 };
+function syntheticCpf(tag) {
+  let base = String(
+    BigInt(`0x${tag.replaceAll('-', '').slice(0, 10)}`) % 1000000000n,
+  ).padStart(9, '0');
+  if (/^(\d)\1+$/.test(base))
+    base = `${base.slice(0, 8)}${base[8] === '9' ? '0' : '9'}`;
+  const digit = (value) => {
+    const sum = [...value].reduce(
+      (total, n, i) => total + Number(n) * (value.length + 1 - i),
+      0,
+    );
+    const result = (sum * 10) % 11;
+    return String(result === 10 ? 0 : result);
+  };
+  const first = digit(base);
+  return base + first + digit(base + first);
+}
+function syntheticPlate(tag) {
+  let number = BigInt(`0x${tag.replaceAll('-', '').slice(0, 12)}`);
+  let letters = '';
+  for (let i = 0; i < 3; i++) {
+    letters += String.fromCharCode(65 + Number(number % 26n));
+    number /= 26n;
+  }
+  return letters + String(number % 10000n).padStart(4, '0');
+}
 async function send(sender, payload, key) {
   await sender.sendMessages({
     messageId: payload.messageId,
@@ -260,7 +289,10 @@ async function expectSent(dispatch) {
   const deadline = Date.now() + 10000;
   do {
     const result = await dispatch();
-    if (result !== 'EMPTY') { assert.equal(result, 'SENT'); return; }
+    if (result !== 'EMPTY') {
+      assert.equal(result, 'SENT');
+      return;
+    }
     await new Promise((resolve) => setTimeout(resolve, 100));
   } while (Date.now() < deadline);
   throw Error('Outbox permaneceu vazia até o prazo de teste');
@@ -422,13 +454,23 @@ async function scenario(mode) {
       new ReceiveRepairEvent(os),
       repairEventValidator(dirOs),
     );
-    const client = `c-${tag}`,
-      vehicle = `v-${tag}`,
-      doc = String(
-        BigInt('0x' + tag.replaceAll('-', '').slice(0, 10)) % 100000000000n,
-      ).padStart(11, '0');
-    await os.$executeRaw`INSERT INTO "Cliente" ("id","nome","documento","tipo","contato","updatedAt") VALUES (${client},'Teste',${doc},'PF','test@example.test',NOW())`;
-    await os.$executeRaw`INSERT INTO "Veiculo" ("id","clienteId","placa","marca","modelo","ano","updatedAt") VALUES (${vehicle},${client},${tag.slice(0, 7)},'X','Y',2020,NOW())`;
+    const registry = new Phase4Registry(os);
+    const client = (
+      await registry.createClient({
+        nome: 'Teste',
+        documento: syntheticCpf(tag),
+        contato: 'test@example.test',
+      })
+    ).id;
+    const vehicle = (
+      await registry.createVehicle({
+        clienteId: client,
+        placa: syntheticPlate(tag),
+        marca: 'X',
+        modelo: 'Y',
+        ano: 2020,
+      })
+    ).id;
     const opened = await new OpenOrderWithSaga(os).execute({
       actorId: 'admin',
       key: `key-${tag}`,
@@ -903,9 +945,24 @@ async function scenario(mode) {
   }
 }
 async function main() {
-  const scenarios = ['happy', 'charge-timeout', 'compensate', 'refund-timeout', 'late-payment', 'no-stock', 'started', 'started-completed'];
+  const scenarios = [
+    'happy',
+    'charge-timeout',
+    'compensate',
+    'refund-timeout',
+    'late-payment',
+    'no-stock',
+    'started',
+    'started-completed',
+  ];
   const args = process.argv.slice(2);
-  if (args.length && (args.length !== 2 || args[0] !== '--scenario' || !scenarios.includes(args[1]))) throw Error('Cenário BDD desconhecido');
+  if (
+    args.length &&
+    (args.length !== 2 ||
+      args[0] !== '--scenario' ||
+      !scenarios.includes(args[1]))
+  )
+    throw Error('Cenário BDD desconhecido');
   const selected = args[1];
   for (const mode of selected ? [selected] : scenarios) await scenario(mode);
 }
