@@ -21,8 +21,8 @@ esac
 : "${API_WORKLOAD_CLIENT_ID:?API_WORKLOAD_CLIENT_ID é obrigatório}"
 : "${APP_VERSION:?APP_VERSION é obrigatório}"
 
-if [[ "$image" == *":latest" || "$image" != *":${GITHUB_SHA:-}" ]]; then
-  echo "A imagem precisa usar exatamente o SHA do commit atual." >&2
+if [[ ! "$APP_VERSION" =~ ^[0-9a-f]{40}$ || "$image" != "ghcr.io/joaogw/soat-api:$APP_VERSION" || "$(git rev-parse HEAD)" != "$APP_VERSION" ]]; then
+  echo "A imagem e o checkout precisam corresponder ao SHA aprovado." >&2
   exit 1
 fi
 

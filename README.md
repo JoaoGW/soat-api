@@ -6,7 +6,7 @@ deploy e a documentação arquitetural central.
 
 ## Stack
 
-- Node.js 20, TypeScript e NestJS;
+- Node.js 24 nos containers e no CI, TypeScript e NestJS;
 - PostgreSQL e Prisma;
 - JWT administrativo e JWT de cliente, Swagger, Jest e Docker;
 - Kustomize, AKS, Kong, Key Vault e Workload Identity para o deploy Azure.
@@ -68,6 +68,9 @@ renderiza os manifests Kustomize e verifica Ingress, HPA, PDB e ausência de
 tags `latest`.
 
 O workflow de deploy publica somente `ghcr.io/joaogw/soat-api:<SHA_DO_COMMIT>`.
+Ele começa após o CI de um push aprovado ou por execução manual informando o
+SHA completo; em ambos os casos, verifica o CI e a ponta atual da branch antes
+de publicar e novamente antes de aplicar no cluster.
 O deploy HML foi validado usando referência imutável por SHA. Os jobs de
 homologação e produção só executam se a variável protegida do ambiente
 `TF_APPLY_ENABLED` estiver como `true`; após a validação, ela foi restaurada

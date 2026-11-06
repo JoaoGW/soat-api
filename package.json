@@ -33,6 +33,7 @@
     "test:broker-three-services": "node scripts/integration/broker-three-services.cjs",
     "test:bdd-distributed": "cucumber-js --require test/broker/steps.cjs test/broker/aceite.feature",
     "test:auth-os-trace": "node scripts/integration/auth-os-trace.cjs",
+    "test:deploy-gate": "node scripts/quality/test-deploy-gate.cjs",
     "test:broker-independent-processes": "node scripts/integration/broker-independent-processes.cjs",
     "test:broker-recover-dlq": "node scripts/integration/broker-recover-dlq.cjs",
     "ops:recover-saga-dlq": "node scripts/operations/recover-saga-dlq.cjs"
