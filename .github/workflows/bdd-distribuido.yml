@@ -123,6 +123,8 @@ jobs:
             if (( attempt >= 90 )); then echo 'Emuladores não ficaram prontos'; exit 1; fi
             sleep 2
           done
+      - name: Verificar catálogo e estoque no Cosmos emulado
+        run: npm run test:cosmos-queue --prefix execution | tee "$RUNNER_TEMP/cosmos-contracts.txt"
       - name: Executar jornadas e compensações pelo broker
         working-directory: os
         env:
@@ -137,6 +139,7 @@ jobs:
             ${{ runner.temp }}/versions.txt
             ${{ runner.temp }}/bdd-results.json
             ${{ runner.temp }}/auth-trace.txt
+            ${{ runner.temp }}/cosmos-contracts.txt
           if-no-files-found: warn
       - name: Encerrar emuladores
         if: always()
