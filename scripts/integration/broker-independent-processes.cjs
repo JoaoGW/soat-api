@@ -71,7 +71,12 @@ const config = {
   noStock: process.env.SOAT_TEST_NO_STOCK === '1',
   compensateAfterPayment: process.env.SOAT_TEST_COMPENSATE === '1',
   restartOs: process.env.SOAT_TEST_RESTART_OS === '1',
+  restartBilling: process.env.SOAT_TEST_RESTART_BILLING === '1',
+  restartExecution: process.env.SOAT_TEST_RESTART_EXECUTION === '1',
   httpActions: process.env.SOAT_TEST_HTTP_ACTIONS === '1',
+  traceTest: process.env.SOAT_TEST_TRACE === '1',
+  openTrace: randomUUID().replaceAll('-', ''),
+  diagnosisTrace: randomUUID().replaceAll('-', ''),
   billingDir,
   execDir,
   osUrl,
@@ -85,16 +90,19 @@ const config = {
   providerPayment: String(BigInt(`0x${tag.replaceAll('-', '').slice(0, 12)}`)),
 };
 const children = [];
+const spans = [];
 let next = 0;
 function child(role) {
-  const env = { PATH: process.env.PATH, NODE_ENV: 'test' };
+  const env = { PATH: process.env.PATH, NODE_ENV: 'test', ...(config.traceTest ? { SOAT_TRACE_ROLE: role } : {}) };
   const p = fork(path.join(__dirname, 'broker-process-worker.cjs'), [], {
     env,
+    ...(config.traceTest ? { execArgv: ['--require', path.join(__dirname, 'trace-test-preload.cjs')] } : {}),
     stdio: ['ignore', 'inherit', 'inherit', 'ipc'],
   });
   children.push(p);
   p.pending = new Map();
   p.on('message', (m) => {
+    if (m.traceSpan) { spans.push(m.traceSpan); return; }
     const waiter = p.pending.get(m.id);
     if (!waiter) return;
     p.pending.delete(m.id);
@@ -151,6 +159,12 @@ async function waitFor(label, fn) {
   }
   throw Error(`Tempo esgotado: ${label}`);
 }
+async function killAbruptly(processToStop) {
+  await new Promise((resolve, reject) => {
+    processToStop.once('exit', resolve);
+    if (!processToStop.kill('SIGKILL')) reject(Error('Falha ao interromper processo'));
+  });
+}
 async function main() {
   const database = (
     await cosmos.databases.createIfNotExists({ id: cosmosDatabase })
@@ -162,7 +176,7 @@ async function main() {
   const container = database.container('operations');
   try {
     let o = child('os');
-    const b = child('billing'),
+    let b = child('billing'),
       e = child('execution');
     const ready = await Promise.all([
       o.call('init'),
@@ -171,6 +185,11 @@ async function main() {
     ]);
     assert.equal(new Set(ready.map((x) => x.pid)).size, 3);
     await e.call('seed');
+    let executionPid;
+    if (config.restartExecution) {
+      executionPid = e.pid;
+      await killAbruptly(e);
+    }
     const client = `client-${tag}`,
       vehicle = `vehicle-${tag}`,
       doc = String(
@@ -193,6 +212,14 @@ async function main() {
       filialId: 'branch',
       correlationId: opened.sagaId,
     };
+    if (config.restartExecution) {
+      await waitFor('diagnóstico publicado durante indisponibilidade de Execution', async () => {
+        const rows = await os.$queryRaw`SELECT "status" FROM "Outbox" WHERE "type"='execution.request-diagnosis.v1' AND "payload"->>'sagaId'=${opened.sagaId}`;
+        return rows[0]?.status === 'SENT';
+      });
+      e = child('execution');
+      assert.notEqual((await e.call('init')).pid, executionPid);
+    }
     await waitFor('diagnóstico criado', async () => {
       try {
         return (await container.item(`diagnosis:${opened.id}`, 'branch').read())
@@ -201,7 +228,21 @@ async function main() {
         return null;
       }
     });
+    let billingPid;
+    if (config.restartBilling) {
+      billingPid = b.pid;
+      await killAbruptly(b);
+    }
     await e.call('diagnose', action);
+    if (config.restartBilling) {
+      await waitFor('orçamento publicado durante indisponibilidade de Billing', async () => {
+        const rows = await os.$queryRaw`SELECT "status" FROM "Outbox" WHERE "type"='billing.generate-quote.v1' AND "payload"->>'sagaId'=${opened.sagaId}`;
+        return rows[0]?.status === 'SENT';
+      });
+      assert.equal(await billing.quote.count({ where: { osId: opened.id } }), 0);
+      b = child('billing');
+      assert.notEqual((await b.call('init')).pid, billingPid);
+    }
     const quote = await waitFor('orçamento', () =>
       billing.quote.findFirst({ where: { osId: opened.id } }),
     );
@@ -212,10 +253,7 @@ async function main() {
       return x[0]?.status === 'AGUARDANDO_APROVACAO';
     });
     const oldPid = o.pid;
-    if (config.restartOs) await new Promise((resolve, reject) => {
-      o.once('exit', resolve);
-      if (!o.kill('SIGKILL')) reject(Error('Falha ao interromper processo OS'));
-    });
+    if (config.restartOs) await killAbruptly(o);
     await b.call('approve', {
       quoteId: quote.id,
       clientId: client,
@@ -294,7 +332,18 @@ async function main() {
     );
     if (config.productionWorkers) process.stdout.write('Workers Nest de produção iniciados nos três processos.\n');
     if (config.httpActions) process.stdout.write('Jornada realizada pelas APIs HTTP autenticadas dos três serviços.\n');
+    if (config.traceTest) {
+      // O diagnóstico conserva o contexto do comando de abertura persistido,
+      // mesmo quando a ação humana chega com outro trace HTTP.
+      for (const [role, traceId] of [['execution', config.openTrace], ['billing', config.openTrace], ['os', config.openTrace]]) {
+        const span = await waitFor(`trace ${role}`, () => spans.find(s => s.role === role && s.traceId === traceId && s.name === 'processar mensagem' && s.parentSpanId));
+        await waitFor(`span pai de ${role}`, () => spans.find(s => s.traceId === traceId && s.spanId === span.parentSpanId));
+      }
+      process.stdout.write('Contexto W3C propagado pelo broker entre os três serviços.\n');
+    }
     if (config.restartOs) process.stdout.write('Saga retomada após interrupção abrupta do processo OS.\n');
+    if (config.restartBilling) process.stdout.write('Jornada retomada após interrupção abrupta do Billing.\n');
+    if (config.restartExecution) process.stdout.write('Jornada retomada após interrupção abrupta do Execution.\n');
   } finally {
     await Promise.allSettled(
       children.filter((p) => p.connected).map((p) => p.call('stop')),

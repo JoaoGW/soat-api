@@ -44,6 +44,16 @@ Funcionalidade: Aceite distribuído da oficina pelo broker
     Quando reinicio o processo OS durante a Saga com workers Nest
     Então a execução confirma "Saga retomada após interrupção abrupta do processo OS"
 
+  Esquema do Cenário: Retomada dos demais processos após interrupção abrupta
+    Dado que os serviços e seus bancos locais de teste estão configurados
+    Quando reinicio o processo "<servico>" com comando pendente no broker
+    Então a execução confirma "Jornada retomada após interrupção abrupta do <servico>"
+
+    Exemplos:
+      | servico   |
+      | Billing   |
+      | Execution |
+
   Cenário: Jornada pelas APIs HTTP e broker
     Dado que os serviços e seus bancos locais de teste estão configurados
     Quando executo a jornada pelas APIs HTTP e workers dos três serviços
@@ -53,3 +63,8 @@ Funcionalidade: Aceite distribuído da oficina pelo broker
     Dado que os serviços e seus bancos locais de teste estão configurados
     Quando executo a compensação após pagamento pelas APIs HTTP e broker
     Então a execução confirma "reembolso simulado confirmado e reserva liberada pelo broker"
+
+  Cenário: Propagação de trace entre APIs e consumidores pelo broker
+    Dado que os serviços e seus bancos locais de teste estão configurados
+    Quando executo a jornada HTTP com rastreamento distribuído pelo broker
+    Então a execução confirma "Contexto W3C propagado pelo broker entre os três serviços"

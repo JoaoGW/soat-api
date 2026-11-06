@@ -37,6 +37,16 @@ chamam abertura, diagnóstico, aprovação, reparo, entrega e compensação com
 JWTs sintéticos. O provedor de pagamento e webhook continuam simulados. O
 cenário de interrupção encerra abruptamente o processo OS e publica a aprovação
 no broker antes de reiniciá-lo.
+Há ainda cenários que encerram Billing ou Execution com `SIGKILL`, aguardam
+a publicação do comando correspondente enquanto o serviço está indisponível e
+retomam a jornada após reiniciá-lo. Eles não substituem testes de interrupção
+em todos os pontos possíveis da transação ou do ACK.
+
+O cenário de propagação W3C envia contextos HTTP distintos para abertura e
+diagnóstico, verifica que o contexto durável da abertura chega aos consumidores
+dos três serviços e confere os spans pai correspondentes. Um SDK e um middleware
+de teste coletam spans e extraem o cabeçalho HTTP; portanto, o teste não valida
+a instrumentação HTTP automática de produção, a Function ou um coletor remoto.
 
 O workflow manual `BDD distribuído local` aceita SHAs completos de Billing e
 Execution, registra os três commits e falha quando a credencial de leitura

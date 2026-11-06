@@ -142,8 +142,11 @@ Azure e Mercado Pago real não são validados por essas execuções. Consulte
 
 `npm run test:bdd-distributed` inclui cenários que inicializam os workers Nest
 de produção em três processos separados, usando broker e bancos emulados; o
-webhook e o provedor de pagamento usam fixtures. A aplicação HTTP completa,
-identidade Azure e o comportamento real da nuvem não são validados localmente.
+webhook e o provedor de pagamento usam fixtures. Alguns cenários exercitam as
+ações da jornada pelas APIs HTTP reais; identidade Azure e o comportamento
+real da nuvem não são validados localmente. O cenário de trace usa exportador e
+extrator HTTP de teste e confere os spans ligados pelo broker; não substitui a
+validação da instrumentação automática e do coletor no ambiente implantado.
 `npm run test:coverage-messaging` aplica adicionalmente o mínimo de 80% à
 mensageria do OS; `npm run test:coverage-saga` aplica o mesmo limite à
 infraestrutura da Saga usando integração com PostgreSQL de teste. São medições

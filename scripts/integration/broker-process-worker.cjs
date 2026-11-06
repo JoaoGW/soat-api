@@ -17,6 +17,7 @@ process.on('message', async (request) => {
     }
     if (request.method === 'stop') {
       await close();
+      await global.soatTestTraceSdk?.shutdown();
       process.send({ id: request.id, ok: true });
       process.disconnect();
       return;
@@ -410,7 +411,8 @@ async function init(c) {
     const jwt = require(path.join(c.role === 'os' ? root : c.role === 'billing' ? c.billingDir : c.execDir, 'node_modules/jsonwebtoken'));
     const admin = jwt.sign({ sub: 'admin', role: 'admin' }, process.env.JWT_SECRET, { expiresIn: '1h' });
     const request = async (method, route, body, key, token = admin) => {
-      const response = await fetch(`${url}${route}`, { method, headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json', ...(key ? { 'idempotency-key': key } : {}) }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
+      const traceId = c.traceTest && (route === '/fase4/ordens-servico' ? c.openTrace : route.includes('diagnostico') ? c.diagnosisTrace : undefined);
+      const response = await fetch(`${url}${route}`, { method, headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json', ...(key ? { 'idempotency-key': key } : {}), ...(traceId ? { traceparent: `00-${traceId}-1111111111111111-01` } : {}) }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
       if (!response.ok) throw Error(`HTTP ${method} ${route} retornou ${response.status}: ${await response.text()}`);
       return response.json();
     };
@@ -500,6 +502,16 @@ async function startProductionWorkers(c, provider) {
     if (c.httpActions) {
       const appModule = dist('app.module').AppModule;
       const app = await NestFactory.create(appModule, { logger: ['error', 'warn'], abortOnError: false });
+      if (c.traceTest) {
+        // O SDK de teste extrai o cabeçalho recebido; a instrumentação HTTP real
+        // é verificada separadamente pelos testes de observabilidade locais.
+        const { context, propagation, ROOT_CONTEXT, trace } = roleRequire('@opentelemetry/api');
+        app.use((req, res, next) => context.with(propagation.extract(ROOT_CONTEXT, req.headers), () =>
+          trace.getTracer('soat-test-http').startActiveSpan('test inbound HTTP', span => {
+            res.once('finish', () => span.end());
+            next();
+          })));
+      }
       await app.listen(0, '127.0.0.1');
       return app;
     }

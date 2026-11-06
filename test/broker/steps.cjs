@@ -65,6 +65,15 @@ When('reinicio o processo OS durante a Saga com workers Nest', async function ()
   await this.attach(result.stdout, 'text/plain');
 });
 
+When('reinicio o processo {string} com comando pendente no broker', async function (role) {
+  const flag = { Billing: 'SOAT_TEST_RESTART_BILLING', Execution: 'SOAT_TEST_RESTART_EXECUTION' }[role];
+  assert.ok(flag, 'Serviço de reinício inválido');
+  const result = await runChecked('scripts/integration/broker-independent-processes.cjs', [], { ...process.env, SOAT_TEST_PRODUCTION_WORKERS: '1', [flag]: '1' });
+  this.output = result.stdout;
+  if (result.stderr) await this.attach(result.stderr, 'text/plain');
+  await this.attach(result.stdout, 'text/plain');
+});
+
 When('executo a jornada pelas APIs HTTP e workers dos três serviços', async function () {
   const result = await runChecked('scripts/integration/broker-independent-processes.cjs', [], { ...process.env, SOAT_TEST_PRODUCTION_WORKERS: '1', SOAT_TEST_HTTP_ACTIONS: '1' });
   this.output = result.stdout;
@@ -74,6 +83,13 @@ When('executo a jornada pelas APIs HTTP e workers dos três serviços', async fu
 
 When('executo a compensação após pagamento pelas APIs HTTP e broker', async function () {
   const result = await runChecked('scripts/integration/broker-independent-processes.cjs', [], { ...process.env, SOAT_TEST_PRODUCTION_WORKERS: '1', SOAT_TEST_HTTP_ACTIONS: '1', SOAT_TEST_COMPENSATE: '1' });
+  this.output = result.stdout;
+  if (result.stderr) await this.attach(result.stderr, 'text/plain');
+  await this.attach(result.stdout, 'text/plain');
+});
+
+When('executo a jornada HTTP com rastreamento distribuído pelo broker', async function () {
+  const result = await runChecked('scripts/integration/broker-independent-processes.cjs', [], { ...process.env, SOAT_TEST_PRODUCTION_WORKERS: '1', SOAT_TEST_HTTP_ACTIONS: '1', SOAT_TEST_TRACE: '1' });
   this.output = result.stdout;
   if (result.stderr) await this.attach(result.stderr, 'text/plain');
   await this.attach(result.stdout, 'text/plain');
