@@ -3,6 +3,8 @@ import { BadRequestException } from '@nestjs/common';
 import { GUARDS_METADATA } from '@nestjs/common/constants';
 import { JwtAuthGuard } from '../../guards/JwtAuthGuard';
 import { OpenOrderController, OpenOrderRuntime } from './AbrirOrdemController';
+import { Test } from '@nestjs/testing';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
 describe('ações administrativas da Fase 4', () => {
   const runtime = {
@@ -134,6 +136,44 @@ describe('ações administrativas da Fase 4', () => {
       ),
     ).rejects.toBeInstanceOf(BadRequestException);
   });
+});
+
+it('documenta autenticação, chave idempotente e os comandos de recuperação no Swagger', async () => {
+  const module = await Test.createTestingModule({
+    controllers: [OpenOrderController],
+    providers: [{ provide: OpenOrderRuntime, useValue: {} }],
+  }).compile();
+  const app = module.createNestApplication();
+  try {
+    const document = SwaggerModule.createDocument(
+      app,
+      new DocumentBuilder()
+        .addBearerAuth({ type: 'http', scheme: 'bearer' }, 'JWT_ADMIN')
+        .build(),
+    );
+    const open = document.paths['/fase4/ordens-servico']?.post;
+    expect(open?.security).toEqual([{ JWT_ADMIN: [] }]);
+    expect(open?.parameters).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: 'Idempotency-Key',
+          in: 'header',
+          required: true,
+        }),
+      ]),
+    );
+    expect(open?.requestBody).toBeDefined();
+    expect(
+      document.paths['/fase4/ordens-servico/{sagaId}/reconciliar-pagamento']
+        ?.post?.requestBody,
+    ).toBeDefined();
+    expect(
+      document.paths['/fase4/ordens-servico/{sagaId}/reconciliar-reparo']?.post
+        ?.requestBody,
+    ).toBeDefined();
+  } finally {
+    await app.close();
+  }
 });
 
 describe('chaves de ativação das operações da Fase 4', () => {

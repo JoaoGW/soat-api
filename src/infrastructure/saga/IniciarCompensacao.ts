@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { PrismaClient } from '@prisma/client';
+import { captureTrace } from '../observability/TraceContext';
 export class StartCompensation {
   constructor(private readonly db: PrismaClient) {}
   async execute(
@@ -69,6 +70,7 @@ export class StartCompensation {
         correlationId: saga.id,
         causationId: operationId,
         operationId,
+        ...captureTrace(),
         data: {
           reason,
           ...(saga.executionId ? { executionId: saga.executionId } : {}),

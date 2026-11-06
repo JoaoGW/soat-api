@@ -71,6 +71,7 @@ const config = {
   noStock: process.env.SOAT_TEST_NO_STOCK === '1',
   compensateAfterPayment: process.env.SOAT_TEST_COMPENSATE === '1',
   restartOs: process.env.SOAT_TEST_RESTART_OS === '1',
+  httpActions: process.env.SOAT_TEST_HTTP_ACTIONS === '1',
   billingDir,
   execDir,
   osUrl,
@@ -210,13 +211,11 @@ async function main() {
         await os.$queryRaw`SELECT "status" FROM "SagaInstance" WHERE "id"=${opened.sagaId}`;
       return x[0]?.status === 'AGUARDANDO_APROVACAO';
     });
-    if (config.restartOs) {
-      const oldPid = o.pid;
-      await o.call('stop');
-      o = child('os');
-      const restarted = await o.call('init');
-      assert.notEqual(restarted.pid, oldPid);
-    }
+    const oldPid = o.pid;
+    if (config.restartOs) await new Promise((resolve, reject) => {
+      o.once('exit', resolve);
+      if (!o.kill('SIGKILL')) reject(Error('Falha ao interromper processo OS'));
+    });
     await b.call('approve', {
       quoteId: quote.id,
       clientId: client,
@@ -225,6 +224,15 @@ async function main() {
       idempotencyKey: `approve-${tag}`,
       correlationId: opened.sagaId,
     });
+    if (config.restartOs) {
+      await waitFor('aprovação publicada durante indisponibilidade', async () => {
+        const rows = await billing.$queryRaw`SELECT "status" FROM "Outbox" WHERE "type"='billing.quote-approved.v1' AND "payload"->>'sagaId'=${opened.sagaId}`;
+        return rows[0]?.status === 'SENT';
+      });
+      o = child('os');
+      const restarted = await o.call('init');
+      assert.notEqual(restarted.pid, oldPid);
+    }
     if (config.noStock) {
       await waitFor('compensação por estoque insuficiente', async () => {
         const rows = await os.$queryRaw`SELECT "status" FROM "SagaInstance" WHERE "id"=${opened.sagaId}`;
@@ -285,7 +293,8 @@ async function main() {
       'Três processos independentes: diagnóstico, orçamento, pagamento simulado, reparo e entrega passaram pelo broker.\n',
     );
     if (config.productionWorkers) process.stdout.write('Workers Nest de produção iniciados nos três processos.\n');
-    if (config.restartOs) process.stdout.write('Saga retomada após reinício do processo OS.\n');
+    if (config.httpActions) process.stdout.write('Jornada realizada pelas APIs HTTP autenticadas dos três serviços.\n');
+    if (config.restartOs) process.stdout.write('Saga retomada após interrupção abrupta do processo OS.\n');
   } finally {
     await Promise.allSettled(
       children.filter((p) => p.connected).map((p) => p.call('stop')),

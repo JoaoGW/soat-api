@@ -37,6 +37,8 @@ describe('diagnóstico e orçamento na Saga', () => {
     messageId: `finish-${id}`,
     operationId: `finish-op-${id}`,
     type: 'execution.diagnosis-completed.v1',
+    traceparent: '00-0123456789abcdef0123456789abcdef-0123456789abcdef-01',
+    tracestate: 'vendor=state',
     data: {
       diagnosisId: osId,
       diagnosisVersion: 3,
@@ -87,6 +89,10 @@ describe('diagnóstico e orçamento na Saga', () => {
       Array<{ payload: { data: { items: unknown; clienteId: string } } }>
     >`SELECT "payload" FROM "Outbox" WHERE "type" = 'billing.generate-quote.v1' AND "payload"->>'sagaId' = ${sagaId}`;
     expect(rows).toHaveLength(1);
+    expect(rows[0].payload).toMatchObject({
+      traceparent: finish.traceparent,
+      tracestate: finish.tracestate,
+    });
     expect(rows[0].payload.data).toMatchObject({
       clienteId: client,
       items: finish.data.items,

@@ -65,6 +65,20 @@ When('reinicio o processo OS durante a Saga com workers Nest', async function ()
   await this.attach(result.stdout, 'text/plain');
 });
 
+When('executo a jornada pelas APIs HTTP e workers dos três serviços', async function () {
+  const result = await runChecked('scripts/integration/broker-independent-processes.cjs', [], { ...process.env, SOAT_TEST_PRODUCTION_WORKERS: '1', SOAT_TEST_HTTP_ACTIONS: '1' });
+  this.output = result.stdout;
+  if (result.stderr) await this.attach(result.stderr, 'text/plain');
+  await this.attach(result.stdout, 'text/plain');
+});
+
+When('executo a compensação após pagamento pelas APIs HTTP e broker', async function () {
+  const result = await runChecked('scripts/integration/broker-independent-processes.cjs', [], { ...process.env, SOAT_TEST_PRODUCTION_WORKERS: '1', SOAT_TEST_HTTP_ACTIONS: '1', SOAT_TEST_COMPENSATE: '1' });
+  this.output = result.stdout;
+  if (result.stderr) await this.attach(result.stderr, 'text/plain');
+  await this.attach(result.stdout, 'text/plain');
+});
+
 Then('a execução confirma {string}', function (expected) {
   assert.ok(this.output?.includes(expected), `Evidência ausente: ${expected}`);
 });

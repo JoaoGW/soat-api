@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { PrismaClient } from '@prisma/client';
+import { forwardTrace } from '../observability/TraceContext';
 export type CancellationEvent = {
   messageId: string;
   operationId: string;
@@ -119,6 +120,7 @@ export class ReceiveCancellationEvent {
           sagaId: event.sagaId,
           filialId: event.filialId,
           correlationId: event.correlationId ?? event.sagaId,
+          ...forwardTrace(event),
           causationId: event.messageId,
           operationId,
           data: {
@@ -157,6 +159,7 @@ export class ReceiveCancellationEvent {
           sagaId: event.sagaId,
           filialId: event.filialId,
           correlationId: event.correlationId ?? event.sagaId,
+          ...forwardTrace(event),
           causationId: event.messageId,
           operationId,
           data: {

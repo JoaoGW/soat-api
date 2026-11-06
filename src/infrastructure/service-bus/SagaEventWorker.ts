@@ -61,6 +61,7 @@ import {
 } from './RepairEventConsumer';
 import { QuoteEventConsumer, quoteEventValidator } from './RepairEventConsumer';
 import { MessageVerifier } from '../messaging/message-signature';
+import { withMessageTrace } from '../observability/MessageTrace';
 
 /** Disabled by default; unsupported events are never acknowledged. */
 @Injectable()
@@ -205,52 +206,54 @@ export class SagaEventWorker implements OnModuleInit, OnApplicationShutdown {
             });
             return;
           }
-          const type =
-            body && typeof body === 'object' && 'type' in body
-              ? body.type
-              : undefined;
-          if (
-            [
-              'billing.quote-failed.v1',
-              'billing.charge-failed.v1',
-              'execution.parts-reservation-failed.v1',
-            ].includes(String(type))
-          )
-            return failure.process(message, receiver);
-          if (type === 'billing.charge-created.v1')
-            return charge.process(message, receiver);
-          if (
-            type === 'billing.quote-issued.v1' ||
-            type === 'billing.quote-approved.v1' ||
-            type === 'billing.quote-rejected.v1'
-          )
-            return quote.process(message, receiver);
-          if (type === 'billing.payment-refunded.v1')
-            return refund.process(message, receiver);
-          if (type === 'billing.payment-confirmed.v1')
-            return payment.process(message, receiver);
-          if (type === 'execution.work-cancelled.v1')
-            return cancellation.process(message, receiver);
-          if (type === 'execution.parts-released.v1')
-            return release.process(message, receiver);
-          if (type === 'execution.parts-reserved.v1')
-            return reservation.process(message, receiver);
-          if (type === 'execution.work-enqueued.v1')
-            return work.process(message, receiver);
-          if (
-            type === 'execution.diagnosis-started.v1' ||
-            type === 'execution.diagnosis-completed.v1'
-          )
-            return diagnosis.process(message, receiver);
-          if (
-            type === 'execution.work-started.v1' ||
-            type === 'execution.work-completed.v1'
-          )
-            return repair.process(message, receiver);
-          this.logger.warn(
-            'Evento da Saga ainda não suportado; mensagem não confirmada',
-          );
-          await receiver.abandonMessage(message);
+          return withMessageTrace(body, async () => {
+            const type =
+              body && typeof body === 'object' && 'type' in body
+                ? body.type
+                : undefined;
+            if (
+              [
+                'billing.quote-failed.v1',
+                'billing.charge-failed.v1',
+                'execution.parts-reservation-failed.v1',
+              ].includes(String(type))
+            )
+              return failure.process(message, receiver);
+            if (type === 'billing.charge-created.v1')
+              return charge.process(message, receiver);
+            if (
+              type === 'billing.quote-issued.v1' ||
+              type === 'billing.quote-approved.v1' ||
+              type === 'billing.quote-rejected.v1'
+            )
+              return quote.process(message, receiver);
+            if (type === 'billing.payment-refunded.v1')
+              return refund.process(message, receiver);
+            if (type === 'billing.payment-confirmed.v1')
+              return payment.process(message, receiver);
+            if (type === 'execution.work-cancelled.v1')
+              return cancellation.process(message, receiver);
+            if (type === 'execution.parts-released.v1')
+              return release.process(message, receiver);
+            if (type === 'execution.parts-reserved.v1')
+              return reservation.process(message, receiver);
+            if (type === 'execution.work-enqueued.v1')
+              return work.process(message, receiver);
+            if (
+              type === 'execution.diagnosis-started.v1' ||
+              type === 'execution.diagnosis-completed.v1'
+            )
+              return diagnosis.process(message, receiver);
+            if (
+              type === 'execution.work-started.v1' ||
+              type === 'execution.work-completed.v1'
+            )
+              return repair.process(message, receiver);
+            this.logger.warn(
+              'Evento da Saga ainda não suportado; mensagem não confirmada',
+            );
+            await receiver.abandonMessage(message);
+          });
         },
         processError: async (args) => {
           this.logger.error(

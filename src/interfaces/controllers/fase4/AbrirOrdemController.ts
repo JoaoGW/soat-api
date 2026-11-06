@@ -19,6 +19,13 @@ import { DeliverOrder } from '../../../infrastructure/saga/EntregarOrdem';
 import { RetryFailedCommand } from '../../../infrastructure/saga/ReprocessarComando';
 import { RecoverLatePayment } from '../../../infrastructure/saga/RecuperarPagamentoTardio';
 import { RecoverCompletedRepair } from '../../../infrastructure/saga/RecuperarReparoConcluido';
+import {
+  ApiBearerAuth,
+  ApiBody,
+  ApiHeader,
+  ApiOperation,
+  ApiTags,
+} from '@nestjs/swagger';
 
 type BodyInput = {
   clienteId: string;
@@ -89,10 +96,26 @@ export class OpenOrderRuntime implements OnApplicationShutdown {
   }
 }
 @Controller('fase4/ordens-servico')
+@ApiTags('Fase 4 - Ordens administrativas')
+@ApiBearerAuth('JWT_ADMIN')
 @UseGuards(JwtAuthGuard)
 export class OpenOrderController {
   constructor(private readonly runtime: OpenOrderRuntime) {}
   @Post()
+  @ApiOperation({ summary: 'Abrir OS e iniciar Saga de forma idempotente' })
+  @ApiHeader({ name: 'Idempotency-Key', required: true })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['clienteId', 'veiculoId', 'filialId'],
+      properties: {
+        clienteId: { type: 'string' },
+        veiculoId: { type: 'string' },
+        filialId: { type: 'string' },
+        solicitacoes: { type: 'array', items: { type: 'string' } },
+      },
+    },
+  })
   async open(
     @Req() request: { user?: { username?: unknown } },
     @Headers('idempotency-key') key: string | undefined,
@@ -115,6 +138,14 @@ export class OpenOrderController {
     return this.runtime.execute(request.user.username, key, body);
   }
   @Post(':sagaId/compensar')
+  @ApiOperation({ summary: 'Iniciar compensação administrativa' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['reason'],
+      properties: { reason: { type: 'string', example: 'STEP_FAILED' } },
+    },
+  })
   async compensate(
     @Param('sagaId') sagaId: string,
     @Body() body: { reason: string },
@@ -132,12 +163,23 @@ export class OpenOrderController {
     return { status: await this.runtime.compensate(sagaId, body.reason) };
   }
   @Post(':osId/entregar')
+  @ApiOperation({
+    summary: 'Entregar veículo após conclusão e verificações financeiras',
+  })
   async deliver(@Param('osId') osId: string) {
     if (!/^[a-z0-9_-]{1,128}$/i.test(osId))
       throw new BadRequestException('Dados inválidos');
     return { status: await this.runtime.deliver(osId) };
   }
   @Post(':sagaId/comandos/:messageId/reprocessar')
+  @ApiOperation({ summary: 'Reprocessar comando esgotado com auditoria' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['reason'],
+      properties: { reason: { type: 'string', example: 'BROKER_RESTORED' } },
+    },
+  })
   async retry(
     @Req() request: { user?: { username?: unknown } },
     @Param('sagaId') sagaId: string,
@@ -165,6 +207,14 @@ export class OpenOrderController {
     return { status: 'PENDING', messageId };
   }
   @Post(':sagaId/reconciliar-pagamento')
+  @ApiOperation({ summary: 'Reconciliar pagamento tardio mediante evidências' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['reason'],
+      properties: { reason: { type: 'string', example: 'LATE_PAYMENT' } },
+    },
+  })
   async recoverLatePayment(
     @Req() request: { user?: { username?: unknown } },
     @Param('sagaId') sagaId: string,
@@ -192,6 +242,16 @@ export class OpenOrderController {
     };
   }
   @Post(':sagaId/reconciliar-reparo')
+  @ApiOperation({
+    summary: 'Reconciliar reparo físico concluído mediante evidências',
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['reason'],
+      properties: { reason: { type: 'string', example: 'REPAIR_CONFIRMED' } },
+    },
+  })
   async recoverCompletedRepair(
     @Req() request: { user?: { username?: unknown } },
     @Param('sagaId') sagaId: string,

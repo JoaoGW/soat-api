@@ -39,7 +39,17 @@ Funcionalidade: Aceite distribuído da oficina pelo broker
     Quando executo a compensação após pagamento nos workers Nest pelo broker
     Então a execução confirma "reembolso simulado confirmado e reserva liberada pelo broker"
 
-  Cenário: Retomada após reiniciar o processo OS
+  Cenário: Retomada após interrupção abrupta do processo OS
     Dado que os serviços e seus bancos locais de teste estão configurados
     Quando reinicio o processo OS durante a Saga com workers Nest
-    Então a execução confirma "Saga retomada após reinício do processo OS"
+    Então a execução confirma "Saga retomada após interrupção abrupta do processo OS"
+
+  Cenário: Jornada pelas APIs HTTP e broker
+    Dado que os serviços e seus bancos locais de teste estão configurados
+    Quando executo a jornada pelas APIs HTTP e workers dos três serviços
+    Então a execução confirma "Jornada realizada pelas APIs HTTP autenticadas dos três serviços"
+
+  Cenário: Compensação financeira pelas APIs HTTP e broker
+    Dado que os serviços e seus bancos locais de teste estão configurados
+    Quando executo a compensação após pagamento pelas APIs HTTP e broker
+    Então a execução confirma "reembolso simulado confirmado e reserva liberada pelo broker"

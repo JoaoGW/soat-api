@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
+import { captureTrace } from '../observability/TraceContext';
 
 type Input = {
   actorId: string;
@@ -112,6 +113,7 @@ export class OpenOrderWithSaga {
         correlationId: sagaId,
         causationId: input.key,
         operationId,
+        ...captureTrace(),
         data: {
           veiculoId: input.veiculoId,
           ...(requests.length ? { solicitacoes: requests } : {}),

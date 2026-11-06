@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { PrismaClient } from '@prisma/client';
+import { captureTrace } from '../observability/TraceContext';
 
 /** Fences execution first; only the authenticated cancellation can authorize a refund. */
 export class RecoverLatePayment {
@@ -119,6 +120,7 @@ export class RecoverLatePayment {
         correlationId: saga.id,
         causationId: operationId,
         operationId,
+        ...captureTrace(),
         data: {
           reason: input.reason,
           ...(saga.executionId ? { executionId: saga.executionId } : {}),

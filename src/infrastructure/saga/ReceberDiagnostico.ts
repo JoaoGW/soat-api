@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { PrismaClient } from '@prisma/client';
+import { forwardTrace } from '../observability/TraceContext';
 
 type Item = {
   sourceId: string;
@@ -14,6 +15,8 @@ export type DiagnosisEvent = {
   osId: string;
   filialId: string;
   correlationId: string;
+  traceparent?: string;
+  tracestate?: string;
   type: 'execution.diagnosis-started.v1' | 'execution.diagnosis-completed.v1';
   producer: 'soat-execution-service';
   data: { diagnosisId: string; diagnosisVersion: number; items?: Item[] };
@@ -140,6 +143,7 @@ export class ReceiveDiagnosisEvent {
           sagaId: event.sagaId,
           filialId: event.filialId,
           correlationId: event.correlationId,
+          ...forwardTrace(event),
           causationId: event.messageId,
           operationId,
           data: {

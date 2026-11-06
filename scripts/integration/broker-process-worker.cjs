@@ -77,7 +77,7 @@ async function init(c) {
   const timerRefs = [];
   const receivers = [];
   const subscriptions = [];
-  let db, cosmos;
+  let db, cosmos, executionContainer;
   function poll(fn) {
     if (c.productionWorkers) return;
     let busy = false;
@@ -311,6 +311,7 @@ async function init(c) {
       key: Buffer.from('local-test-key').toString('base64'),
     });
     const container = cosmos.database(c.cosmosDatabase).container('operations');
+    executionContainer = container;
     const dispatch = new (e(
       'infrastructure/cosmos/outbox',
     ).CosmosOutboxDispatcher)(container, {
@@ -403,6 +404,39 @@ async function init(c) {
   if (c.productionWorkers) {
     application = await startProductionWorkers(c, provider);
   }
+  if (c.httpActions) {
+    if (!application || !c.productionWorkers) throw Error('APIs HTTP exigem workers reais');
+    const url = await application.getUrl();
+    const jwt = require(path.join(c.role === 'os' ? root : c.role === 'billing' ? c.billingDir : c.execDir, 'node_modules/jsonwebtoken'));
+    const admin = jwt.sign({ sub: 'admin', role: 'admin' }, process.env.JWT_SECRET, { expiresIn: '1h' });
+    const request = async (method, route, body, key, token = admin) => {
+      const response = await fetch(`${url}${route}`, { method, headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json', ...(key ? { 'idempotency-key': key } : {}) }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
+      if (!response.ok) throw Error(`HTTP ${method} ${route} retornou ${response.status}: ${await response.text()}`);
+      return response.json();
+    };
+    if (c.role === 'os') {
+      actions.open = d => request('POST', '/fase4/ordens-servico', { clienteId: d.clienteId, veiculoId: d.veiculoId, filialId: d.filialId }, d.key);
+      actions.deliver = async d => (await request('POST', `/fase4/ordens-servico/${d.osId}/entregar`, {})).status;
+      actions.compensate = async d => (await request('POST', `/fase4/ordens-servico/${d.sagaId}/compensar`, { reason: 'STEP_FAILED' })).status;
+    } else if (c.role === 'billing') {
+      actions.approve = d => {
+        const customer = jwt.sign({ sub: d.clientId, role: 'cliente' }, process.env.JWT_CLIENT_SECRET, { issuer: 'soat-auth-function', audience: 'soat-api', expiresIn: '1h' });
+        return request('POST', `/orcamentos/${d.quoteId}/aprovar`, { versao: d.version }, d.idempotencyKey, customer);
+      };
+    } else {
+      actions.diagnose = async d => {
+        const base = { sagaId: d.sagaId, filialId: d.filialId, correlationId: d.correlationId };
+        await request('POST', `/execucoes/${d.osId}/iniciar-diagnostico`, base, `start-${c.tag}`);
+        await request('POST', `/execucoes/${d.osId}/concluir-diagnostico`, { ...base, items: [{ sourceId: 'p1', itemType: 'PART', quantity: 2 }] }, `complete-${c.tag}`);
+      };
+      const repair = async (verb, d) => {
+        const task = (await executionContainer.item(`task:${d.osId}`, 'branch').read()).resource;
+        return request('POST', `/execucoes/${d.osId}/${verb}`, { sagaId: d.sagaId, filialId: d.filialId, executionId: task.executionId, correlationId: d.correlationId }, `work-${verb}-${c.tag}`);
+      };
+      actions.start = d => repair('iniciar', d);
+      actions.complete = d => repair('finalizar', d);
+    }
+  }
   close = async () => {
     await application?.close();
     for (const timer of timerRefs) clearInterval(timer);
@@ -438,8 +472,10 @@ async function startProductionWorkers(c, provider) {
     OS_MESSAGE_PUBLIC_KEY: keys.os.publicKey, BILLING_MESSAGE_PUBLIC_KEY: keys.billing.publicKey,
     EXECUTION_MESSAGE_PUBLIC_KEY: keys.execution.publicKey, MERCADO_PAGO_EXTERNAL_POS_ID: 'pos-test',
     COSMOS_ENDPOINT: 'https://local-test.documents.azure.com', COSMOS_DATABASE: c.cosmosDatabase, COSMOS_CONTAINER: 'operations',
+    JWT_SECRET: 'admin-local-secret-with-at-least-32-characters', JWT_CLIENT_SECRET: 'client-local-secret-with-at-least-32-characters', JWT_EXPIRES_IN: '1d', JWT_CLIENT_ISSUER: 'soat-auth-function', JWT_CLIENT_AUDIENCE: 'soat-api',
+    ADMIN_USERNAME: 'admin', ADMIN_PASSWORD_HASH: '$2b$10$12kw18n1pMwBIluxZQxh1O.zpsHVW.lRC9lmwyWCtKIOcC.49x5.O', MAIL_HOST: 'smtp.test.local', MAIL_PORT: '587', MAIL_USER: 'test@example.com', MAIL_PASS: 'test', MAIL_FROM: 'test@example.com', WEBHOOK_SECRET: 'test-webhook-secret-with-at-least-32-characters', WEBHOOK_TOKEN_EXPIRES_IN: '1h', APP_URL: 'http://localhost:3000',
   });
-  if (c.role === 'os') Object.assign(process.env, { SAGA_DATABASE_URL: c.osUrl, OS_MESSAGE_PRIVATE_KEY: keys.os.privateKey, ENABLE_SAGA_COMMAND_PUBLISHER: 'true', ENABLE_SAGA_EVENT_CONSUMER: 'true' });
+  if (c.role === 'os') Object.assign(process.env, { DATABASE_URL: c.osUrl, SAGA_DATABASE_URL: c.osUrl, OS_MESSAGE_PRIVATE_KEY: keys.os.privateKey, ENABLE_SAGA_COMMAND_PUBLISHER: 'true', ENABLE_SAGA_EVENT_CONSUMER: 'true', ENABLE_FASE4_OPEN: 'true', ENABLE_FASE4_DELIVERY: 'true', ENABLE_FASE4_COMPENSATION: 'true' });
   if (c.role === 'billing') Object.assign(process.env, { DATABASE_URL: c.billingUrl, BILLING_MESSAGE_PRIVATE_KEY: keys.billing.privateKey, ENABLE_SERVICE_BUS_WORKER: 'true', ENABLE_MERCADO_PAGO_COMMANDS: 'true', ENABLE_BILLING_COMPENSATION_EVIDENCE: 'true', ENABLE_MERCADO_PAGO_REFUND_COMMANDS: 'true', MERCADO_PAGO_ACCESS_TOKEN: 'local-fixture-only' });
   if (c.role === 'execution') Object.assign(process.env, { EXECUTION_MESSAGE_PRIVATE_KEY: keys.execution.privateKey, ENABLE_EXECUTION_COMMANDS: 'true', ENABLE_EXECUTION_OUTBOX: 'true' });
   process.chdir(roleDir);
@@ -461,6 +497,12 @@ async function startProductionWorkers(c, provider) {
         : [dist('infrastructure/service-bus/command-worker').ExecutionCommandWorker, dist('infrastructure/service-bus/outbox-worker').ExecutionOutboxWorker];
     class WorkersModule {}
     NestModule({ providers: workers })(WorkersModule);
+    if (c.httpActions) {
+      const appModule = dist('app.module').AppModule;
+      const app = await NestFactory.create(appModule, { logger: ['error', 'warn'], abortOnError: false });
+      await app.listen(0, '127.0.0.1');
+      return app;
+    }
     return await NestFactory.createApplicationContext(WorkersModule, { logger: ['error', 'warn'], abortOnError: false });
   } finally { Module._load = originalLoad; }
 }

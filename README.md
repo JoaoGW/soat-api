@@ -154,6 +154,9 @@ O comando exige dois bancos locais distintos, já migrados, nas variáveis
 `FULL_LEGACY_TEST_DATABASE_URL` e `FULL_SAGA_TEST_DATABASE_URL`; ambos devem
 terminar em `_test`. O relatório e o gate exigem 80% em cada métrica. As
 execuções e os relatórios por SHA ficam no [CI do OS](https://github.com/JoaoGW/soat-api/actions/workflows/ci.yml).
+O CI também executa `npm run quality:sonarjs`, com regras selecionadas do
+analisador SonarJS para erros lógicos e segurança. É um gate estático local;
+ele não representa a análise integral nem o painel do SonarQube.
 
 Os cadastros no banco novo usam `ENABLE_FASE4_REGISTRY=true` e
 `SAGA_DATABASE_URL`: `/fase4/clientes` e `/fase4/veiculos` oferecem criação,

@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { PrismaClient } from '@prisma/client';
+import { forwardTrace } from '../observability/TraceContext';
 
 type Part = { sku: string; quantity: number };
 export type ReservationEvent = {
@@ -171,6 +172,7 @@ export class ReceiveReservationEvent {
           sagaId: event.sagaId,
           filialId: event.filialId,
           correlationId: event.correlationId,
+          ...forwardTrace(event),
           causationId: event.messageId,
           operationId,
           data: {

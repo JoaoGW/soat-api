@@ -29,8 +29,21 @@ clientes Azure para os emuladores locais e substitui o cliente Mercado Pago por
 fixture; as validações, assinatura, roteamento, ACK, outbox e ciclo Nest usam
 as classes de produção. O BDD executa essa modalidade na jornada completa, na
 falha de estoque, no reembolso após pagamento e na retomada depois de reiniciar
-o processo OS. Ele não comprova identidade de
-workload, servidores HTTP completos nem o comportamento dos serviços Azure.
+o processo OS. Esse modo não comprova identidade de workload nem o
+comportamento dos serviços Azure.
+
+Os cenários HTTP inicializam os três `AppModule` reais em processos separados e
+chamam abertura, diagnóstico, aprovação, reparo, entrega e compensação com
+JWTs sintéticos. O provedor de pagamento e webhook continuam simulados. O
+cenário de interrupção encerra abruptamente o processo OS e publica a aprovação
+no broker antes de reiniciá-lo.
+
+O workflow manual `BDD distribuído local` aceita SHAs completos de Billing e
+Execution, registra os três commits e falha quando a credencial de leitura
+`CROSS_REPO_READ_TOKEN` ou o aceite dos emuladores estiverem ausentes. Como os
+outros repositórios são privados, a execução no GitHub depende dessa credencial;
+o workflow não é check automático de PR. Os testes locais não provam deploy ou
+identidades reais na nuvem.
 
 Use Docker local, Node compatível e checkouts dos três repositórios. Leia e
 aceite os termos do Service Bus Emulator e do SQL Server antes de configurar

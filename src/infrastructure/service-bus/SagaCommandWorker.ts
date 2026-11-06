@@ -82,7 +82,17 @@ export class SagaCommandWorker implements OnModuleInit, OnApplicationShutdown {
           subject: type,
           contentType: 'application/json',
           body: payload,
-          applicationProperties: { signature: signer.sign(payload) },
+          applicationProperties: {
+            signature: signer.sign(payload),
+            ...('traceparent' in payload &&
+            typeof payload.traceparent === 'string'
+              ? { traceparent: payload.traceparent }
+              : {}),
+            ...('tracestate' in payload &&
+            typeof payload.tracestate === 'string'
+              ? { tracestate: payload.tracestate }
+              : {}),
+          },
         });
       },
     });

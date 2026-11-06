@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { PrismaClient } from '@prisma/client';
+import { forwardTrace } from '../observability/TraceContext';
 
 type Item = {
   sourceId: string;
@@ -158,6 +159,7 @@ export class ReceiveQuoteEvent {
             sagaId: event.sagaId,
             filialId: event.filialId,
             correlationId: event.correlationId,
+            ...forwardTrace(event),
             causationId: event.messageId,
             operationId,
             data: { reason: 'QUOTE_REJECTED' },
@@ -187,6 +189,7 @@ export class ReceiveQuoteEvent {
             sagaId: event.sagaId,
             filialId: event.filialId,
             correlationId: event.correlationId,
+            ...forwardTrace(event),
             causationId: event.messageId,
             operationId,
             data: {
