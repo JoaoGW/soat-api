@@ -136,6 +136,49 @@ describe('consultas de ordens com JWT real', () => {
     orders.get.mockResolvedValue({ id: 'os-1' });
     orders.list.mockResolvedValue({ items: [] });
   });
+  it('documenta filtros, paginação e credenciais das consultas', () => {
+    const document = SwaggerModule.createDocument(
+      app,
+      new DocumentBuilder()
+        .addBearerAuth({ type: 'http', scheme: 'bearer' }, 'JWT_ADMIN')
+        .addBearerAuth({ type: 'http', scheme: 'bearer' }, 'JWT_CLIENTE')
+        .build(),
+    );
+    const queue = document.paths['/fase4/ordens-servico/fila-operacional'].get!;
+    expect(queue.security).toEqual([{ JWT_ADMIN: [] }]);
+    expect(queue.parameters).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: 'page', in: 'query', required: false }),
+        expect.objectContaining({
+          name: 'limit',
+          in: 'query',
+          required: false,
+        }),
+        expect.objectContaining({
+          name: 'filialId',
+          in: 'query',
+          required: false,
+        }),
+        expect.objectContaining({
+          name: 'status',
+          in: 'query',
+          required: false,
+        }),
+      ]),
+    );
+    const customer = document.paths['/fase4/cliente/ordens-servico'].get!;
+    expect(customer.security).toEqual([{ JWT_CLIENTE: [] }]);
+    expect(customer.parameters).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: 'page', in: 'query', required: false }),
+        expect.objectContaining({
+          name: 'limit',
+          in: 'query',
+          required: false,
+        }),
+      ]),
+    );
+  });
   it('usa o sujeito assinado e rejeita acesso do cliente à rota administrativa', async () => {
     const token = jwt.sign(
       { sub: 'cliente-a', cpf: '52998224725', role: 'cliente' },

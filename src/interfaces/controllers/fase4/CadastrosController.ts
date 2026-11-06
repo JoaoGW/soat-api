@@ -27,6 +27,7 @@ import {
   ApiBearerAuth,
   ApiBody,
   ApiOperation,
+  ApiQuery,
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
@@ -64,7 +65,23 @@ function page(value: string | undefined, fallback: number): number {
 @UseGuards(JwtAuthGuard)
 export class Phase4AdminOrderQueryController {
   constructor(private readonly runtime: Phase4RegistryRuntime) {}
-  @Get('fila-operacional') queue(
+  @Get('fila-operacional')
+  @ApiOperation({
+    summary: 'Consultar fila operacional ordenada por prioridade',
+  })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    schema: { type: 'integer', minimum: 1, maximum: 100000, default: 1 },
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    schema: { type: 'integer', minimum: 1, maximum: 100, default: 20 },
+  })
+  @ApiQuery({ name: 'filialId', required: false, type: String })
+  @ApiQuery({ name: 'status', required: false, type: String })
+  queue(
     @Query('page') p?: string,
     @Query('limit') l?: string,
     @Query('filialId') filialId?: string,
@@ -77,7 +94,23 @@ export class Phase4AdminOrderQueryController {
       ...(status === undefined ? {} : { status }),
     });
   }
-  @Get() list(
+  @Get()
+  @ApiOperation({
+    summary: 'Listar ordens de serviço com filtros administrativos',
+  })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    schema: { type: 'integer', minimum: 1, maximum: 100000, default: 1 },
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    schema: { type: 'integer', minimum: 1, maximum: 100, default: 20 },
+  })
+  @ApiQuery({ name: 'filialId', required: false, type: String })
+  @ApiQuery({ name: 'status', required: false, type: String })
+  list(
     @Query('page') p?: string,
     @Query('limit') l?: string,
     @Query('filialId') filialId?: string,
@@ -90,13 +123,19 @@ export class Phase4AdminOrderQueryController {
       ...(status === undefined ? {} : { status }),
     });
   }
-  @Get(':id') get(@Param('id') id: string) {
+  @Get(':id')
+  @ApiOperation({ summary: 'Consultar ordem de serviço por ID' })
+  get(@Param('id') id: string) {
     return this.runtime.orders().get(id);
   }
-  @Get(':id/historico') history(@Param('id') id: string) {
+  @Get(':id/historico')
+  @ApiOperation({ summary: 'Consultar histórico cronológico da ordem' })
+  history(@Param('id') id: string) {
     return this.runtime.orders().history(id);
   }
-  @Get(':id/saga') saga(@Param('id') id: string) {
+  @Get(':id/saga')
+  @ApiOperation({ summary: 'Consultar situação operacional da Saga' })
+  saga(@Param('id') id: string) {
     return this.runtime.orders().saga(id);
   }
 }
@@ -115,7 +154,19 @@ export class Phase4CustomerOrderQueryController {
       throw new UnauthorizedException();
     return request.user.clienteId;
   }
-  @Get() list(
+  @Get()
+  @ApiOperation({ summary: 'Listar ordens do cliente autenticado' })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    schema: { type: 'integer', minimum: 1, maximum: 100000, default: 1 },
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    schema: { type: 'integer', minimum: 1, maximum: 100, default: 20 },
+  })
+  list(
     @Req() request: { user?: { clienteId?: unknown } },
     @Query('page') p?: string,
     @Query('limit') l?: string,
@@ -126,13 +177,17 @@ export class Phase4CustomerOrderQueryController {
       clienteId: this.owner(request),
     });
   }
-  @Get(':id') get(
+  @Get(':id')
+  @ApiOperation({ summary: 'Consultar ordem do cliente autenticado' })
+  get(
     @Param('id') id: string,
     @Req() request: { user?: { clienteId?: unknown } },
   ) {
     return this.runtime.orders().get(id, this.owner(request));
   }
-  @Get(':id/historico') history(
+  @Get(':id/historico')
+  @ApiOperation({ summary: 'Consultar histórico da própria ordem' })
+  history(
     @Param('id') id: string,
     @Req() request: { user?: { clienteId?: unknown } },
   ) {
@@ -146,7 +201,9 @@ export class Phase4CustomerOrderQueryController {
 @UseGuards(JwtAuthGuard)
 export class Phase4ReportController {
   constructor(private readonly runtime: Phase4RegistryRuntime) {}
-  @Get('tempo-medio-execucao') report() {
+  @Get('tempo-medio-execucao')
+  @ApiOperation({ summary: 'Consultar tempos médios de execução e por etapa' })
+  report() {
     return this.runtime.orders().report();
   }
 }
