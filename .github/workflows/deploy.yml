@@ -86,6 +86,9 @@ jobs:
     if: needs.authorize.outputs.branch == 'development'
     runs-on: ubuntu-latest
     environment: hml
+    concurrency:
+      group: os-deploy-hml
+      cancel-in-progress: false
     permissions:
       contents: read
       id-token: write
@@ -158,6 +161,9 @@ jobs:
     if: needs.authorize.outputs.branch == 'main'
     runs-on: ubuntu-latest
     environment: prod
+    concurrency:
+      group: os-deploy-prod
+      cancel-in-progress: false
     permissions:
       contents: read
       id-token: write
