@@ -773,6 +773,16 @@ async function scenario(mode) {
       );
       if (mode === 'refund-timeout') {
         assert.equal(await processor.processOne(), 'RECONCILIACAO_NECESSARIA');
+        await expectSent(() => billingDispatch.dispatchOne());
+        await receive(
+          osReceiver,
+          'billing.refund-blocked.v1',
+          keys.billing,
+          new FailureEventConsumer(
+            new ReceiveFailureEvent(os),
+            failureEventValidator(dirOs),
+          ),
+        );
         const record = await billing.refund.findFirstOrThrow({
           where: { payment: { charge: { osId: opened.id } } },
         });
