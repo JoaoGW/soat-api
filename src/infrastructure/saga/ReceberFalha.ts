@@ -134,7 +134,9 @@ export class ReceiveFailureEvent {
           data.paymentId !== event.data.paymentId ||
           data.cancelOperationId !== event.data.cancelOperationId ||
           data.cancelEventId !== event.data.cancelEventId ||
-          event.data.reasonCode !== 'EVIDENCE_MISMATCH')
+          !['EVIDENCE_MISMATCH', 'PROVIDER_RESULT_UNKNOWN'].includes(
+            String(event.data.reasonCode),
+          ))
       )
         throw new Error('Falha diverge do comando');
       await tx.$executeRaw`INSERT INTO "Inbox" ("consumer", "messageId", "operationId", "type", "payload", "status") VALUES (${consumer}, ${event.messageId}, ${event.operationId}, ${event.type}, ${encoded}::jsonb, 'PENDING') ON CONFLICT DO NOTHING`;
@@ -145,6 +147,14 @@ export class ReceiveFailureEvent {
         throw new Error('Mensagem reutilizada com outro conteúdo');
       if (inbox[0].status === 'APPLIED') return 'APPLIED';
       if (event.type === 'billing.refund-blocked.v1') {
+        // A confirmação canônica pode chegar antes do aviso de incerteza.
+        if (
+          command.status === 'SUCCEEDED' &&
+          event.data.reasonCode === 'PROVIDER_RESULT_UNKNOWN'
+        ) {
+          await tx.$executeRaw`UPDATE "Inbox" SET "status"='APPLIED', "appliedAt"=NOW() WHERE "consumer"=${consumer} AND "messageId"=${event.messageId}`;
+          return 'APPLIED';
+        }
         if (
           !['REEMBOLSO_PENDENTE', 'RECONCILIACAO_NECESSARIA'].includes(
             saga.status,
@@ -152,9 +162,13 @@ export class ReceiveFailureEvent {
           !['PENDING', 'SENT'].includes(command.status)
         )
           return 'PENDING';
-        if (saga.status !== 'RECONCILIACAO_NECESSARIA')
-          await tx.$executeRaw`UPDATE "SagaInstance" SET "status"='RECONCILIACAO_NECESSARIA', "requiresAttention"=true, "lastError"='REFUND_EVIDENCE_MISMATCH', "version"="version"+1, "updatedAt"=NOW() WHERE "id"=${event.sagaId}`;
-        else if (!saga.requiresAttention)
+        if (saga.status !== 'RECONCILIACAO_NECESSARIA') {
+          const reason =
+            event.data.reasonCode === 'EVIDENCE_MISMATCH'
+              ? 'REFUND_EVIDENCE_MISMATCH'
+              : 'REFUND_RESULT_UNKNOWN';
+          await tx.$executeRaw`UPDATE "SagaInstance" SET "status"='RECONCILIACAO_NECESSARIA', "requiresAttention"=true, "lastError"=${reason}, "version"="version"+1, "updatedAt"=NOW() WHERE "id"=${event.sagaId}`;
+        } else if (!saga.requiresAttention)
           await tx.$executeRaw`UPDATE "SagaInstance" SET "requiresAttention"=true, "version"="version"+1, "updatedAt"=NOW() WHERE "id"=${event.sagaId}`;
         await tx.$executeRaw`UPDATE "Inbox" SET "status"='APPLIED', "appliedAt"=NOW() WHERE "consumer"=${consumer} AND "messageId"=${event.messageId}`;
         return 'APPLIED';

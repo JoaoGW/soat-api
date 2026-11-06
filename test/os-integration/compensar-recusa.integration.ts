@@ -1,5 +1,9 @@
 import { StartCompensation } from '../../src/infrastructure/saga/IniciarCompensacao';
 import {
+  ReceiveFailureEvent,
+  FailureEvent,
+} from '../../src/infrastructure/saga/ReceberFalha';
+import {
   ReceiveRefundEvent,
   RefundEvent,
 } from '../../src/infrastructure/saga/ReceberReembolso';
@@ -102,7 +106,14 @@ describe('compensação de recusa antes de pagamento', () => {
     >`SELECT "status" FROM "OrdemDeServico" WHERE "id" = ${osId}`;
     expect(os[0].status).toBe('CANCELADA');
   });
-  it('só solicita reembolso após cancelamento confirmado e só libera após reembolso', async () => {
+  it.each([
+    'normal',
+    'resultado incerto',
+    'conflito físico',
+    'cancelamento conflitante',
+    'aviso divergente subsequente',
+    'evidência divergente',
+  ] as const)('compensação financeira: %s', async (mode) => {
     const suffix = randomUUID();
     const os2 = `os-${suffix}`;
     const saga2 = `saga-${suffix}`;
@@ -149,11 +160,13 @@ describe('compensação de recusa antes de pagamento', () => {
     const refunds = await db.$queryRaw<
       Array<{
         payload: {
+          messageId: string;
           operationId: string;
           data: {
             refundId: string;
             paymentId: string;
             cancelOperationId: string;
+            cancelEventId: string;
           };
         };
       }>
@@ -182,13 +195,74 @@ describe('compensação de recusa antes de pagamento', () => {
         cancelOperationId: cancelOp,
       },
     };
+    const blocked: FailureEvent = {
+      messageId: `blocked-${suffix}`,
+      operationId: command.operationId,
+      causationId: command.messageId,
+      type: 'billing.refund-blocked.v1',
+      producer: 'soat-billing-service',
+      osId: os2,
+      sagaId: saga2,
+      filialId: 'branch',
+      correlationId: 'c1',
+      data: {
+        ...command.data,
+        reasonCode:
+          mode === 'evidência divergente'
+            ? 'EVIDENCE_MISMATCH'
+            : 'PROVIDER_RESULT_UNKNOWN',
+      },
+    };
+    if (mode !== 'normal') {
+      expect(await new ReceiveFailureEvent(db).execute(blocked)).toBe(
+        'APPLIED',
+      );
+      if (mode === 'aviso divergente subsequente')
+        expect(
+          await new ReceiveFailureEvent(db).execute({
+            ...blocked,
+            messageId: `${blocked.messageId}-mismatch`,
+            data: { ...blocked.data, reasonCode: 'EVIDENCE_MISMATCH' },
+          }),
+        ).toBe('APPLIED');
+      if (mode === 'conflito físico')
+        await db.$executeRaw`INSERT INTO "Inbox" ("consumer", "messageId", "operationId", "type", "payload", "status") VALUES ('os.saga-events', ${`work-${suffix}`}, ${`work-op-${suffix}`}, 'execution.work-started.v1', ${JSON.stringify({ sagaId: saga2 })}::jsonb, 'PENDING')`;
+      if (mode === 'cancelamento conflitante')
+        await db.$executeRaw`INSERT INTO "Inbox" ("consumer", "messageId", "operationId", "type", "payload", "status") VALUES ('os.saga-events', ${`other-cancel-${suffix}`}, ${`other-cancel-op-${suffix}`}, 'execution.work-cancelled.v1', ${JSON.stringify({ sagaId: saga2, data: { outcome: 'ALREADY_STARTED' } })}::jsonb, 'PENDING')`;
+    }
     await expect(
       new ReceiveRefundEvent(db).execute({
         ...refund,
         data: { ...refund.data, amountInCents: 999 },
       }),
     ).rejects.toThrow('Pagamento não corresponde');
-    expect(await new ReceiveRefundEvent(db).execute(refund)).toBe('APPLIED');
+    const outcome = await new ReceiveRefundEvent(db).execute(refund);
+    if (
+      mode === 'conflito físico' ||
+      mode === 'cancelamento conflitante' ||
+      mode === 'aviso divergente subsequente' ||
+      mode === 'evidência divergente'
+    ) {
+      expect(outcome).toBe('PENDING');
+      const blockedRelease = await db.$queryRaw<
+        Array<{ count: bigint }>
+      >`SELECT COUNT(*) AS count FROM "Outbox" WHERE "type"='execution.release-parts.v1' AND "payload"->>'sagaId'=${saga2}`;
+      expect(blockedRelease[0].count).toBe(0n);
+      return;
+    }
+    expect(outcome).toBe('APPLIED');
+    if (mode === 'normal')
+      expect(await new ReceiveFailureEvent(db).execute(blocked)).toBe(
+        'APPLIED',
+      );
+    if (mode === 'resultado incerto') {
+      const audits = await db.$queryRaw<
+        Array<{ reason: string }>
+      >`SELECT "reason" FROM "SagaRecoveryAudit" WHERE "sagaId"=${saga2}`;
+      expect(audits).toContainEqual({
+        reason: 'AUTHENTICATED_REFUND_CONFIRMED',
+      });
+    }
     const release = await db.$queryRaw<
       Array<{ payload: { operationId: string; data: ReleaseEvent['data'] } }>
     >`SELECT "payload" FROM "Outbox" WHERE "type" = 'execution.release-parts.v1' AND "payload"->>'sagaId' = ${saga2}`;

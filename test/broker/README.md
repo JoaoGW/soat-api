@@ -53,6 +53,12 @@ da verificação da assinatura, simulando corrupção antes do reembolso. Ele
 verifica o evento assinado de Billing passando pelo broker, a reconciliação da
 Saga, a reserva preservada e a ausência de chamada ao provedor simulado.
 
+Outro cenário faz o provedor simulado efetivar o reembolso e perder a resposta.
+Após conferir a reserva preservada e o estado incerto, o teste envelhece somente
+o registro descartável e antecipa o próximo ciclo do worker de reconciliação.
+Ele verifica confirmação posterior, retomada auditada e uma única solicitação
+ao provedor; não demonstra os prazos reais nem uma integração Mercado Pago real.
+
 O workflow manual `BDD distribuído local` aceita SHAs completos de Billing e
 Execution, registra os três commits e falha quando a credencial de leitura
 `CROSS_REPO_READ_TOKEN` ou o aceite dos emuladores estiverem ausentes. Como os

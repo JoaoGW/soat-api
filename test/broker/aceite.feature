@@ -73,3 +73,8 @@ Funcionalidade: Aceite distribuído da oficina pelo broker
     Dado que os serviços e seus bancos locais de teste estão configurados
     Quando a evidência de cancelamento é corrompida antes do reembolso
     Então a execução confirma "Saga em reconciliação pelo broker sem reembolso ou liberação"
+
+  Cenário: Retomada segura após resposta perdida do reembolso
+    Dado que os serviços e seus bancos locais de teste estão configurados
+    Quando o provedor efetiva o reembolso e perde a resposta
+    Então a execução confirma "Timeout financeiro reconciliado sem repetir reembolso e com recuperação auditada"

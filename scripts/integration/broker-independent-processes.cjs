@@ -71,6 +71,7 @@ const config = {
   noStock: process.env.SOAT_TEST_NO_STOCK === '1',
   compensateAfterPayment: process.env.SOAT_TEST_COMPENSATE === '1',
   badEvidence: process.env.SOAT_TEST_BAD_EVIDENCE === '1',
+  refundTimeout: process.env.SOAT_TEST_REFUND_TIMEOUT === '1',
   restartOs: process.env.SOAT_TEST_RESTART_OS === '1',
   restartBilling: process.env.SOAT_TEST_RESTART_BILLING === '1',
   restartExecution: process.env.SOAT_TEST_RESTART_EXECUTION === '1',
@@ -319,6 +320,16 @@ async function main() {
         process.stdout.write('Evidência divergente: Saga em reconciliação pelo broker sem reembolso ou liberação.\n');
         return;
       }
+      if (config.refundTimeout) {
+        await waitFor('resultado financeiro incerto na Saga', async () => {
+          const rows = await os.$queryRaw`SELECT "status", "lastError" FROM "SagaInstance" WHERE "id"=${opened.sagaId}`;
+          return rows[0]?.status === 'RECONCILIACAO_NECESSARIA' && rows[0]?.lastError === 'REFUND_RESULT_UNKNOWN';
+        });
+        const before = (await container.item('stock:p1', 'branch').read()).resource;
+        assert.equal(before.reserved, 2); assert.equal((await b.call('refundCalls')).result, 1);
+        await billing.$executeRaw`UPDATE "Refund" SET "updatedAt"=NOW()-INTERVAL '3 minutes' WHERE "paymentId" IN (SELECT p."id" FROM "Payment" p JOIN "Charge" c ON c."id"=p."chargeId" WHERE c."osId"=${opened.id})`;
+        await b.call('expediteReconciliation');
+      }
       await waitFor('reembolso e compensação', async () => {
         const rows = await os.$queryRaw`SELECT "status" FROM "SagaInstance" WHERE "id"=${opened.sagaId}`;
         return rows[0]?.status === 'COMPENSADA';
@@ -329,6 +340,12 @@ async function main() {
       const stock = (await container.item('stock:p1', 'branch').read()).resource;
       assert.equal(stock.reserved, 0);
       assert.equal(stock.balance, 5);
+      if (config.refundTimeout) {
+        assert.equal((await b.call('refundCalls')).result, 1);
+        const audit = await os.$queryRaw`SELECT "reason" FROM "SagaRecoveryAudit" WHERE "sagaId"=${opened.sagaId} AND "reason"='AUTHENTICATED_REFUND_CONFIRMED'`;
+        assert.equal(audit.length, 1);
+        process.stdout.write('Timeout financeiro reconciliado sem repetir reembolso e com recuperação auditada.\n');
+      }
       process.stdout.write('Workers Nest: reembolso simulado confirmado e reserva liberada pelo broker.\n');
       return;
     }

@@ -95,6 +95,13 @@ When('a evidência de cancelamento é corrompida antes do reembolso', async func
   await this.attach(result.stdout, 'text/plain');
 });
 
+When('o provedor efetiva o reembolso e perde a resposta', async function () {
+  const result = await runChecked('scripts/integration/broker-independent-processes.cjs', [], { ...process.env, SOAT_TEST_PRODUCTION_WORKERS: '1', SOAT_TEST_HTTP_ACTIONS: '1', SOAT_TEST_COMPENSATE: '1', SOAT_TEST_REFUND_TIMEOUT: '1' });
+  this.output = result.stdout;
+  if (result.stderr) await this.attach(result.stderr, 'text/plain');
+  await this.attach(result.stdout, 'text/plain');
+});
+
 When('executo a jornada HTTP com rastreamento distribuído pelo broker', async function () {
   const result = await runChecked('scripts/integration/broker-independent-processes.cjs', [], { ...process.env, SOAT_TEST_PRODUCTION_WORKERS: '1', SOAT_TEST_HTTP_ACTIONS: '1', SOAT_TEST_TRACE: '1' });
   this.output = result.stdout;
