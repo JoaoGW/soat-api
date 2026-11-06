@@ -45,6 +45,16 @@ async function bootstrap() {
       },
       'JWT_CLIENTE',
     )
+    .addBearerAuth(
+      {
+        type: 'http',
+        scheme: 'bearer',
+        name: 'INTEGRACAO_INTERNA',
+        description: 'Credencial exclusiva da integração de validação de CPF.',
+        in: 'header',
+      },
+      'INTEGRACAO_INTERNA',
+    )
     .build();
 
   const document = SwaggerModule.createDocument(app, config);

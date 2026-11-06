@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken';
 import request from 'supertest';
 import { ConfigService } from '@nestjs/config';
 import { PassportModule } from '@nestjs/passport';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { JwtStrategy } from '../../strategies/JwtStrategy';
 import { JwtClienteStrategy } from '../../strategies/JwtClienteStrategy';
 import {
@@ -71,6 +72,23 @@ describe('consulta de cliente interno da Fase 4', () => {
       .set('Authorization', `Bearer ${token}`)
       .send({ cpf: '52998224725', extra: true })
       .expect(400);
+  });
+  it('documenta a credencial exclusiva e o contrato mínimo da integração', () => {
+    const document = SwaggerModule.createDocument(
+      app,
+      new DocumentBuilder()
+        .addBearerAuth({ type: 'http', scheme: 'bearer' }, 'INTEGRACAO_INTERNA')
+        .build(),
+    );
+    const operation =
+      document.paths['/fase4/internal/clientes/validar-cpf'].post!;
+    expect(operation.security).toEqual([{ INTEGRACAO_INTERNA: [] }]);
+    expect(operation.requestBody).toMatchObject({
+      content: { 'application/json': { schema: { required: ['cpf'] } } },
+    });
+    expect(operation.responses['200']).toMatchObject({
+      content: { 'application/json': { schema: { required: ['cliente'] } } },
+    });
   });
 });
 

@@ -23,7 +23,13 @@ import { Phase4Registry } from '../../../infrastructure/saga/CadastrosFase4';
 import { JwtAuthGuard } from '../../guards/JwtAuthGuard';
 import { JwtClienteAuthGuard } from '../../guards/JwtClienteAuthGuard';
 import { Phase4OrderQueries } from '../../../infrastructure/saga/ConsultarOrdemFase4';
-import { ApiBearerAuth, ApiBody, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiBody,
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 
 @Injectable()
 export class Phase4RegistryRuntime implements OnApplicationShutdown {
@@ -178,7 +184,19 @@ export class Phase4ClientController {
   @Get(':id') get(@Param('id') id: string) {
     return this.runtime.registry().client(id);
   }
-  @Put(':id') update(
+  @Put(':id')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      minProperties: 1,
+      additionalProperties: false,
+      properties: {
+        nome: { type: 'string', minLength: 1, maxLength: 200 },
+        contato: { type: 'string', minLength: 1, maxLength: 200 },
+      },
+    },
+  })
+  update(
     @Param('id') id: string,
     @Body() body: { nome?: string; contato?: string },
   ) {
@@ -231,7 +249,20 @@ export class Phase4VehicleController {
   @Get(':id') get(@Param('id') id: string) {
     return this.runtime.registry().vehicle(id);
   }
-  @Put(':id') update(
+  @Put(':id')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      minProperties: 1,
+      additionalProperties: false,
+      properties: {
+        marca: { type: 'string', minLength: 1, maxLength: 200 },
+        modelo: { type: 'string', minLength: 1, maxLength: 200 },
+        ano: { type: 'integer', minimum: 1900, maximum: 9999 },
+      },
+    },
+  })
+  update(
     @Param('id') id: string,
     @Body() body: { marca?: string; modelo?: string; ano?: number },
   ) {
@@ -245,10 +276,45 @@ export class Phase4VehicleController {
 /** Rota interna específica do novo banco, protegida por credencial de integração. */
 @Controller('fase4/internal/clientes')
 @ApiTags('Fase 4 - Integração interna')
+@ApiBearerAuth('INTEGRACAO_INTERNA')
 export class Phase4InternalClientController {
   constructor(private readonly runtime: Phase4RegistryRuntime) {}
   @Post('validar-cpf')
   @HttpCode(200)
+  @ApiOperation({
+    summary:
+      'Consultar identificador e situação por CPF para integração autorizada',
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['cpf'],
+      additionalProperties: false,
+      properties: { cpf: { type: 'string', pattern: '^\\d{11}$' } },
+    },
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Cliente localizado ou null; retorna apenas ID e situação',
+    schema: {
+      type: 'object',
+      required: ['cliente'],
+      properties: {
+        cliente: {
+          type: 'object',
+          nullable: true,
+          required: ['id', 'ativo'],
+          properties: { id: { type: 'string' }, ativo: { type: 'boolean' } },
+        },
+      },
+    },
+  })
+  @ApiResponse({ status: 400, description: 'CPF ou corpo inválido' })
+  @ApiResponse({
+    status: 401,
+    description: 'Credencial de integração inválida',
+  })
+  @ApiResponse({ status: 503, description: 'Consulta indisponível' })
   lookup(
     @Headers('authorization') authorization: string | undefined,
     @Body() body: unknown,
