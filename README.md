@@ -148,6 +148,12 @@ identidade Azure e o comportamento real da nuvem não são validados localmente.
 mensageria do OS; `npm run test:coverage-saga` aplica o mesmo limite à
 infraestrutura da Saga usando integração com PostgreSQL de teste. São medições
 separadas e não incluem todos os demais adapters ou controladores do OS.
+Para a cobertura total, o CI executa `npm run test:coverage-full`, combinando
+unitários, integração da Saga e testes HTTP, inclusive o legado ainda ativo.
+O comando exige dois bancos locais distintos, já migrados, nas variáveis
+`FULL_LEGACY_TEST_DATABASE_URL` e `FULL_SAGA_TEST_DATABASE_URL`; ambos devem
+terminar em `_test`. O relatório e o gate exigem 80% em cada métrica. As
+execuções e os relatórios por SHA ficam no [CI do OS](https://github.com/JoaoGW/soat-api/actions/workflows/ci.yml).
 
 Os cadastros no banco novo usam `ENABLE_FASE4_REGISTRY=true` e
 `SAGA_DATABASE_URL`: `/fase4/clientes` e `/fase4/veiculos` oferecem criação,

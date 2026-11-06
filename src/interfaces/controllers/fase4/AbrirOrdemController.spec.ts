@@ -6,6 +6,8 @@ import { OpenOrderController, OpenOrderRuntime } from './AbrirOrdemController';
 
 describe('ações administrativas da Fase 4', () => {
   const runtime = {
+    execute: jest.fn(),
+    compensate: jest.fn(),
     deliver: jest.fn(),
     retry: jest.fn(),
     recoverLatePayment: jest.fn(),
@@ -19,6 +21,52 @@ describe('ações administrativas da Fase 4', () => {
     expect(Reflect.getMetadata(GUARDS_METADATA, OpenOrderController)).toContain(
       JwtAuthGuard,
     );
+  });
+  it('exige ator e chave idempotente para abrir OS e rejeita campos inesperados', async () => {
+    const body = {
+      clienteId: 'cliente',
+      veiculoId: 'veiculo',
+      filialId: 'filial',
+    };
+    runtime.execute.mockResolvedValue({ id: 'os-1' });
+    await expect(
+      controller.open({ user: { username: 'admin' } }, 'chave', body),
+    ).resolves.toEqual({ id: 'os-1' });
+    expect(runtime.execute).toHaveBeenCalledWith('admin', 'chave', body);
+    await expect(controller.open({}, 'chave', body)).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+    await expect(
+      controller.open({ user: { username: 'admin' } }, undefined, body),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    await expect(
+      controller.open({ user: { username: 'admin' } }, 'chave', {
+        ...body,
+        extra: true,
+      } as typeof body),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(runtime.execute).toHaveBeenCalledTimes(1);
+  });
+  it('não permite compensação sem motivo e identificador válidos', async () => {
+    runtime.compensate.mockResolvedValue('STARTED');
+    await expect(
+      controller.compensate('saga-1', { reason: 'STEP_FAILED' }),
+    ).resolves.toEqual({ status: 'STARTED' });
+    for (const body of [
+      null,
+      [],
+      {},
+      { reason: 'invalido!' },
+      { reason: 'OK', extra: true },
+    ]) {
+      await expect(
+        controller.compensate('saga-1', body as never),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    }
+    await expect(
+      controller.compensate('../saga', { reason: 'OK' }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(runtime.compensate).toHaveBeenCalledTimes(1);
   });
   it('entrega apenas com identificador válido', async () => {
     runtime.deliver.mockResolvedValue('ENTREGUE');
@@ -85,5 +133,59 @@ describe('ações administrativas da Fase 4', () => {
         { reason: 'invalid.reason' },
       ),
     ).rejects.toBeInstanceOf(BadRequestException);
+  });
+});
+
+describe('chaves de ativação das operações da Fase 4', () => {
+  it('mantém operações indisponíveis por padrão, mesmo com URL de banco', async () => {
+    const original = process.env;
+    process.env = {
+      ...original,
+      SAGA_DATABASE_URL: 'postgresql://localhost/test',
+    };
+    for (const key of [
+      'ENABLE_FASE4_OPEN',
+      'ENABLE_FASE4_COMPENSATION',
+      'ENABLE_FASE4_DELIVERY',
+      'ENABLE_FASE4_RECOVERY',
+    ])
+      delete process.env[key];
+    try {
+      const runtime = new OpenOrderRuntime();
+      await expect(
+        runtime.execute('a', 'k', {
+          clienteId: 'c',
+          veiculoId: 'v',
+          filialId: 'f',
+        }),
+      ).rejects.toMatchObject({ status: 503 });
+      await expect(runtime.compensate('s', 'motivo')).rejects.toMatchObject({
+        status: 503,
+      });
+      await expect(runtime.deliver('os')).rejects.toMatchObject({
+        status: 503,
+      });
+      await expect(
+        runtime.retry({
+          sagaId: 's',
+          messageId: 'm',
+          actorId: 'a',
+          reason: 'r',
+        }),
+      ).rejects.toMatchObject({ status: 503 });
+      await expect(
+        runtime.recoverLatePayment({ sagaId: 's', actorId: 'a', reason: 'r' }),
+      ).rejects.toMatchObject({ status: 503 });
+      await expect(
+        runtime.recoverCompletedRepair({
+          sagaId: 's',
+          actorId: 'a',
+          reason: 'r',
+        }),
+      ).rejects.toMatchObject({ status: 503 });
+      await runtime.onApplicationShutdown();
+    } finally {
+      process.env = original;
+    }
   });
 });
