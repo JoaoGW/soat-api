@@ -19,8 +19,10 @@ acompanhe a deduplicação e o fato de resposta, sem criar outro comando.
 
 O procedimento não rearma mensagens `SENT` nem altera Saga em
 reconciliação. Não altere manualmente status, identificadores ou payloads para
-contornar essas verificações. Para outros serviços, use seus procedimentos e
-confirme suas garantias de deduplicação antes de reenviar mensagens.
+contornar essas verificações. Billing e Execution possuem procedimentos
+próprios para rearmar eventos `FAILED`, com auditoria no banco do serviço.
+Consulte os respectivos READMEs e confirme o estado e as garantias de
+deduplicação antes de reenviar mensagens.
 
 ## Prazo esgotado ou situação incerta
 
