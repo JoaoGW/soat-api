@@ -161,6 +161,14 @@ O CI também executa `npm run quality:sonarjs`, com regras selecionadas do
 analisador SonarJS para erros lógicos e segurança. É um gate estático local;
 ele não representa a análise integral nem o painel do SonarQube.
 
+O lockfile atualiza dependências compatíveis do Nest e do transporte HTTP. O
+Multer é temporariamente fixado em 2.5.0 por override, pois a versão do Nest
+fixa uma versão anterior; um teste HTTP cobre a compatibilidade básica do
+interceptor com filtro assíncrono. Retire o override quando o Nest incorporar
+uma versão corrigida e repita os testes. O CLI Prisma 6, usado nas migrations,
+ainda possui alertas transitivos de alta severidade e requer atualização
+compatível antes da liberação final.
+
 Os cadastros no banco novo usam `ENABLE_FASE4_REGISTRY=true` e
 `SAGA_DATABASE_URL`: `/fase4/clientes` e `/fase4/veiculos` oferecem criação,
 consulta, listagem paginada, atualização e desativação lógica com JWT
