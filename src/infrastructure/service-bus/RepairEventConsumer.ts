@@ -390,6 +390,7 @@ export function failureEventValidator(
   const validators = [
     'billing.quote-failed.v1',
     'billing.charge-failed.v1',
+    'billing.refund-blocked.v1',
     'execution.parts-reservation-failed.v1',
   ].map((name) => ajv.compile(read(`${name}.schema.json`)));
   return (event) => validators.some((validate) => validate(event) === true);

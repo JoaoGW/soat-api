@@ -103,6 +103,59 @@ describe('falhas definitivas da Saga', () => {
     await db.$executeRaw`INSERT INTO "Outbox" ("messageId", "type", "payload") VALUES (${`command-${id}`}, ${commandType}, ${JSON.stringify(payload)}::jsonb)`;
     return event;
   }
+  it('envia a Saga à reconciliação quando Billing bloqueia reembolso por evidência divergente', async () => {
+    const base = await setup('charge');
+    const data = {
+      refundId: `refund-${base.operationId}`,
+      paymentId: `payment-${base.operationId}`,
+      cancelOperationId: `cancel-${base.operationId}`,
+      cancelEventId: `event-${base.operationId}`,
+      reasonCode: 'EVIDENCE_MISMATCH',
+    };
+    const commandMessageId = base.messageId.replace('msg-', 'command-');
+    const event: FailureEvent = {
+      ...base,
+      type: 'billing.refund-blocked.v1',
+      data,
+      causationId: commandMessageId,
+    };
+    await db.$executeRaw`UPDATE "SagaInstance" SET "status"='REEMBOLSO_PENDENTE' WHERE "id"=${base.sagaId}`;
+    await db.$executeRaw`UPDATE "SagaOperation" SET "commandType"='billing.refund-payment.v1' WHERE "operationId"=${base.operationId}`;
+    await db.$executeRaw`UPDATE "Outbox" SET "type"='billing.refund-payment.v1', "payload"=${JSON.stringify({ messageId: commandMessageId, operationId: base.operationId, sagaId: base.sagaId, data })}::jsonb WHERE "payload"->>'operationId'=${base.operationId}`;
+    await expect(
+      handler.execute({ ...event, causationId: 'other' }),
+    ).rejects.toThrow('diverge');
+    await expect(
+      handler.execute({ ...event, data: { ...data, paymentId: 'other' } }),
+    ).rejects.toThrow('diverge');
+    expect(
+      await Promise.all([handler.execute(event), handler.execute(event)]),
+    ).toEqual(['APPLIED', 'APPLIED']);
+    expect(
+      await handler.execute({
+        ...event,
+        messageId: `${event.messageId}-again`,
+      }),
+    ).toBe('APPLIED');
+    const rows = await db.$queryRaw<
+      Array<{
+        status: string;
+        requiresAttention: boolean;
+        lastError: string;
+        version: number;
+      }>
+    >`SELECT "status", "requiresAttention", "lastError", "version" FROM "SagaInstance" WHERE "id"=${base.sagaId}`;
+    expect(rows[0]).toMatchObject({
+      status: 'RECONCILIACAO_NECESSARIA',
+      requiresAttention: true,
+      lastError: 'REFUND_EVIDENCE_MISMATCH',
+      version: 1,
+    });
+    const releases = await db.$queryRaw<
+      Array<{ count: bigint }>
+    >`SELECT COUNT(*) AS count FROM "Outbox" WHERE "type"='execution.release-parts.v1' AND "payload"->>'sagaId'=${base.sagaId}`;
+    expect(releases[0].count).toBe(0n);
+  });
   it.each(['quote', 'reservation', 'charge'] as const)(
     'compensa a falha definitiva de %s uma vez',
     async (kind) => {

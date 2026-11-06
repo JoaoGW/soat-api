@@ -93,7 +93,7 @@ export class ReplayPendingChargeEvents {
     >`
       SELECT "payload", "receivedAt", "messageId", "type" FROM "Inbox"
       WHERE "consumer" = 'os.saga-events' AND "status" = 'PENDING'
-        AND ("type" = 'billing.charge-created.v1' OR (${Boolean(this.paymentHandler && this.validatePayment)} AND "type" = 'billing.payment-confirmed.v1') OR (${Boolean(this.workHandler && this.validateWork)} AND "type" = 'execution.work-enqueued.v1') OR (${Boolean(this.repairHandler && this.validateRepair)} AND "type" IN ('execution.work-started.v1', 'execution.work-completed.v1')) OR (${Boolean(this.diagnosisHandler && this.validateDiagnosis)} AND "type" IN ('execution.diagnosis-started.v1', 'execution.diagnosis-completed.v1')) OR (${Boolean(this.quoteHandler && this.validateQuote)} AND "type" IN ('billing.quote-issued.v1', 'billing.quote-approved.v1', 'billing.quote-rejected.v1')) OR (${Boolean(this.reservationHandler && this.validateReservation)} AND "type" = 'execution.parts-reserved.v1') OR (${Boolean(this.cancellationHandler && this.validateCancellation)} AND "type" = 'execution.work-cancelled.v1') OR (${Boolean(this.refundHandler && this.validateRefund)} AND "type" = 'billing.payment-refunded.v1') OR (${Boolean(this.releaseHandler && this.validateRelease)} AND "type" = 'execution.parts-released.v1') OR (${Boolean(this.failureHandler && this.validateFailure)} AND "type" IN ('billing.quote-failed.v1', 'billing.charge-failed.v1', 'execution.parts-reservation-failed.v1')))
+        AND ("type" = 'billing.charge-created.v1' OR (${Boolean(this.paymentHandler && this.validatePayment)} AND "type" = 'billing.payment-confirmed.v1') OR (${Boolean(this.workHandler && this.validateWork)} AND "type" = 'execution.work-enqueued.v1') OR (${Boolean(this.repairHandler && this.validateRepair)} AND "type" IN ('execution.work-started.v1', 'execution.work-completed.v1')) OR (${Boolean(this.diagnosisHandler && this.validateDiagnosis)} AND "type" IN ('execution.diagnosis-started.v1', 'execution.diagnosis-completed.v1')) OR (${Boolean(this.quoteHandler && this.validateQuote)} AND "type" IN ('billing.quote-issued.v1', 'billing.quote-approved.v1', 'billing.quote-rejected.v1')) OR (${Boolean(this.reservationHandler && this.validateReservation)} AND "type" = 'execution.parts-reserved.v1') OR (${Boolean(this.cancellationHandler && this.validateCancellation)} AND "type" = 'execution.work-cancelled.v1') OR (${Boolean(this.refundHandler && this.validateRefund)} AND "type" = 'billing.payment-refunded.v1') OR (${Boolean(this.releaseHandler && this.validateRelease)} AND "type" = 'execution.parts-released.v1') OR (${Boolean(this.failureHandler && this.validateFailure)} AND "type" IN ('billing.quote-failed.v1', 'billing.charge-failed.v1', 'billing.refund-blocked.v1', 'execution.parts-reservation-failed.v1')))
         AND (${date}::timestamp IS NULL OR ("receivedAt", "messageId") > (${date}::timestamp, ${id}::text))
       ORDER BY "receivedAt", "messageId" LIMIT ${limit}`;
     const result = {
@@ -117,6 +117,7 @@ export class ReplayPendingChargeEvents {
       const isFailure = [
         'billing.quote-failed.v1',
         'billing.charge-failed.v1',
+        'billing.refund-blocked.v1',
         'execution.parts-reservation-failed.v1',
       ].includes(row.type);
       const isWork = row.type === 'execution.work-enqueued.v1';

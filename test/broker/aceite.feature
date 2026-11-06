@@ -68,3 +68,8 @@ Funcionalidade: Aceite distribuído da oficina pelo broker
     Dado que os serviços e seus bancos locais de teste estão configurados
     Quando executo a jornada HTTP com rastreamento distribuído pelo broker
     Então a execução confirma "Contexto W3C propagado pelo broker entre os três serviços"
+
+  Cenário: Evidência divergente impede reembolso e exige reconciliação
+    Dado que os serviços e seus bancos locais de teste estão configurados
+    Quando a evidência de cancelamento é corrompida antes do reembolso
+    Então a execução confirma "Saga em reconciliação pelo broker sem reembolso ou liberação"

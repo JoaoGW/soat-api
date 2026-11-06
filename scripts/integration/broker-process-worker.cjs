@@ -79,6 +79,8 @@ async function init(c) {
   const receivers = [];
   const subscriptions = [];
   let db, cosmos, executionContainer;
+  let allowRefund = !c.badEvidence;
+  actions.resumeRefund = async () => { allowRefund = true; };
   function poll(fn) {
     if (c.productionWorkers) return;
     let busy = false;
@@ -206,7 +208,8 @@ async function init(c) {
       path.join(c.billingDir, 'node_modules/@prisma/client'),
     );
     db = new PrismaClient({ datasources: { db: { url: c.billingUrl } } });
-    let refunded = false;
+    let refunded = false; let refundCalls = 0;
+    actions.refundCalls = async () => refundCalls;
     const refundId = `REF${c.tag.replaceAll('-', '').slice(0, 26)}`;
     provider = {
       create: async (input) => ({
@@ -245,7 +248,7 @@ async function init(c) {
           },
         };
       },
-      refund: async () => { refunded = true; return { id: c.providerOrder, transactions: { refunds: [{ id: refundId, transaction_id: `txn-${c.tag}` }] } }; },
+      refund: async () => { refundCalls++; refunded = true; return { id: c.providerOrder, transactions: { refunds: [{ id: refundId, transaction_id: `txn-${c.tag}` }] } }; },
       getPayment: async () => ({
         id: Number(c.providerPayment),
         status: 'approved',
@@ -403,7 +406,7 @@ async function init(c) {
   } else throw Error('Serviço inválido');
   let application;
   if (c.productionWorkers) {
-    application = await startProductionWorkers(c, provider);
+    application = await startProductionWorkers(c, provider, () => allowRefund);
   }
   if (c.httpActions) {
     if (!application || !c.productionWorkers) throw Error('APIs HTTP exigem workers reais');
@@ -457,7 +460,7 @@ async function init(c) {
 
 // Adapta somente as fronteiras de rede deste processo de teste. Os próprios
 // workers, roteamento, assinatura, ACK, polling e ciclo Nest são de produção.
-async function startProductionWorkers(c, provider) {
+async function startProductionWorkers(c, provider, canProcessRefund) {
   const Module = require('node:module');
   const originalLoad = Module._load;
   const roleDir = c.role === 'os' ? root : c.role === 'billing' ? c.billingDir : c.execDir;
@@ -465,6 +468,13 @@ async function startProductionWorkers(c, provider) {
   const realBus = roleRequire('@azure/service-bus');
   const realCosmos = c.role === 'execution' ? roleRequire('@azure/cosmos') : undefined;
   const keys = c.keys;
+  if (c.role === 'billing' && c.badEvidence) {
+    const { RefundCommandProcessor } = require(path.join(roleDir, 'dist/infrastructure/service-bus/refund-command'));
+    const original = RefundCommandProcessor.prototype.processOne;
+    RefundCommandProcessor.prototype.processOne = function() {
+      return canProcessRefund() ? original.call(this) : Promise.resolve('EMPTY');
+    };
+  }
   Object.assign(process.env, {
     AZURE_TENANT_ID: 'test', AZURE_CLIENT_ID: 'test', AZURE_FEDERATED_TOKEN_FILE: '/test-only',
     SERVICE_BUS_NAMESPACE: 'local-test.servicebus.windows.net',

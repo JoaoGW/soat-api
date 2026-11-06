@@ -8,9 +8,11 @@ export type FailureEvent = {
   osId: string;
   filialId: string;
   correlationId: string;
+  causationId?: string;
   type:
     | 'billing.quote-failed.v1'
     | 'billing.charge-failed.v1'
+    | 'billing.refund-blocked.v1'
     | 'execution.parts-reservation-failed.v1';
   producer: string;
   data: Record<string, unknown>;
@@ -48,6 +50,11 @@ export class ReceiveFailureEvent {
         command: 'billing.create-charge.v1',
         state: 'COBRANCA_PENDENTE',
       },
+      'billing.refund-blocked.v1': {
+        producer: 'soat-billing-service',
+        command: 'billing.refund-payment.v1',
+        state: 'REEMBOLSO_PENDENTE',
+      },
       'execution.parts-reservation-failed.v1': {
         producer: 'soat-execution-service',
         command: 'execution.reserve-parts.v1',
@@ -83,7 +90,7 @@ export class ReceiveFailureEvent {
       const commands = await tx.$queryRaw<
         Array<{
           status: string;
-          payload: { data: Record<string, unknown> };
+          payload: { messageId?: string; data: Record<string, unknown> };
           sameResult: boolean | null;
         }>
       >`SELECT op."status", o."payload", (op."result"->'data' = ${JSON.stringify(event.data)}::jsonb) AS "sameResult" FROM "SagaOperation" op JOIN "Outbox" o ON o."payload"->>'operationId' = op."operationId" WHERE op."operationId" = ${event.operationId} AND op."sagaId" = ${event.sagaId} AND op."commandType" = ${config.command} AND o."type" = ${config.command}`;
@@ -119,6 +126,17 @@ export class ReceiveFailureEvent {
           event.data.reasonCode !== 'EXPIRED')
       )
         throw new Error('Falha diverge do comando');
+      if (
+        event.type === 'billing.refund-blocked.v1' &&
+        (!event.causationId ||
+          command.payload.messageId !== event.causationId ||
+          data.refundId !== event.data.refundId ||
+          data.paymentId !== event.data.paymentId ||
+          data.cancelOperationId !== event.data.cancelOperationId ||
+          data.cancelEventId !== event.data.cancelEventId ||
+          event.data.reasonCode !== 'EVIDENCE_MISMATCH')
+      )
+        throw new Error('Falha diverge do comando');
       await tx.$executeRaw`INSERT INTO "Inbox" ("consumer", "messageId", "operationId", "type", "payload", "status") VALUES (${consumer}, ${event.messageId}, ${event.operationId}, ${event.type}, ${encoded}::jsonb, 'PENDING') ON CONFLICT DO NOTHING`;
       const inbox = await tx.$queryRaw<
         Array<{ matches: boolean; status: string }>
@@ -126,6 +144,21 @@ export class ReceiveFailureEvent {
       if (!inbox[0]?.matches)
         throw new Error('Mensagem reutilizada com outro conteúdo');
       if (inbox[0].status === 'APPLIED') return 'APPLIED';
+      if (event.type === 'billing.refund-blocked.v1') {
+        if (
+          !['REEMBOLSO_PENDENTE', 'RECONCILIACAO_NECESSARIA'].includes(
+            saga.status,
+          ) ||
+          !['PENDING', 'SENT'].includes(command.status)
+        )
+          return 'PENDING';
+        if (saga.status !== 'RECONCILIACAO_NECESSARIA')
+          await tx.$executeRaw`UPDATE "SagaInstance" SET "status"='RECONCILIACAO_NECESSARIA', "requiresAttention"=true, "lastError"='REFUND_EVIDENCE_MISMATCH', "version"="version"+1, "updatedAt"=NOW() WHERE "id"=${event.sagaId}`;
+        else if (!saga.requiresAttention)
+          await tx.$executeRaw`UPDATE "SagaInstance" SET "requiresAttention"=true, "version"="version"+1, "updatedAt"=NOW() WHERE "id"=${event.sagaId}`;
+        await tx.$executeRaw`UPDATE "Inbox" SET "status"='APPLIED', "appliedAt"=NOW() WHERE "consumer"=${consumer} AND "messageId"=${event.messageId}`;
+        return 'APPLIED';
+      }
       // Um prazo vencido não prova nada por si só. A falha EXPIRED assinada
       // do Billing, vinculada ao comando e sem fatos posteriores, comprova
       // que esse orçamento não foi criado e permite iniciar o cancelamento.

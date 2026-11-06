@@ -86,6 +86,7 @@ describe('consumidores de eventos críticos', () => {
       releaseEventValidator,
     ],
     ['billing.charge-failed.v1', FailureEventConsumer, failureEventValidator],
+    ['billing.refund-blocked.v1', FailureEventConsumer, failureEventValidator],
   ] as const;
   it.each(cases)(
     '%s confirma após persistência e trata falhas e contrato inválido',

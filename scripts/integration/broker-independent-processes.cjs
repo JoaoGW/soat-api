@@ -70,6 +70,7 @@ const config = {
   productionWorkers: process.env.SOAT_TEST_PRODUCTION_WORKERS === '1',
   noStock: process.env.SOAT_TEST_NO_STOCK === '1',
   compensateAfterPayment: process.env.SOAT_TEST_COMPENSATE === '1',
+  badEvidence: process.env.SOAT_TEST_BAD_EVIDENCE === '1',
   restartOs: process.env.SOAT_TEST_RESTART_OS === '1',
   restartBilling: process.env.SOAT_TEST_RESTART_BILLING === '1',
   restartExecution: process.env.SOAT_TEST_RESTART_EXECUTION === '1',
@@ -295,6 +296,29 @@ async function main() {
     });
     if (config.compensateAfterPayment) {
       assert.equal((await o.call('compensate', { sagaId: opened.sagaId })).result, 'STARTED');
+      if (config.badEvidence) {
+        const staged = await waitFor('comando e evidência persistidos em Billing', async () => {
+          const rows = await billing.$queryRaw`SELECT s."messageId", s."payload"->'data'->>'cancelEventId' AS "eventId" FROM "Inbox" s JOIN "Inbox" e ON e."consumer"='billing.compensation-evidence' AND e."messageId"=s."payload"->'data'->>'cancelEventId' WHERE s."consumer"='billing.refund-staging' AND s."payload"->>'sagaId'=${opened.sagaId} AND s."status"='PENDING' AND e."status"='APPLIED'`;
+          return rows[0];
+        });
+        // Simula corrupção somente no banco descartável, depois da verificação
+        // da assinatura e antes da avaliação da evidência pelo worker.
+        await billing.$executeRaw`UPDATE "Inbox" SET "payload"=jsonb_set("payload", '{data,outcome}', '"ALREADY_STARTED"'::jsonb) WHERE "consumer"='billing.compensation-evidence' AND "messageId"=${staged.eventId}`;
+        await b.call('resumeRefund');
+        await waitFor('Saga em reconciliação pelo evento autenticado de Billing', async () => {
+          const rows = await os.$queryRaw`SELECT "status", "lastError" FROM "SagaInstance" WHERE "id"=${opened.sagaId}`;
+          return rows[0]?.status === 'RECONCILIACAO_NECESSARIA' && rows[0]?.lastError === 'REFUND_EVIDENCE_MISMATCH';
+        });
+        const sent = await billing.$queryRaw`SELECT "status" FROM "Outbox" WHERE "type"='billing.refund-blocked.v1' AND "payload"->>'sagaId'=${opened.sagaId}`;
+        const received = await os.$queryRaw`SELECT "status" FROM "Inbox" WHERE "consumer"='os.saga-events' AND "type"='billing.refund-blocked.v1' AND "payload"->>'sagaId'=${opened.sagaId}`;
+        assert.equal(sent[0]?.status, 'SENT'); assert.equal(received[0]?.status, 'APPLIED');
+        assert.equal(await billing.refund.count({ where: { payment: { charge: { osId: opened.id } } } }), 0);
+        assert.equal((await b.call('refundCalls')).result, 0);
+        const stock = (await container.item('stock:p1', 'branch').read()).resource;
+        assert.equal(stock.reserved, 2); assert.equal(stock.balance, 5);
+        process.stdout.write('Evidência divergente: Saga em reconciliação pelo broker sem reembolso ou liberação.\n');
+        return;
+      }
       await waitFor('reembolso e compensação', async () => {
         const rows = await os.$queryRaw`SELECT "status" FROM "SagaInstance" WHERE "id"=${opened.sagaId}`;
         return rows[0]?.status === 'COMPENSADA';

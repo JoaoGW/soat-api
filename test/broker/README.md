@@ -48,6 +48,11 @@ dos três serviços e confere os spans pai correspondentes. Um SDK e um middlewa
 de teste coletam spans e extraem o cabeçalho HTTP; portanto, o teste não valida
 a instrumentação HTTP automática de produção, a Function ou um coletor remoto.
 
+O cenário de evidência divergente altera o registro no banco descartável depois
+da verificação da assinatura, simulando corrupção antes do reembolso. Ele
+verifica o evento assinado de Billing passando pelo broker, a reconciliação da
+Saga, a reserva preservada e a ausência de chamada ao provedor simulado.
+
 O workflow manual `BDD distribuído local` aceita SHAs completos de Billing e
 Execution, registra os três commits e falha quando a credencial de leitura
 `CROSS_REPO_READ_TOKEN` ou o aceite dos emuladores estiverem ausentes. Como os

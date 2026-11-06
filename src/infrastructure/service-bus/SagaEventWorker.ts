@@ -215,6 +215,7 @@ export class SagaEventWorker implements OnModuleInit, OnApplicationShutdown {
               [
                 'billing.quote-failed.v1',
                 'billing.charge-failed.v1',
+                'billing.refund-blocked.v1',
                 'execution.parts-reservation-failed.v1',
               ].includes(String(type))
             )
