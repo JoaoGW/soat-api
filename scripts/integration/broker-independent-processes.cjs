@@ -93,6 +93,15 @@ const config = {
 };
 const children = [];
 const spans = [];
+// Um timeout do executor não pode deixar consumidores órfãos disputando as
+// filas de cenários posteriores.
+for (const signal of ['SIGTERM', 'SIGINT']) {
+  process.once(signal, () => {
+    for (const p of children)
+      if (p.exitCode === null && p.signalCode === null) p.kill('SIGTERM');
+    process.exit(signal === 'SIGTERM' ? 143 : 130);
+  });
+}
 let next = 0;
 function child(role) {
   const env = { PATH: process.env.PATH, NODE_ENV: 'test', ...(config.traceTest ? { SOAT_TRACE_ROLE: role } : {}) };
@@ -386,11 +395,16 @@ async function main() {
     if (config.restartBilling) process.stdout.write('Jornada retomada após interrupção abrupta do Billing.\n');
     if (config.restartExecution) process.stdout.write('Jornada retomada após interrupção abrupta do Execution.\n');
   } finally {
-    await Promise.allSettled(
+    const stopped = await Promise.allSettled(
       children.filter((p) => p.connected).map((p) => p.call('stop')),
     );
-    for (const p of children) if (p.connected) p.kill('SIGTERM');
+    // Após o ACK de fechamento, handles do fixture ainda podem manter o
+    // processo vivo mesmo com o canal IPC desconectado.
+    for (const p of children)
+      if (p.exitCode === null && p.signalCode === null) p.kill('SIGTERM');
     await database.delete();
+    if (stopped.some((result) => result.status === 'rejected'))
+      throw Error('Falha ao encerrar os processos de teste');
   }
 }
 main()

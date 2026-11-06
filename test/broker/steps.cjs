@@ -13,7 +13,7 @@ async function runChecked(script, args, env) {
       cwd: process.cwd(), env, timeout: 100000, maxBuffer: 1024 * 1024,
     });
   } catch (error) {
-    throw new Error(`Falha no cenário: ${error.message}\n${String(error.stderr || '').slice(-6000)}\n${String(error.stdout || '').slice(-3000)}`);
+    throw new Error(`Falha no cenário: ${error.message}; signal=${error.signal || 'nenhum'}; killed=${Boolean(error.killed)}\n${String(error.stderr || '').slice(-6000)}\n${String(error.stdout || '').slice(-3000)}`);
   }
 }
 
