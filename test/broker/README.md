@@ -59,12 +59,21 @@ o registro descartável e antecipa o próximo ciclo do worker de reconciliação
 Ele verifica confirmação posterior, retomada auditada e uma única solicitação
 ao provedor; não demonstra os prazos reais nem uma integração Mercado Pago real.
 
-O workflow manual `BDD distribuído local` aceita SHAs completos de Billing e
-Execution, registra os três commits e falha quando a credencial de leitura
+O workflow manual `BDD distribuído local` aceita SHAs completos de Billing,
+Execution e Auth, registra os quatro commits e falha quando a credencial de leitura
 `CROSS_REPO_READ_TOKEN` ou o aceite dos emuladores estiverem ausentes. Como os
 outros repositórios são privados, a execução no GitHub depende dessa credencial;
 o workflow não é check automático de PR. Os testes locais não provam deploy ou
 identidades reais na nuvem.
+
+O workflow também executa `npm run test:auth-os-trace` com a Function e o
+controller interno reais, PostgreSQL e HTTPS locais, certificado temporário e
+instrumentação OpenTelemetry de produção. O host Azure e o coletor remoto são
+substituídos por processos locais; não há autenticação ou exportação na nuvem.
+Para executar esse teste separadamente, configure `AUTH_REPO_DIR` com o caminho
+absoluto do checkout Auth e `OS_TEST_DATABASE_URL` com banco local `_test`
+migrado; instale e compile OS e Auth. O teste exige `openssl` e falha quando
+essas dependências não estão disponíveis.
 
 Use Docker local, Node compatível e checkouts dos três repositórios. Leia e
 aceite os termos do Service Bus Emulator e do SQL Server antes de configurar
