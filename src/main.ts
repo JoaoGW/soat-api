@@ -6,6 +6,7 @@ import { AppModule } from './app.module';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  app.enableShutdownHooks();
 
   app.useGlobalPipes(
     new ValidationPipe({
@@ -43,6 +44,16 @@ async function bootstrap() {
         in: 'header',
       },
       'JWT_CLIENTE',
+    )
+    .addBearerAuth(
+      {
+        type: 'http',
+        scheme: 'bearer',
+        name: 'INTEGRACAO_INTERNA',
+        description: 'Credencial exclusiva da integração de validação de CPF.',
+        in: 'header',
+      },
+      'INTEGRACAO_INTERNA',
     )
     .build();
 

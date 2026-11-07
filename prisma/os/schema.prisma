@@ -1,0 +1,169 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../../generated/os"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Cliente {
+  id        String           @id
+  nome      String
+  documento String           @unique
+  tipo      String
+  contato   String
+  ativo     Boolean          @default(true)
+  veiculos  Veiculo[]
+  ordens    OrdemDeServico[]
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+}
+
+model Veiculo {
+  id        String           @id
+  clienteId String
+  placa     String           @unique
+  marca     String
+  modelo    String
+  ano       Int
+  ativo     Boolean          @default(true)
+  cliente   Cliente          @relation(fields: [clienteId], references: [id], onDelete: Restrict)
+  ordens    OrdemDeServico[]
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  @@index([clienteId])
+}
+
+model OrdemDeServico {
+  id                   String              @id
+  codigoAcompanhamento String              @unique
+  clienteId            String
+  veiculoId            String
+  filialId             String
+  status               String
+  version              Int                 @default(0)
+  quoteId              String?
+  quoteVersion         Int?
+  executionId          String?
+  dataInicioExecucao   DateTime?
+  dataFinalizacao      DateTime?
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+  cliente              Cliente             @relation(fields: [clienteId], references: [id], onDelete: Restrict)
+  veiculo              Veiculo             @relation(fields: [veiculoId], references: [id], onDelete: Restrict)
+  historicoStatus      HistoricoStatusOS[]
+  saga                 SagaInstance?
+
+  @@index([clienteId])
+  @@index([filialId, status])
+  @@index([veiculoId])
+}
+
+model HistoricoStatusOS {
+  id         String         @id @default(cuid())
+  osId       String
+  status     String
+  ocorridoEm DateTime
+  os         OrdemDeServico @relation(fields: [osId], references: [id], onDelete: Restrict)
+
+  @@index([osId, ocorridoEm])
+  @@index([status])
+}
+
+model SagaInstance {
+  id                String          @id
+  osId              String          @unique
+  filialId          String
+  flowVersion       Int             @default(1)
+  version           Int             @default(0)
+  status            String
+  quoteId           String?
+  quoteVersion      Int?
+  reservationId     String?
+  chargeId          String?
+  executionId       String?
+  deadlineAt        DateTime?
+  leaseUntil        DateTime?
+  leaseOwner        String?
+  lastError         String?
+  requiresAttention Boolean         @default(false)
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  os                OrdemDeServico  @relation(fields: [osId], references: [id], onDelete: Restrict)
+  operations        SagaOperation[]
+
+  @@index([status, deadlineAt])
+  @@index([leaseUntil])
+}
+
+model SagaOperation {
+  operationId     String       @id
+  sagaId          String
+  step            String
+  businessAttempt Int
+  commandType     String
+  status          String
+  result          Json?
+  compensation    Json?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  saga            SagaInstance @relation(fields: [sagaId], references: [id], onDelete: Restrict)
+
+  @@unique([sagaId, step, businessAttempt])
+}
+
+model Inbox {
+  consumer    String
+  messageId   String
+  operationId String
+  type        String
+  payload     Json
+  status      String
+  receivedAt  DateTime  @default(now())
+  appliedAt   DateTime?
+
+  @@id([consumer, messageId])
+  @@index([status, receivedAt])
+  @@index([operationId])
+}
+
+model Outbox {
+  messageId     String    @id
+  type          String
+  payload       Json
+  status        String    @default("PENDING")
+  attemptCount  Int       @default(0)
+  nextAttemptAt DateTime  @default(now())
+  claimUntil    DateTime?
+  claimOwner    String?
+  createdAt     DateTime  @default(now())
+  publishedAt   DateTime?
+
+  @@index([status, nextAttemptAt])
+}
+
+model IdempotencyRequest {
+  actorId     String
+  route       String
+  key         String
+  requestHash String
+  statusCode  Int
+  response    Json
+  createdAt   DateTime @default(now())
+
+  @@id([actorId, route, key])
+}
+
+model SagaRecoveryAudit {
+  id        String   @id
+  sagaId    String
+  messageId String
+  actorId   String
+  reason    String
+  createdAt DateTime @default(now())
+
+  @@index([sagaId, createdAt])
+}

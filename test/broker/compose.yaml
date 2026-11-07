@@ -1,0 +1,24 @@
+name: soat-servicebus-local-test
+services:
+  broker:
+    image: mcr.microsoft.com/azure-messaging/servicebus-emulator:latest
+    ports:
+      - "127.0.0.1:5672:5672"
+      - "127.0.0.1:5300:5300"
+    volumes:
+      - ./servicebus-config.json:/ServiceBus_Emulator/ConfigFiles/Config.json:ro
+    environment:
+      SQL_SERVER: mssql
+      MSSQL_SA_PASSWORD: ${SOAT_TEST_MSSQL_PASSWORD:?Defina senha local de teste}
+      ACCEPT_EULA: ${SOAT_TEST_ACCEPT_EULA:?Leia e aceite os termos antes de usar}
+    depends_on:
+      - mssql
+    networks: [local-test]
+  mssql:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    environment:
+      ACCEPT_EULA: ${SOAT_TEST_ACCEPT_EULA:?Leia e aceite os termos antes de usar}
+      MSSQL_SA_PASSWORD: ${SOAT_TEST_MSSQL_PASSWORD:?Defina senha local de teste}
+    networks: [local-test]
+networks:
+  local-test: {}

@@ -411,6 +411,7 @@ Temporary Items
 .env.test
 .env.docker
 dist
+generated/os
 .webpack
 .serverless/**/*.zip
 .env.local
