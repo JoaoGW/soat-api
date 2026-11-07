@@ -106,6 +106,44 @@ describe('compensação de recusa antes de pagamento', () => {
     >`SELECT "status" FROM "OrdemDeServico" WHERE "id" = ${osId}`;
     expect(os[0].status).toBe('CANCELADA');
   });
+  it('preserva reserva e exige reconciliação quando há cobrança sem pagamento comprovado', async () => {
+    const suffix = randomUUID();
+    const os2 = `os-${suffix}`;
+    const saga2 = `saga-${suffix}`;
+    await db.$executeRaw`INSERT INTO "OrdemDeServico" ("id", "codigoAcompanhamento", "clienteId", "veiculoId", "filialId", "status", "updatedAt") VALUES (${os2}, ${suffix}, ${client}, ${vehicle}, 'branch', 'AGUARDANDO_PAGAMENTO', NOW())`;
+    await db.$executeRaw`INSERT INTO "SagaInstance" ("id", "osId", "filialId", "status", "quoteId", "quoteVersion", "reservationId", "chargeId", "updatedAt") VALUES (${saga2}, ${os2}, 'branch', 'AGUARDANDO_PAGAMENTO', ${`quote-${suffix}`}, 1, ${`res-${suffix}`}, ${`charge-${suffix}`}, NOW())`;
+    expect(
+      await new StartCompensation(db).execute(saga2, 'SAGA_COMPENSATION'),
+    ).toBe('STARTED');
+    const commands = await db.$queryRaw<
+      Array<{ operationId: string }>
+    >`SELECT "operationId" FROM "SagaOperation" WHERE "sagaId"=${saga2} AND "commandType"='execution.cancel-work.v1'`;
+    expect(commands).toHaveLength(1);
+    const event: CancellationEvent = {
+      messageId: `cancel-${suffix}`,
+      operationId: commands[0].operationId,
+      type: 'execution.work-cancelled.v1',
+      producer: 'soat-execution-service',
+      osId: os2,
+      sagaId: saga2,
+      filialId: 'branch',
+      data: { outcome: 'CANCELLED', reason: 'SAGA_COMPENSATION' },
+    };
+    expect(await new ReceiveCancellationEvent(db).execute(event)).toBe(
+      'APPLIED',
+    );
+    const state = await db.$queryRaw<
+      Array<{ status: string; requiresAttention: boolean }>
+    >`SELECT "status", "requiresAttention" FROM "SagaInstance" WHERE "id"=${saga2}`;
+    expect(state[0]).toEqual({
+      status: 'RECONCILIACAO_NECESSARIA',
+      requiresAttention: true,
+    });
+    const unsafe = await db.$queryRaw<
+      Array<{ count: bigint }>
+    >`SELECT count(*) AS count FROM "Outbox" WHERE "payload"->>'sagaId'=${saga2} AND "type" IN ('execution.release-parts.v1', 'billing.refund-payment.v1')`;
+    expect(unsafe[0].count).toBe(0n);
+  });
   it.each([
     'normal',
     'resultado incerto',
