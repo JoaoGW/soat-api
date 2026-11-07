@@ -136,6 +136,9 @@ jobs:
           BILLING_REPO_DIR: ${{ github.workspace }}/billing
           EXECUTION_REPO_DIR: ${{ github.workspace }}/execution
         run: npm run test:bdd-distributed -- --format "json:$RUNNER_TEMP/bdd-results.json"
+      - name: Verificar recuperação da Saga após ACK incerto
+        working-directory: os
+        run: npm run test:broker-recover-dlq | tee "$RUNNER_TEMP/os-dlq.txt"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -146,6 +149,7 @@ jobs:
             ${{ runner.temp }}/auth-trace.txt
             ${{ runner.temp }}/cosmos-contracts.txt
             ${{ runner.temp }}/billing-dlq.txt
+            ${{ runner.temp }}/os-dlq.txt
           if-no-files-found: warn
       - name: Encerrar emuladores
         if: always()

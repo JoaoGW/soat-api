@@ -10,7 +10,7 @@ type Route = {
   validate: (body: unknown) => boolean;
   execute: (body: never) => Promise<'APPLIED' | 'PENDING'>;
 };
-type Receiver = Pick<ServiceBusReceiver, 'completeMessage' | 'abandonMessage'>;
+type Receiver = Pick<ServiceBusReceiver, 'completeMessage'>;
 
 /** Processes one specifically selected DLQ event through the normal Saga handler. */
 export class RecoverSagaDlq {

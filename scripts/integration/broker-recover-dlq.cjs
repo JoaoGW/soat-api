@@ -12,6 +12,9 @@ const {
   RecoverSagaDlq,
 } = require('../../dist/src/infrastructure/service-bus/RecoverSagaDlq');
 const {
+  recoverWithSafeSettlement,
+} = require('../../dist/src/infrastructure/service-bus/SafeDlqSettlement');
+const {
   failureEventValidator,
 } = require('../../dist/src/infrastructure/service-bus/RepairEventConsumer');
 const {
@@ -108,24 +111,49 @@ async function main() {
     validate: failureEventValidator(path.resolve('docs/contracts/messages')),
     execute: (body) => handler.execute(body),
   };
+  const recover = new RecoverSagaDlq(
+    db,
+    { 'soat-billing-service': verifier },
+    { [event.type]: route },
+  );
+  const input = {
+    expectedMessageId: messageId,
+    actorId: 'test-operator',
+    reason: 'TEST_RECOVERY',
+  };
+  let abandoned = false;
+  await assert.rejects(
+    () =>
+      recoverWithSafeSettlement(
+        dead[0],
+        {
+          completeMessage: async () => {
+            throw Error('ACK incerto simulado');
+          },
+          abandonMessage: async () => {
+            abandoned = true;
+          },
+        },
+        (settlement) => recover.execute(dead[0], settlement, input),
+      ),
+    /ACK incerto/,
+  );
+  assert.equal(abandoned, false);
   assert.equal(
-    await new RecoverSagaDlq(
-      db,
-      { 'soat-billing-service': verifier },
-      { [event.type]: route },
-    ).execute(dead[0], dlq, {
-      expectedMessageId: messageId,
-      actorId: 'test-operator',
-      reason: 'TEST_RECOVERY',
-    }),
+    await recoverWithSafeSettlement(dead[0], dlq, (settlement) =>
+      recover.execute(dead[0], settlement, input),
+    ),
     'APPLIED',
   );
   const state =
     await db.$queryRaw`SELECT "status" FROM "SagaInstance" WHERE "id"=${sagaId}`;
   assert.equal(state[0].status, 'COMPENSANDO');
+  const commands =
+    await db.$queryRaw`SELECT count(*) AS count FROM "Outbox" WHERE "type"='execution.cancel-work.v1' AND "payload"->>'sagaId'=${sagaId}`;
+  assert.equal(commands[0].count, 1n);
   const audit =
     await db.$queryRaw`SELECT count(*) AS count FROM "SagaRecoveryAudit" WHERE "messageId"=${messageId}`;
-  assert.equal(audit[0].count, 1n);
+  assert.equal(audit[0].count, 2n);
   assert.equal(
     (await dlq.receiveMessages(1, { maxWaitTimeInMs: 1000 })).length,
     0,

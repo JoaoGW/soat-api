@@ -98,7 +98,9 @@ tentativa em `SagaRecoveryAudit` antes de chamar o handler normal. Só confirma
 a mensagem depois que o fato correspondente estiver persistido na inbox. A
 auditoria registra tentativas, inclusive aquelas interrompidas; confira inbox e
 estado da Saga para determinar o resultado. Uma interrupção após o commit pode
-causar nova entrega, tratada pela deduplicação. Eventos inválidos não são
+causar nova entrega, tratada pela deduplicação. Se o ACK falhar com resultado
+incerto, a ferramenta não tenta abandonar a mesma mensagem: confira inbox e
+auditoria antes de repetir. Eventos inválidos não são
 modificados nem confirmados. O teste local usa a DLQ de uma fila: a confirmação
 da DLQ de assinatura de tópico falhou no emulador usado e precisa ser validada
 no Service Bus real antes do uso operacional.

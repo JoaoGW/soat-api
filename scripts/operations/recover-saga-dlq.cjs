@@ -7,6 +7,7 @@ const root = path.resolve(__dirname, '../../dist/src/infrastructure');
 const get = (p) => require(path.join(root, p));
 const { MessageVerifier } = get('messaging/message-signature');
 const { RecoverSagaDlq } = get('service-bus/RecoverSagaDlq');
+const { recoverWithSafeSettlement } = get('service-bus/SafeDlqSettlement');
 const env = process.env;
 const id = env.SAGA_DLQ_MESSAGE_ID,
   actorId = env.SAGA_DLQ_ACTOR,
@@ -138,17 +139,17 @@ async function main() {
   const messages = await receiver.receiveMessages(1, { maxWaitTimeInMs: 5000 });
   if (!messages.length) throw Error('DLQ vazia');
   const message = messages[0];
-  try {
-    const result = await new RecoverSagaDlq(db, verifiers, routes).execute(
-      message,
-      receiver,
-      { expectedMessageId: id, actorId, reason },
-    );
-    process.stdout.write(`Evento recuperado: ${result}\n`);
-  } catch (error) {
-    await receiver.abandonMessage(message);
-    throw error;
-  }
+  const result = await recoverWithSafeSettlement(
+    message,
+    receiver,
+    (settlement) =>
+      new RecoverSagaDlq(db, verifiers, routes).execute(message, settlement, {
+        expectedMessageId: id,
+        actorId,
+        reason,
+      }),
+  );
+  process.stdout.write(`Evento recuperado: ${result}\n`);
 }
 main()
   .finally(async () => {
