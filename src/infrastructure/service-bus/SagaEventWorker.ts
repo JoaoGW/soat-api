@@ -62,6 +62,11 @@ import {
 import { QuoteEventConsumer, quoteEventValidator } from './RepairEventConsumer';
 import { MessageVerifier } from '../messaging/message-signature';
 import { withMessageTrace } from '../observability/MessageTrace';
+import {
+  ChargeCancellationEventConsumer,
+  chargeCancellationEventValidator,
+} from './ChargeCancellationEventConsumer';
+import { ReceiveChargeCancellation } from '../saga/ReceberCancelamentoCobranca';
 
 /** Disabled by default; unsupported events are never acknowledged. */
 @Injectable()
@@ -128,6 +133,8 @@ export class SagaEventWorker implements OnModuleInit, OnApplicationShutdown {
     const releaseValidate = releaseEventValidator(directory);
     const failureValidate = failureEventValidator(directory);
     const cancellationValidate = cancellationEventValidator(directory);
+    const chargeCancellationValidate =
+      chargeCancellationEventValidator(directory);
     this.db = new PrismaClient({ datasources: { db: { url: database } } });
     this.bus = new ServiceBusClient(
       namespace,
@@ -169,8 +176,15 @@ export class SagaEventWorker implements OnModuleInit, OnApplicationShutdown {
       reservationValidate,
     );
     const cancellation = new CancellationEventConsumer(
-      new ReceiveCancellationEvent(this.db),
+      new ReceiveCancellationEvent(
+        this.db,
+        process.env.ENABLE_SAGA_CHARGE_CANCELLATION === 'true',
+      ),
       cancellationValidate,
+    );
+    const chargeCancellation = new ChargeCancellationEventConsumer(
+      new ReceiveChargeCancellation(this.db),
+      chargeCancellationValidate,
     );
     const refund = new RefundEventConsumer(
       new ReceiveRefundEvent(this.db),
@@ -222,6 +236,8 @@ export class SagaEventWorker implements OnModuleInit, OnApplicationShutdown {
               return failure.process(message, receiver);
             if (type === 'billing.charge-created.v1')
               return charge.process(message, receiver);
+            if (type === 'billing.charge-canceled.v1')
+              return chargeCancellation.process(message, receiver);
             if (
               type === 'billing.quote-issued.v1' ||
               type === 'billing.quote-approved.v1' ||

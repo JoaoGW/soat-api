@@ -7,6 +7,7 @@ import { ChargeEventConsumer } from './ChargeEventConsumer';
 import { PaymentEventConsumer } from './PaymentEventConsumer';
 import { WorkEnqueuedEventConsumer } from './WorkEnqueuedEventConsumer';
 import { SagaEventWorker } from './SagaEventWorker';
+import { ChargeCancellationEventConsumer } from './ChargeCancellationEventConsumer';
 
 jest.mock('@prisma/client');
 jest.mock('@azure/identity');
@@ -14,6 +15,10 @@ jest.mock('@azure/service-bus');
 jest.mock('./ChargeEventConsumer', () => ({
   ChargeEventConsumer: jest.fn(),
   chargeEventValidator: jest.fn(() => () => true),
+}));
+jest.mock('./ChargeCancellationEventConsumer', () => ({
+  ChargeCancellationEventConsumer: jest.fn(),
+  chargeCancellationEventValidator: jest.fn(() => () => true),
 }));
 jest.mock('./PaymentEventConsumer', () => ({
   PaymentEventConsumer: jest.fn(),
@@ -50,6 +55,9 @@ describe('SagaEventWorker', () => {
   };
   const db = { $disconnect: jest.fn().mockResolvedValue(undefined) };
   const charge = { process: jest.fn().mockResolvedValue(undefined) };
+  const chargeCancellation = {
+    process: jest.fn().mockResolvedValue(undefined),
+  };
   const payment = { process: jest.fn().mockResolvedValue(undefined) };
   const work = { process: jest.fn().mockResolvedValue(undefined) };
   beforeEach(() => {
@@ -71,6 +79,11 @@ describe('SagaEventWorker', () => {
     jest
       .mocked(ChargeEventConsumer)
       .mockImplementation(() => charge as unknown as ChargeEventConsumer);
+    jest
+      .mocked(ChargeCancellationEventConsumer)
+      .mockImplementation(
+        () => chargeCancellation as unknown as ChargeCancellationEventConsumer,
+      );
     jest
       .mocked(PaymentEventConsumer)
       .mockImplementation(() => payment as unknown as PaymentEventConsumer);
@@ -120,10 +133,15 @@ describe('SagaEventWorker', () => {
     const b = signed('billing.payment-confirmed.v1', 'soat-billing-service');
     const c = signed('execution.work-enqueued.v1', 'soat-execution-service');
     const d = signed('billing.unknown.v1', 'soat-billing-service');
+    const canceled = signed(
+      'billing.charge-canceled.v1',
+      'soat-billing-service',
+    );
     await handlers.processMessage(a);
     await handlers.processMessage(b);
     await handlers.processMessage(c);
     await handlers.processMessage(d);
+    await handlers.processMessage(canceled);
     const forged = signed(
       'billing.payment-confirmed.v1',
       'soat-billing-service',
@@ -135,6 +153,7 @@ describe('SagaEventWorker', () => {
       expect.objectContaining({ deadLetterReason: 'UnauthenticatedProducer' }),
     );
     expect(charge.process).toHaveBeenCalledWith(a, receiver);
+    expect(chargeCancellation.process).toHaveBeenCalledWith(canceled, receiver);
     expect(payment.process).toHaveBeenCalledWith(b, receiver);
     expect(work.process).toHaveBeenCalledWith(c, receiver);
     expect(receiver.abandonMessage).toHaveBeenCalledWith(d);

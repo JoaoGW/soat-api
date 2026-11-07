@@ -70,6 +70,8 @@ const config = {
   productionWorkers: process.env.SOAT_TEST_PRODUCTION_WORKERS === '1',
   noStock: process.env.SOAT_TEST_NO_STOCK === '1',
   compensateAfterPayment: process.env.SOAT_TEST_COMPENSATE === '1',
+  cancelBeforePayment: process.env.SOAT_TEST_CANCEL_BEFORE_PAYMENT === '1',
+  cancelTimeout: process.env.SOAT_TEST_CANCEL_TIMEOUT === '1',
   badEvidence: process.env.SOAT_TEST_BAD_EVIDENCE === '1',
   refundTimeout: process.env.SOAT_TEST_REFUND_TIMEOUT === '1',
   restartOs: process.env.SOAT_TEST_RESTART_OS === '1',
@@ -298,6 +300,30 @@ async function main() {
         where: { osId: opened.id, providerOrderId: config.providerOrder },
       }),
     );
+    if (config.cancelBeforePayment) {
+      await waitFor('cobrança recebida pelo OS', async () => {
+        const rows = await os.$queryRaw`SELECT "status" FROM "SagaInstance" WHERE "id"=${opened.sagaId}`;
+        return rows[0]?.status === 'AGUARDANDO_PAGAMENTO';
+      });
+      assert.equal((await o.call('compensate', { sagaId: opened.sagaId })).result, 'STARTED');
+      await waitFor('cancelamento financeiro e liberação', async () => {
+        const rows = await os.$queryRaw`SELECT "status" FROM "SagaInstance" WHERE "id"=${opened.sagaId}`;
+        return rows[0]?.status === 'COMPENSADA';
+      });
+      const charge = await billing.charge.findFirstOrThrow({ where: { osId: opened.id } });
+      assert.equal(charge.status, 'CANCELED');
+      assert.equal(await billing.payment.count({ where: { chargeId: charge.id } }), 0);
+      assert.equal(await billing.refund.count({ where: { payment: { chargeId: charge.id } } }), 0);
+      assert.equal((await b.call('cancelCalls')).result, 1);
+      const operations = await os.$queryRaw`SELECT "commandType", "status" FROM "SagaOperation" WHERE "sagaId"=${opened.sagaId} AND "commandType" IN ('billing.cancel-charge.v1','execution.release-parts.v1')`;
+      assert.equal(operations.length, 2); assert.ok(operations.every(row => row.status === 'SUCCEEDED'));
+      const started = await os.$queryRaw`SELECT count(*)::int AS count FROM "Inbox" WHERE "payload"->>'sagaId'=${opened.sagaId} AND "type" IN ('execution.work-started.v1','execution.work-completed.v1')`;
+      assert.equal(started[0].count, 0);
+      const stock = (await container.item('stock:p1', 'branch').read()).resource;
+      assert.equal(stock.reserved, 0);
+      process.stdout.write('Workers Nest cancelaram cobrança sem pagamento e liberaram reserva pelo broker.\n');
+      return;
+    }
     assert.equal((await b.call('pay')).result, 'APPLIED');
     await waitFor('trabalho na fila', async () => {
       const x =

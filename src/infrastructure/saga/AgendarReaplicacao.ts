@@ -29,6 +29,8 @@ import { ReceiveReleaseEvent } from './ReceberLiberacao';
 import { ReceiveFailureEvent } from './ReceberFalha';
 import { failureEventValidator } from '../service-bus/RepairEventConsumer';
 import { releaseEventValidator } from '../service-bus/RepairEventConsumer';
+import { chargeCancellationEventValidator } from '../service-bus/ChargeCancellationEventConsumer';
+import { ReceiveChargeCancellation } from './ReceberCancelamentoCobranca';
 
 type Cursor = { receivedAt: Date; messageId: string };
 
@@ -88,7 +90,10 @@ export class SagaReplayWorker implements OnModuleInit, OnApplicationShutdown {
       reservationEventValidator(
         resolve(process.cwd(), 'docs/contracts/messages'),
       ),
-      new ReceiveCancellationEvent(this.db),
+      new ReceiveCancellationEvent(
+        this.db,
+        process.env.ENABLE_SAGA_CHARGE_CANCELLATION === 'true',
+      ),
       cancellationEventValidator(
         resolve(process.cwd(), 'docs/contracts/messages'),
       ),
@@ -98,6 +103,10 @@ export class SagaReplayWorker implements OnModuleInit, OnApplicationShutdown {
       releaseEventValidator(resolve(process.cwd(), 'docs/contracts/messages')),
       new ReceiveFailureEvent(this.db),
       failureEventValidator(resolve(process.cwd(), 'docs/contracts/messages')),
+      new ReceiveChargeCancellation(this.db),
+      chargeCancellationEventValidator(
+        resolve(process.cwd(), 'docs/contracts/messages'),
+      ),
     );
     this.active = this.poll();
   }

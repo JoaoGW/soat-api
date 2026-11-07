@@ -64,6 +64,7 @@ export class SagaCommandWorker implements OnModuleInit, OnApplicationShutdown {
         const sender = [
           'billing.generate-quote.v1',
           'billing.create-charge.v1',
+          'billing.cancel-charge.v1',
           'billing.refund-payment.v1',
         ].includes(type)
           ? billing

@@ -31,7 +31,10 @@ type Command = {
   sameResult: boolean | null;
 };
 export class ReceiveCancellationEvent {
-  constructor(private readonly db: PrismaClient) {}
+  constructor(
+    private readonly db: PrismaClient,
+    private readonly chargeCancellationEnabled = false,
+  ) {}
   async execute(
     event: CancellationEvent,
     now = new Date(),
@@ -94,8 +97,12 @@ export class ReceiveCancellationEvent {
           >`SELECT DISTINCT "payload"->'data'->>'paymentId' AS "paymentId" FROM "Inbox" WHERE "consumer" = 'os.saga-events' AND "type" = 'billing.payment-confirmed.v1' AND "status" = 'APPLIED' AND "payload"->>'sagaId' = ${event.sagaId} AND "payload"->'data'->>'chargeId' = ${saga.chargeId}`
         : [];
       const chargeOperations = await tx.$queryRaw<
-        Array<{ status: string; reason: string | null }>
-      >`SELECT "status", "result"->'data'->>'reasonCode' AS "reason" FROM "SagaOperation" WHERE "sagaId" = ${event.sagaId} AND "commandType" = 'billing.create-charge.v1'`;
+        Array<{
+          status: string;
+          reason: string | null;
+          chargeId: string | null;
+        }>
+      >`SELECT "status", "result"->'data'->>'reasonCode' AS "reason", "result"->'data'->>'chargeId' AS "chargeId" FROM "SagaOperation" WHERE "sagaId" = ${event.sagaId} AND "commandType" = 'billing.create-charge.v1'`;
       if (
         event.data.outcome === 'CANCELLED' &&
         saga.chargeId &&
@@ -134,6 +141,45 @@ export class ReceiveCancellationEvent {
         await tx.$executeRaw`INSERT INTO "SagaOperation" ("operationId", "sagaId", "step", "businessAttempt", "commandType", "status", "updatedAt") VALUES (${operationId}, ${event.sagaId}, 'REFUND_PAYMENT', 1, ${type}, 'PENDING', NOW())`;
         await tx.$executeRaw`INSERT INTO "Outbox" ("messageId", "type", "payload") VALUES (${messageId}, ${type}, ${JSON.stringify(payload)}::jsonb)`;
         await tx.$executeRaw`UPDATE "SagaInstance" SET "status" = 'REEMBOLSO_PENDENTE', "version" = "version" + 1, "updatedAt" = NOW() WHERE "id" = ${event.sagaId}`;
+      } else if (
+        this.chargeCancellationEnabled &&
+        event.data.outcome === 'CANCELLED' &&
+        saga.chargeId &&
+        saga.reservationId &&
+        payments.length === 0 &&
+        chargeOperations.length === 1 &&
+        chargeOperations[0].status === 'SUCCEEDED' &&
+        chargeOperations[0].chargeId === saga.chargeId
+      ) {
+        const operationId = randomUUID();
+        const messageId = randomUUID();
+        const type = 'billing.cancel-charge.v1';
+        const payload = {
+          messageId,
+          type,
+          schemaVersion: 1,
+          occurredAt: now.toISOString(),
+          producer: 'soat-os-service',
+          aggregateType: 'saga',
+          aggregateId: event.sagaId,
+          aggregateVersion: saga.version + 1,
+          osId: event.osId,
+          sagaId: event.sagaId,
+          filialId: event.filialId,
+          correlationId: event.correlationId ?? event.sagaId,
+          ...forwardTrace(event),
+          causationId: event.messageId,
+          operationId,
+          data: {
+            chargeId: saga.chargeId,
+            reservationId: saga.reservationId,
+            cancelOperationId: event.operationId,
+            cancelEventId: event.messageId,
+          },
+        };
+        await tx.$executeRaw`INSERT INTO "SagaOperation" ("operationId", "sagaId", "step", "businessAttempt", "commandType", "status", "updatedAt") VALUES (${operationId}, ${event.sagaId}, 'CANCEL_CHARGE', 1, ${type}, 'PENDING', NOW())`;
+        await tx.$executeRaw`INSERT INTO "Outbox" ("messageId", "type", "payload") VALUES (${messageId}, ${type}, ${JSON.stringify(payload)}::jsonb)`;
+        await tx.$executeRaw`UPDATE "SagaInstance" SET "status" = 'RECONCILIACAO_NECESSARIA', "requiresAttention" = true, "lastError" = 'CHARGE_CANCEL_PENDING', "version" = "version" + 1, "updatedAt" = NOW() WHERE "id" = ${event.sagaId}`;
       } else if (
         event.data.outcome === 'CANCELLED' &&
         saga.reservationId &&

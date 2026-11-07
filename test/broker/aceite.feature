@@ -39,6 +39,21 @@ Funcionalidade: Aceite distribuído da oficina pelo broker
     Quando executo a compensação após pagamento nos workers Nest pelo broker
     Então a execução confirma "reembolso simulado confirmado e reserva liberada pelo broker"
 
+  Cenário: Cancelamento financeiro sem pagamento entre OS e Billing
+    Dado que os serviços e seus bancos locais de teste estão configurados
+    Quando executo o cancelamento da cobrança sem pagamento pelo broker
+    Então a execução confirma "OS e Billing trocaram cancelamento assinado pelo broker"
+
+  Cenário: Cancelamento sem pagamento com workers Nest de produção
+    Dado que os serviços e seus bancos locais de teste estão configurados
+    Quando executo o cancelamento sem pagamento com os três workers Nest
+    Então a execução confirma "Workers Nest cancelaram cobrança sem pagamento e liberaram reserva pelo broker"
+
+  Cenário: Resposta perdida do cancelamento com workers Nest
+    Dado que os serviços e seus bancos locais de teste estão configurados
+    Quando o provedor cancela a cobrança e perde a resposta
+    Então a execução confirma "Workers Nest cancelaram cobrança sem pagamento e liberaram reserva pelo broker"
+
   Cenário: Retomada após interrupção abrupta do processo OS
     Dado que os serviços e seus bancos locais de teste estão configurados
     Quando reinicio o processo OS durante a Saga com workers Nest

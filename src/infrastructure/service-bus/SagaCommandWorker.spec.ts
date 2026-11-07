@@ -74,6 +74,15 @@ describe('publicador de comandos da Saga', () => {
         applicationProperties: { signature: expect.any(String) },
       }),
     );
+    const cancellation = { ...payload, type: 'billing.cancel-charge.v1' };
+    await port.publish({
+      messageId: 'id',
+      type: cancellation.type,
+      payload: cancellation,
+    });
+    expect(billing.sendMessages).toHaveBeenCalledWith(
+      expect.objectContaining({ subject: 'billing.cancel-charge.v1' }),
+    );
     const executionPayload = { ...payload, type: 'execution.cancel-work.v1' };
     await port.publish({
       messageId: 'id',

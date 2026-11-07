@@ -208,8 +208,9 @@ async function init(c) {
       path.join(c.billingDir, 'node_modules/@prisma/client'),
     );
     db = new PrismaClient({ datasources: { db: { url: c.billingUrl } } });
-    let refunded = false; let refundCalls = 0;
+    let refunded = false; let refundCalls = 0; let canceled = false; let cancelCalls = 0;
     actions.refundCalls = async () => refundCalls;
+    actions.cancelCalls = async () => cancelCalls;
     const refundId = `REF${c.tag.replaceAll('-', '').slice(0, 26)}`;
     provider = {
       create: async (input) => ({
@@ -231,16 +232,16 @@ async function init(c) {
           external_reference: charge.externalReference,
           currency: 'BRL',
           total_amount: '10.00',
-          status: refunded ? 'refunded' : 'processed',
-          status_detail: 'accredited',
+          status: c.cancelBeforePayment ? (canceled ? 'canceled' : 'created') : (refunded ? 'refunded' : 'processed'),
+          status_detail: c.cancelBeforePayment ? (canceled ? 'canceled' : 'created') : 'accredited',
           transactions: {
             payments: [
               {
                 id: `txn-${c.tag}`,
                 reference_id: c.providerPayment,
-                status: refunded ? 'refunded' : 'processed',
-                status_detail: 'accredited',
-                paid_amount: '10.00',
+                status: c.cancelBeforePayment ? (canceled ? 'canceled' : 'created') : (refunded ? 'refunded' : 'processed'),
+                status_detail: c.cancelBeforePayment ? (canceled ? 'canceled_by_api' : 'created') : 'accredited',
+                paid_amount: c.cancelBeforePayment ? '0.00' : '10.00',
                 ...(refunded ? { refunded_amount: '10.00' } : {}),
               },
             ],
@@ -248,6 +249,7 @@ async function init(c) {
           },
         };
       },
+      cancel: async () => { cancelCalls++; canceled = true; if (c.cancelTimeout) throw Error('resposta do cancelamento perdida'); return { id: c.providerOrder, status: 'canceled' }; },
       refund: async () => { refundCalls++; refunded = true; if (c.refundTimeout) throw Error('resposta do reembolso perdida'); return { id: c.providerOrder, transactions: { refunds: [{ id: refundId, transaction_id: `txn-${c.tag}` }] } }; },
       getPayment: async () => ({
         id: Number(c.providerPayment),
@@ -493,8 +495,8 @@ async function startProductionWorkers(c, provider, canProcessRefund) {
     JWT_SECRET: 'admin-local-secret-with-at-least-32-characters', JWT_CLIENT_SECRET: 'client-local-secret-with-at-least-32-characters', JWT_EXPIRES_IN: '1d', JWT_CLIENT_ISSUER: 'soat-auth-function', JWT_CLIENT_AUDIENCE: 'soat-api',
     ADMIN_USERNAME: 'admin', ADMIN_PASSWORD_HASH: '$2b$10$12kw18n1pMwBIluxZQxh1O.zpsHVW.lRC9lmwyWCtKIOcC.49x5.O', MAIL_HOST: 'smtp.test.local', MAIL_PORT: '587', MAIL_USER: 'test@example.com', MAIL_PASS: 'test', MAIL_FROM: 'test@example.com', WEBHOOK_SECRET: 'test-webhook-secret-with-at-least-32-characters', WEBHOOK_TOKEN_EXPIRES_IN: '1h', APP_URL: 'http://localhost:3000',
   });
-  if (c.role === 'os') Object.assign(process.env, { DATABASE_URL: c.osUrl, SAGA_DATABASE_URL: c.osUrl, OS_MESSAGE_PRIVATE_KEY: keys.os.privateKey, ENABLE_SAGA_COMMAND_PUBLISHER: 'true', ENABLE_SAGA_EVENT_CONSUMER: 'true', ENABLE_FASE4_OPEN: 'true', ENABLE_FASE4_DELIVERY: 'true', ENABLE_FASE4_COMPENSATION: 'true' });
-  if (c.role === 'billing') Object.assign(process.env, { DATABASE_URL: c.billingUrl, BILLING_MESSAGE_PRIVATE_KEY: keys.billing.privateKey, ENABLE_SERVICE_BUS_WORKER: 'true', ENABLE_MERCADO_PAGO_COMMANDS: 'true', ENABLE_BILLING_COMPENSATION_EVIDENCE: 'true', ENABLE_MERCADO_PAGO_REFUND_COMMANDS: 'true', ...(c.refundTimeout ? { ENABLE_MERCADO_PAGO_REFUND_RECONCILIATION: 'true' } : {}), MERCADO_PAGO_ACCESS_TOKEN: 'local-fixture-only' });
+  if (c.role === 'os') Object.assign(process.env, { DATABASE_URL: c.osUrl, SAGA_DATABASE_URL: c.osUrl, OS_MESSAGE_PRIVATE_KEY: keys.os.privateKey, ENABLE_SAGA_COMMAND_PUBLISHER: 'true', ENABLE_SAGA_EVENT_CONSUMER: 'true', ENABLE_FASE4_OPEN: 'true', ENABLE_FASE4_DELIVERY: 'true', ENABLE_FASE4_COMPENSATION: 'true', ...(c.cancelBeforePayment ? { ENABLE_SAGA_CHARGE_CANCELLATION: 'true' } : {}) });
+  if (c.role === 'billing') Object.assign(process.env, { DATABASE_URL: c.billingUrl, BILLING_MESSAGE_PRIVATE_KEY: keys.billing.privateKey, ENABLE_SERVICE_BUS_WORKER: 'true', ENABLE_MERCADO_PAGO_COMMANDS: 'true', ENABLE_BILLING_COMPENSATION_EVIDENCE: 'true', ENABLE_MERCADO_PAGO_REFUND_COMMANDS: 'true', ...(c.refundTimeout ? { ENABLE_MERCADO_PAGO_REFUND_RECONCILIATION: 'true' } : {}), ...(c.cancelBeforePayment ? { ENABLE_MERCADO_PAGO_CANCEL_COMMANDS: 'true', BILLING_CANCEL_POLL_INTERVAL_MS: '1000' } : {}), MERCADO_PAGO_ACCESS_TOKEN: 'local-fixture-only' });
   if (c.role === 'execution') Object.assign(process.env, { EXECUTION_MESSAGE_PRIVATE_KEY: keys.execution.privateKey, ENABLE_EXECUTION_COMMANDS: 'true', ENABLE_EXECUTION_OUTBOX: 'true' });
   process.chdir(roleDir);
   Module._load = function(request, parent, isMain) {

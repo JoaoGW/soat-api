@@ -58,6 +58,27 @@ When('executo a compensação após pagamento nos workers Nest pelo broker', asy
   await this.attach(result.stdout, 'text/plain');
 });
 
+When('executo o cancelamento da cobrança sem pagamento pelo broker', async function () {
+  const result = await runChecked('scripts/integration/broker-charge-cancellation.cjs', [], process.env);
+  this.output = result.stdout;
+  if (result.stderr) await this.attach(result.stderr, 'text/plain');
+  await this.attach(result.stdout, 'text/plain');
+});
+
+When('executo o cancelamento sem pagamento com os três workers Nest', async function () {
+  const result = await runChecked('scripts/integration/broker-independent-processes.cjs', [], { ...process.env, SOAT_TEST_PRODUCTION_WORKERS: '1', SOAT_TEST_CANCEL_BEFORE_PAYMENT: '1' });
+  this.output = result.stdout;
+  if (result.stderr) await this.attach(result.stderr, 'text/plain');
+  await this.attach(result.stdout, 'text/plain');
+});
+
+When('o provedor cancela a cobrança e perde a resposta', async function () {
+  const result = await runChecked('scripts/integration/broker-independent-processes.cjs', [], { ...process.env, SOAT_TEST_PRODUCTION_WORKERS: '1', SOAT_TEST_CANCEL_BEFORE_PAYMENT: '1', SOAT_TEST_CANCEL_TIMEOUT: '1' });
+  this.output = result.stdout;
+  if (result.stderr) await this.attach(result.stderr, 'text/plain');
+  await this.attach(result.stdout, 'text/plain');
+});
+
 When('reinicio o processo OS durante a Saga com workers Nest', async function () {
   const result = await runChecked('scripts/integration/broker-independent-processes.cjs', [], { ...process.env, SOAT_TEST_PRODUCTION_WORKERS: '1', SOAT_TEST_RESTART_OS: '1' });
   this.output = result.stdout;
