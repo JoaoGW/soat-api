@@ -125,6 +125,11 @@ jobs:
           done
       - name: Verificar catálogo e estoque no Cosmos emulado
         run: npm run test:cosmos-queue --prefix execution | tee "$RUNNER_TEMP/cosmos-contracts.txt"
+      - name: Verificar recuperação de orçamento na DLQ
+        working-directory: billing
+        env:
+          DATABASE_URL: ${{ env.BILLING_TEST_DATABASE_URL }}
+        run: npm run test:broker-quote-dlq | tee "$RUNNER_TEMP/billing-dlq.txt"
       - name: Executar jornadas e compensações pelo broker
         working-directory: os
         env:
@@ -140,6 +145,7 @@ jobs:
             ${{ runner.temp }}/bdd-results.json
             ${{ runner.temp }}/auth-trace.txt
             ${{ runner.temp }}/cosmos-contracts.txt
+            ${{ runner.temp }}/billing-dlq.txt
           if-no-files-found: warn
       - name: Encerrar emuladores
         if: always()
