@@ -93,6 +93,10 @@ evento disponível na DLQ: o comando recebe uma mensagem por vez e interrompe
 sem confirmá-la se o identificador não corresponder. Não percorre nem altera as
 demais mensagens.
 
+O script está incluído na imagem de runtime do OS e recusa execução sem a
+configuração explícita de recuperação. Valide a identidade e as permissões da
+assinatura no ambiente de aceite antes de usá-lo operacionalmente.
+
 O comando verifica assinatura do produtor, contrato, assunto e ID; registra a
 tentativa em `SagaRecoveryAudit` antes de chamar o handler normal. Só confirma
 a mensagem depois que o fato correspondente estiver persistido na inbox. A

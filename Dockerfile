@@ -27,6 +27,7 @@ RUN npx prisma generate
 
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/docs/contracts/messages ./docs/contracts/messages
+COPY --from=builder --chown=node:node /app/scripts/operations/recover-saga-dlq.cjs ./scripts/operations/recover-saga-dlq.cjs
 
 EXPOSE 3000
 

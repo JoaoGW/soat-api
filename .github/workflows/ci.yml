@@ -58,6 +58,13 @@ jobs:
       - run: npm run test:contracts
       - run: npm run test:deploy-gate
       - run: npm run build
+      - name: Verificar imagem e trava da recuperação da DLQ
+        run: |
+          docker build -t os-ci:${{ github.sha }} .
+          if output="$(docker run --rm --entrypoint node os-ci:${{ github.sha }} scripts/operations/recover-saga-dlq.cjs 2>&1)"; then
+            echo 'Recuperação não deveria executar sem habilitação'; exit 1
+          fi
+          [[ "$output" == *'Configuração incompleta da recuperação da DLQ'* ]] || { echo 'Ferramenta ausente ou inválida'; exit 1; }
       - run: npx prisma migrate deploy
       - run: npm run test:cov -- --runInBand
       - run: npm run test:coverage-messaging
