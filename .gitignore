@@ -434,3 +434,7 @@ override.tf
 override.tf.json
 *_override.tf
 *_override.tf.json
+
+# Ambiente kind local
+.kind-local/
+.env.kind.local

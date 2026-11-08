@@ -5,8 +5,11 @@ import {
   OnModuleInit,
 } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
-import { WorkloadIdentityCredential } from '@azure/identity';
 import { ServiceBusClient, ServiceBusReceiver } from '@azure/service-bus';
+import {
+  createServiceBusClient,
+  serviceBusConfigured,
+} from './ServiceBusConnection';
 import { resolve } from 'node:path';
 import {
   ChargeEventConsumer,
@@ -89,13 +92,9 @@ export class SagaEventWorker implements OnModuleInit, OnApplicationShutdown {
       !database ||
       !billingKey ||
       !executionKey ||
-      !namespace ||
-      !/^[a-z0-9-]+\.servicebus\.windows\.net$/i.test(namespace) ||
+      !serviceBusConfigured(namespace) ||
       !topic ||
-      !subscription ||
-      !process.env.AZURE_TENANT_ID ||
-      !process.env.AZURE_CLIENT_ID ||
-      !process.env.AZURE_FEDERATED_TOKEN_FILE
+      !subscription
     )
       throw new Error('Configuração incompleta do consumidor da Saga');
     const verifiers = {
@@ -136,10 +135,7 @@ export class SagaEventWorker implements OnModuleInit, OnApplicationShutdown {
     const chargeCancellationValidate =
       chargeCancellationEventValidator(directory);
     this.db = new PrismaClient({ datasources: { db: { url: database } } });
-    this.bus = new ServiceBusClient(
-      namespace,
-      new WorkloadIdentityCredential(),
-    );
+    this.bus = createServiceBusClient(namespace);
     this.receiver = this.bus.createReceiver(topic, subscription, {
       receiveMode: 'peekLock',
     });

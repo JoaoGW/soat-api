@@ -1,0 +1,83 @@
+name: Fluxo completo em Kubernetes
+
+on:
+  pull_request:
+  push:
+    branches: [main, development]
+  workflow_dispatch:
+    inputs:
+      billing_ref:
+        description: Branch ou SHA do Billing
+        default: development
+        type: string
+      execution_ref:
+        description: Branch ou SHA do Execution
+        default: development
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fluxo-completo-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  fluxo:
+    name: Jornada e compensação no kind
+    # O SQL Server e o Service Bus Emulator exigem o aceite dos termos pelo dono do repositório.
+    if: vars.SOAT_ACCEPT_EULA == 'Y'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      SOAT_WORKSPACE: ${{ github.workspace }}
+      SOAT_ACCEPT_EULA: ${{ vars.SOAT_ACCEPT_EULA }}
+      KIND_CLUSTER: soat
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: soat-api
+      - uses: actions/checkout@v4
+        with:
+          repository: JoaoGW/soat-billing-service
+          ref: ${{ inputs.billing_ref || vars.SOAT_BILLING_REF || 'development' }}
+          path: soat-billing-service
+      - uses: actions/checkout@v4
+        with:
+          repository: JoaoGW/soat-execution-service
+          ref: ${{ inputs.execution_ref || vars.SOAT_EXECUTION_REF || 'development' }}
+          path: soat-execution-service
+      - name: Registrar versões avaliadas
+        run: |
+          {
+            echo '### Versões avaliadas'
+            for repo in soat-api soat-billing-service soat-execution-service; do echo "- $repo: \`$(git -C "$repo" rev-parse HEAD)\`"; done
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: helm/kind-action@v1
+        with:
+          cluster_name: soat
+      - name: Subir os três serviços, bancos e emuladores
+        working-directory: soat-api
+        run: scripts/kind/ambiente.sh subir
+      - name: Jornada completa da OS
+        working-directory: soat-api
+        run: scripts/kind/ambiente.sh jornada | tee "$RUNNER_TEMP/jornada.txt"
+      - name: Falha após pagamento e compensação da Saga
+        working-directory: soat-api
+        run: CENARIO=compensacao scripts/kind/ambiente.sh jornada | tee "$RUNNER_TEMP/compensacao.txt"
+      - name: Publicar evidências
+        if: always()
+        run: |
+          {
+            echo '### Jornada completa'; echo '```'; cat "$RUNNER_TEMP/jornada.txt" 2>/dev/null || true; echo '```'
+            echo '### Compensação'; echo '```'; cat "$RUNNER_TEMP/compensacao.txt" 2>/dev/null || true; echo '```'
+            echo '### Recursos'; echo '```'; kubectl -n soat-local get deployments,pods,jobs,services -o wide 2>/dev/null || true; echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Diagnóstico
+        if: failure()
+        run: |
+          kubectl -n soat-local get all,jobs -o wide || true
+          for app in soat-api soat-billing-service soat-execution-service mercado-pago-simulado; do
+            echo "::group::$app"; kubectl -n soat-local logs deployment/$app --tail=200 || true; echo '::endgroup::'
+          done
+          docker logs soat-servicebus --tail=100 || true

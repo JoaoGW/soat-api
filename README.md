@@ -262,6 +262,15 @@ variável protegida `TF_APPLY_ENABLED=true`; ela permanece `false` enquanto a
 assinatura Azure estiver desativada, por isso o ambiente kind é o deploy
 automatizado verificável de cada revisão.
 
+O workflow [**Fluxo completo em Kubernetes**](.github/workflows/fluxo-completo-kind.yml)
+sobe OS, Billing e Execution juntos em um cluster kind, cada um com o próprio
+banco, com os emuladores de Service Bus e Cosmos DB e o Mercado Pago simulado, e
+executa pelas APIs HTTP a jornada completa da OS e a compensação após pagamento.
+O mesmo ambiente roda no Mac com `scripts/kind/ambiente.sh` e aceita credenciais
+de teste do Mercado Pago e a chave do New Relic; o passo a passo está em
+[`docs/ambiente-kind.md`](docs/ambiente-kind.md). Os serviços só aceitam
+emuladores com `ALLOW_LOCAL_EMULATORS=true`.
+
 Para reproduzir o deploy localmente com Docker, kind e kubectl, siga os passos
 do job `deploy_kind`: `docker build -t ghcr.io/joaogw/soat-api:<sha> .`,
 `kind create cluster`, `kind load docker-image`, crie os secrets `os-postgres`

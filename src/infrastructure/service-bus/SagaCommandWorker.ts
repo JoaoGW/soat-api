@@ -5,8 +5,11 @@ import {
   OnModuleInit,
 } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
-import { WorkloadIdentityCredential } from '@azure/identity';
 import { ServiceBusClient, ServiceBusSender } from '@azure/service-bus';
+import {
+  createServiceBusClient,
+  serviceBusConfigured,
+} from './ServiceBusConnection';
 import { DispatchCommands } from '../saga/PublicarComandos';
 import { MessageSigner } from '../messaging/message-signature';
 
@@ -28,22 +31,11 @@ export class SagaCommandWorker implements OnModuleInit, OnApplicationShutdown {
     const ns = process.env.SERVICE_BUS_NAMESPACE;
     const b = process.env.SERVICE_BUS_BILLING_QUEUE;
     const e = process.env.SERVICE_BUS_EXECUTION_QUEUE;
-    if (
-      !db ||
-      !privateKey ||
-      !ns ||
-      !/^[a-z0-9-]+\.servicebus\.windows\.net$/i.test(ns) ||
-      !b ||
-      !e ||
-      b === e ||
-      !process.env.AZURE_TENANT_ID ||
-      !process.env.AZURE_CLIENT_ID ||
-      !process.env.AZURE_FEDERATED_TOKEN_FILE
-    )
+    if (!db || !privateKey || !serviceBusConfigured(ns) || !b || !e || b === e)
       throw new Error('Configuração incompleta do publicador da Saga');
     const signer = new MessageSigner(privateKey);
     this.db = new PrismaClient({ datasources: { db: { url: db } } });
-    this.bus = new ServiceBusClient(ns, new WorkloadIdentityCredential());
+    this.bus = createServiceBusClient(ns);
     this.billing = this.bus.createSender(b);
     this.execution = this.bus.createSender(e);
     const billing = this.billing;
