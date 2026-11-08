@@ -20,8 +20,16 @@ liberação aplicáveis. Resultado incerto exige reconciliação; trabalho físi
 iniciado não pode ser desfeito por exclusão de registros. Fatos fora de ordem
 devem permanecer pendentes para reavaliação.
 
+## Alternativa considerada
+
+A coreografia, com cada serviço reagindo aos eventos dos demais, evitaria um
+coordenador, mas distribuiria a regra de pagamento antes do reparo e a ordem
+das compensações por três repositórios. Sem um dono do estado, prazos vencidos
+e resultados financeiros incertos ficariam sem um ponto único de reconciliação.
+
 ## Estado
 
-Decisão inicial do projeto. A máquina de estados e os schemas presentes são
-fundamentos locais; a Saga, os transportes e as compensações ainda não estão
-integrados nem demonstrados em HML.
+Aceita e implementada. A máquina de estados, inbox/outbox, comandos, eventos e
+compensações estão integrados entre OS, Billing e Execution e são exercitados
+pelo BDD distribuído com broker e bancos emulados. A validação com Service Bus,
+Cosmos DB e Mercado Pago reais depende do ambiente de aceite.
