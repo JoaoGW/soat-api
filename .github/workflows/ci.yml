@@ -158,6 +158,8 @@ jobs:
       - run: DATABASE_URL="$FULL_LEGACY_TEST_DATABASE_URL" npx prisma migrate deploy
       - run: DATABASE_URL="$FULL_SAGA_TEST_DATABASE_URL" npm run db:migrate:deploy
       - run: npm run test:coverage-full
+      - name: Publicar resumo de cobertura
+        run: node scripts/quality/coverage-summary.cjs coverage/full/report/coverage-summary.json "OS completo"
       - uses: actions/upload-artifact@v4
         with:
           name: os-full-coverage-${{ github.sha }}
@@ -182,3 +184,94 @@ jobs:
           grep -q 'kind: HorizontalPodAutoscaler' /tmp/prod.yaml
           grep -q 'kind: PodDisruptionBudget' /tmp/prod.yaml
           grep -q 'kind: Job' /tmp/migration-hml.yaml
+
+  deploy_kind:
+    name: Deploy Kubernetes (kind)
+    needs: [quality, saga_os, full_coverage, manifests]
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      CLUSTER: soat-os
+      NAMESPACE: soat-kind
+      IMAGE: ghcr.io/joaogw/soat-api:${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Construir imagem do SHA avaliado
+        run: docker build -t "$IMAGE" .
+      - uses: helm/kind-action@v1
+        with:
+          cluster_name: ${{ env.CLUSTER }}
+      - name: Carregar imagem e criar secrets efêmeros
+        run: |
+          kind load docker-image "$IMAGE" --name "$CLUSTER"
+          db_password="$(openssl rand -hex 24)"
+          admin_password="$(openssl rand -hex 16)"
+          admin_hash="$(docker run --rm --entrypoint node "$IMAGE" -e 'process.stdout.write(require("bcrypt").hashSync(process.argv[1], 10))' "$admin_password")"
+          for value in "$db_password" "$admin_password"; do echo "::add-mask::$value"; done
+          echo "ADMIN_PASSWORD=$admin_password" >> "$GITHUB_ENV"
+          database="postgresql://os:${db_password}@os-postgres:5432"
+          kubectl create namespace "$NAMESPACE"
+          kubectl -n "$NAMESPACE" create secret generic os-postgres \
+            --from-literal=POSTGRES_USER=os --from-literal=POSTGRES_PASSWORD="$db_password" --from-literal=POSTGRES_DB=oficina_kind
+          kubectl -n "$NAMESPACE" create secret generic soat-api-runtime \
+            --from-literal=DATABASE_URL="$database/oficina_kind" \
+            --from-literal=SAGA_DATABASE_URL="$database/os_saga_kind" \
+            --from-literal=ENABLE_FASE4_REGISTRY=true \
+            --from-literal=JWT_SECRET="$(openssl rand -hex 32)" \
+            --from-literal=JWT_CLIENT_SECRET="$(openssl rand -hex 32)" \
+            --from-literal=ADMIN_USERNAME=admin-kind \
+            --from-literal=ADMIN_PASSWORD_HASH="$admin_hash" \
+            --from-literal=WEBHOOK_SECRET="$(openssl rand -hex 32)" \
+            --from-literal=MAIL_HOST=smtp.kind.invalid --from-literal=MAIL_PORT=587 \
+            --from-literal=MAIL_USER=kind --from-literal=MAIL_PASS=kind \
+            --from-literal=MAIL_FROM=oficina@kind.invalid \
+            --from-literal=APP_URL=http://soat-api.soat-kind.svc.cluster.local
+      - name: Aplicar banco, migrations e Deployment do SHA
+        run: |
+          kubectl kustomize deploy/kustomize/overlays/kind |
+            sed -e "s/sha-not-set/$GITHUB_SHA/g" -e "s/__ENVIRONMENT__/production/g" -e "s/__APP_VERSION__/$GITHUB_SHA/g" > "$RUNNER_TEMP/rendered.yaml"
+          if grep -Eq 'sha-not-set|__[A-Z_]+__' "$RUNNER_TEMP/rendered.yaml"; then echo 'Manifesto incompleto'; exit 1; fi
+          wait_job() {
+            for _ in $(seq 1 150); do
+              [[ "$(kubectl -n "$NAMESPACE" get job "$1" -o jsonpath='{.status.succeeded}')" == '1' ]] && return 0
+              [[ "$(kubectl -n "$NAMESPACE" get job "$1" -o jsonpath='{.status.conditions[?(@.type=="Failed")].status}')" == 'True' ]] && { kubectl -n "$NAMESPACE" logs "job/$1" --tail=100 || true; return 1; }
+              sleep 2
+            done
+            echo "Job $1 não concluiu"; return 1
+          }
+          kubectl apply -f "$RUNNER_TEMP/rendered.yaml" -l 'app.kubernetes.io/component in (database,identity)'
+          kubectl -n "$NAMESPACE" rollout status deployment/os-postgres --timeout=180s
+          kubectl apply -f "$RUNNER_TEMP/rendered.yaml" -l app.kubernetes.io/component=migration
+          wait_job soat-api-migrate
+          wait_job soat-os-migrate
+          kubectl apply -f "$RUNNER_TEMP/rendered.yaml" -l '!app.kubernetes.io/component'
+          kubectl -n "$NAMESPACE" rollout status deployment/soat-api --timeout=300s
+      - name: Validar serviço implantado
+        run: |
+          deployed="$(kubectl -n "$NAMESPACE" get deployment soat-api -o jsonpath='{.spec.template.spec.containers[0].image}')"
+          [[ "$deployed" == "$IMAGE" ]] || { echo "Imagem inesperada: $deployed"; exit 1; }
+          kubectl -n "$NAMESPACE" port-forward service/soat-api 18080:80 >/dev/null 2>&1 &
+          trap 'kill %1' EXIT
+          base=http://127.0.0.1:18080
+          curl -fsS --retry 20 --retry-delay 1 --retry-all-errors "$base/health" | jq -e --arg sha "$GITHUB_SHA" '.version == $sha'
+          curl -fsS -o /dev/null "$base/docs"
+          [[ "$(curl -s -o /dev/null -w '%{http_code}' "$base/fase4/ordens-servico/fila-operacional")" == '401' ]]
+          token="$(jq -n --arg password "$ADMIN_PASSWORD" '{username: "admin-kind", password: $password}' |
+            curl -fsS -H 'Content-Type: application/json' -d @- "$base/auth/login" | jq -er '.accessToken')"
+          curl -fsS -H "Authorization: Bearer $token" "$base/fase4/ordens-servico/fila-operacional" | jq -e '.items | type == "array"'
+          {
+            echo '### OS implantado no Kubernetes (kind)'
+            echo "- Imagem: \`$deployed\`"
+            echo '- Migrations do banco legado e do banco da Saga concluídas antes do rollout'
+            echo '- `/health` com o SHA implantado, Swagger em `/docs`, rota administrativa sem token 401'
+            echo '- Login administrativo e consulta da fila operacional no PostgreSQL da Fase 4'
+            echo '```'
+            kubectl -n "$NAMESPACE" get deployments,pods,jobs,services -o wide
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Diagnóstico do cluster
+        if: failure()
+        run: |
+          kubectl -n "$NAMESPACE" get all,jobs -o wide || true
+          kubectl -n "$NAMESPACE" describe pods || true
+          kubectl -n "$NAMESPACE" logs -l app.kubernetes.io/name=soat-api --tail=200 --prefix || true
