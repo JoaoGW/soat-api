@@ -10,15 +10,22 @@ set -a; # shellcheck disable=SC1090
 source "$ENV_FILE"; set +a
 : "${MERCADO_PAGO_ACCESS_TOKEN:?Defina MERCADO_PAGO_ACCESS_TOKEN em .env.kind.local}"
 
+# Mostra o corpo das respostas de erro da API (nunca o token) e falha a chamada.
 api() {
-  curl -sS --fail-with-body -X "$1" "https://api.mercadopago.com$2" \
-    -H "Authorization: Bearer $MERCADO_PAGO_ACCESS_TOKEN" -H 'Content-Type: application/json' ${3:+-d "$3"}
+  local body status
+  body="$(curl -sS -X "$1" "https://api.mercadopago.com$2" -w '\n%{http_code}' \
+    -H "Authorization: Bearer $MERCADO_PAGO_ACCESS_TOKEN" -H 'Content-Type: application/json' ${3:+-d "$3"})"
+  status="${body##*$'\n'}"; body="${body%$'\n'*}"
+  if [[ "$status" != 2* ]]; then echo "$1 $2 -> HTTP $status: $body" >&2; return 1; fi
+  printf '%s' "$body"
 }
 
 STORE_ID="${MERCADO_PAGO_STORE_ID:-SOATOFICINA}"
 POS_ID="${MERCADO_PAGO_EXTERNAL_POS_ID:-SOATCAIXA01}"
 json() { python3 -c "import json,sys; print(eval('json.load(sys.stdin)' + sys.argv[1]))" "$1"; }
-user_id="$(api GET /users/me | json "['id']")"
+# O access token termina no ID do usuário dono das credenciais.
+user_id="${MERCADO_PAGO_ACCESS_TOKEN##*-}"
+[[ "$user_id" =~ ^[0-9]+$ ]] || user_id="$(api GET /users/me | json "['id']")"
 
 store="$(api POST "/users/$user_id/stores" "$(cat <<EOF
 {"name":"Oficina SOAT","external_id":"$STORE_ID","location":{"street_number":"3003","street_name":"Avenida das Nações Unidas","city_name":"Osasco","state_name":"São Paulo","latitude":-23.5329,"longitude":-46.7919,"reference":"Ambiente de teste da Fase 4"}}
