@@ -72,7 +72,7 @@ start_emulators() {
     "$SERVICEBUS_IMAGE" >/dev/null
   docker run -d --name soat-cosmos --network "$NETWORK" "$COSMOS_IMAGE" --enable-explorer false >/dev/null
   local attempt=0
-  until docker exec soat-servicebus sh -c 'exit 0' 2>/dev/null && docker logs soat-servicebus 2>&1 | grep -q 'Emulator Service is Successfully Up'; do
+  until docker logs soat-servicebus 2>&1 | grep -q 'Emulator Service is Successfully Up'; do
     attempt=$((attempt + 1)); (( attempt < 120 )) || { docker logs soat-servicebus | tail -40; echo 'Service Bus Emulator não ficou pronto' >&2; exit 1; }
     sleep 3
   done
