@@ -32,6 +32,8 @@ async function call(method, url, { token, body, key, expected = [200, 201] } = {
       ...(body ? { 'Content-Type': 'application/json' } : {}),
     },
     ...(body ? { body: JSON.stringify(body) } : {}),
+  }).catch((error) => {
+    throw new Error(`${method} ${url} sem resposta: ${error.cause?.code ?? error.message}`);
   });
   const text = await response.text();
   const data = text ? JSON.parse(text) : undefined;

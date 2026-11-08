@@ -211,16 +211,28 @@ keep_forward() {
   local child=''
   trap '[[ -n "$child" ]] && kill "$child" 2>/dev/null; exit 0' TERM
   while true; do
-    k port-forward "$1" "$2" >/dev/null 2>&1 & child=$!
+    k port-forward "$1" "$2" >>"$STATE/port-forward.log" 2>&1 & child=$!
     wait "$child" || true
     sleep 1
   done
 }
 
 forward() {
+  local target port tries
   trap 'kill $(jobs -p) 2>/dev/null || true' EXIT
+  mkdir -p "$STATE"
+  # Encaminhamentos antigos para a mesma porta podem apontar para um pod que já não existe.
+  for target in "$@"; do pkill -f "kind-$CLUSTER -n $NAMESPACE port-forward ${target%=*} ${target#*=}" 2>/dev/null || true; done
   for target in "$@"; do keep_forward "${target%=*}" "${target#*=}" & done
-  sleep 3
+  # Só segue quando cada porta local aceita conexão.
+  for target in "$@"; do
+    port="${target#*=}"; port="${port%%:*}"; tries=0
+    until (exec 3<>"/dev/tcp/127.0.0.1/$port") 2>/dev/null; do
+      tries=$((tries + 1))
+      [[ $tries -lt 60 ]] || { echo "Porta $port não abriu; veja $STATE/port-forward.log" >&2; tail -5 "$STATE/port-forward.log" >&2; exit 1; }
+      sleep 0.5
+    done
+  done
 }
 
 forward_all() {
