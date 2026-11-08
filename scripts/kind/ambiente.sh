@@ -205,13 +205,27 @@ deploy() {
   k get deployments,pods,jobs,services -o wide
 }
 
+# O kubectl port-forward termina quando o pod reinicia ou a conexão cai; o laço o
+# recria, e os encaminhamentos são encerrados junto com o comando que os abriu.
+keep_forward() {
+  local child=''
+  trap '[[ -n "$child" ]] && kill "$child" 2>/dev/null; exit 0' TERM
+  while true; do
+    k port-forward "$1" "$2" >/dev/null 2>&1 & child=$!
+    wait "$child" || true
+    sleep 1
+  done
+}
+
 forward() {
-  pkill -f "port-forward.*$NAMESPACE" 2>/dev/null || true
-  k port-forward service/soat-api 3001:80 >/dev/null 2>&1 &
-  k port-forward service/soat-billing-service 3002:80 >/dev/null 2>&1 &
-  k port-forward service/soat-execution-service 3003:80 >/dev/null 2>&1 &
-  k port-forward service/mercado-pago-simulado 3004:8080 >/dev/null 2>&1 &
+  trap 'kill $(jobs -p) 2>/dev/null || true' EXIT
+  for target in "$@"; do keep_forward "${target%=*}" "${target#*=}" & done
   sleep 3
+}
+
+forward_all() {
+  forward service/soat-api=3001:80 service/soat-billing-service=3002:80 \
+    service/soat-execution-service=3003:80 service/mercado-pago-simulado=3004:8080
 }
 
 case "${1:-}" in
@@ -224,25 +238,30 @@ Ambiente pronto. Próximos passos:
   scripts/kind/ambiente.sh jornada              # fluxo completo (OS, Billing, Execution e Saga)
   CENARIO=compensacao scripts/kind/ambiente.sh jornada   # falha após pagamento e compensação
   scripts/kind/ambiente.sh tunel                # URL HTTPS pública do webhook (Mercado Pago de teste)
-Swagger do OS após 'jornada' ou 'portas': http://localhost:3001/docs
+Swagger do OS com 'portas' em execução: http://localhost:3001/docs
 EOF
     ;;
-  portas) forward; echo 'OS :3001 | Billing :3002 | Execution :3003 | Mercado Pago simulado :3004' ;;
+  portas)
+    forward_all
+    echo 'OS :3001 | Billing :3002 | Execution :3003 | Mercado Pago simulado :3004 (Ctrl+C encerra)'
+    wait
+    ;;
   jornada)
-    need node; load_local_env; forward
+    need node; load_local_env; forward_all
     OS_URL=http://localhost:3001 BILLING_URL=http://localhost:3002 EXECUTION_URL=http://localhost:3003 \
       MP_SIMULADO_URL="$( [[ -n "${MERCADO_PAGO_ACCESS_TOKEN:-}" ]] || echo http://localhost:3004 )" \
       ADMIN_USERNAME=admin ADMIN_PASSWORD="$(cat "$STATE/admin-password")" JWT_CLIENT_SECRET="$(cat "$STATE/jwt-client-secret")" \
       node "$ROOT/scripts/kind/jornada.cjs"
     ;;
   tunel)
-    need cloudflared; forward
+    # Porta própria: a jornada e o comando portas não disputam o encaminhamento do túnel.
+    need cloudflared; forward service/soat-billing-service=3012:80
     echo 'Cadastre no Mercado Pago (Webhooks, evento "Order") a URL exibida abaixo seguida de /webhooks/mercado-pago'
-    cloudflared tunnel --url http://localhost:3002
+    cloudflared tunnel --url http://localhost:3012
     ;;
   status) k get deployments,pods,jobs,services -o wide ;;
   destruir)
-    pkill -f "port-forward.*$NAMESPACE" 2>/dev/null || true
+    pkill -f "kind-$CLUSTER -n $NAMESPACE port-forward" 2>/dev/null || true
     docker rm -f soat-mssql soat-servicebus soat-cosmos >/dev/null 2>&1 || true
     kind delete cluster --name "$CLUSTER"
     ;;

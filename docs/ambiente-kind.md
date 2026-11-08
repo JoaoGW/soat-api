@@ -47,11 +47,12 @@ Os repositórios de Billing e Execution são usados de `../soat-billing-service`
 SOAT_ACCEPT_EULA=Y scripts/kind/ambiente.sh subir   # imagens, cluster, emuladores, bancos e serviços
 scripts/kind/ambiente.sh jornada                     # jornada completa até a entrega
 CENARIO=compensacao scripts/kind/ambiente.sh jornada # falha após pagamento e compensação
-scripts/kind/ambiente.sh portas                      # OS :3001, Billing :3002, Execution :3003
+scripts/kind/ambiente.sh portas                      # OS :3001, Billing :3002, Execution :3003 (até Ctrl+C)
 scripts/kind/ambiente.sh destruir
 ```
 
-Com as portas abertas, o Swagger do OS fica em `http://localhost:3001/docs`. Os
+Os encaminhamentos de porta são refeitos se o pod reiniciar e encerrados junto
+com o comando. Com as portas abertas, o Swagger do OS fica em `http://localhost:3001/docs`. Os
 segredos (chaves Ed25519 por serviço, JWT, senhas dos bancos e do administrador)
 são gerados em `.kind-local/`, ignorado pelo Git. A senha do usuário `admin` fica
 em `.kind-local/admin-password`.
