@@ -56,6 +56,10 @@ segredos (chaves Ed25519 por serviço, JWT, senhas dos bancos e do administrador
 são gerados em `.kind-local/`, ignorado pelo Git. A senha do usuário `admin` fica
 em `.kind-local/admin-password`.
 
+O `subir` também aponta o CoreDNS do cluster para `1.1.1.1` e `8.8.8.8`: o DNS
+repassado pelo Docker Desktop perde consultas em algumas redes, e a chamada ao
+Mercado Pago sem resposta deixaria a cobrança em reconciliação.
+
 ## Mercado Pago de teste e New Relic
 
 Sem credenciais, o Billing usa o simulador da Orders API, que envia o webhook

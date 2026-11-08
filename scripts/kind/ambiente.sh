@@ -55,6 +55,15 @@ ensure_cluster() {
     log "Criando cluster kind $CLUSTER"
     kind create cluster --name "$CLUSTER" --wait 120s
   fi
+  # O DNS repassado pelo Docker Desktop perde consultas em algumas redes domésticas;
+  # com a chamada ao Mercado Pago sem resposta, a cobrança iria para reconciliação.
+  local dns=(kubectl --context "kind-$CLUSTER" -n kube-system)
+  if "${dns[@]}" get configmap coredns -o jsonpath='{.data.Corefile}' | grep -q 'forward \. /etc/resolv\.conf'; then
+    log "Apontando o CoreDNS para resolvedores públicos"
+    "${dns[@]}" get configmap coredns -o yaml | sed 's#forward \. /etc/resolv\.conf#forward . 1.1.1.1 8.8.8.8#' | "${dns[@]}" replace -f - >/dev/null
+    "${dns[@]}" rollout restart deployment/coredns >/dev/null
+    "${dns[@]}" rollout status deployment/coredns --timeout=120s
+  fi
   kind load docker-image --name "$CLUSTER" ghcr.io/joaogw/soat-api:local ghcr.io/joaogw/soat-billing-service:local \
     ghcr.io/joaogw/soat-billing-service:local-migration ghcr.io/joaogw/soat-execution-service:local
 }
