@@ -39,6 +39,8 @@ found="$(api GET "/pos?external_id=$POS_ID" | json "['paging']['total']")"
 [[ "$found" -ge 1 ]] || { echo "Caixa $POS_ID não encontrado no Mercado Pago" >&2; exit 1; }
 
 if ! grep -q '^MERCADO_PAGO_EXTERNAL_POS_ID=' "$ENV_FILE"; then
+  # Editores podem salvar a última linha sem quebra; sem ela a nova variável colaria no token.
+  [[ -z "$(tail -c1 "$ENV_FILE")" ]] || printf '\n' >> "$ENV_FILE"
   printf 'MERCADO_PAGO_EXTERNAL_POS_ID=%s\n' "$POS_ID" >> "$ENV_FILE"
 fi
 echo "Loja $STORE_ID (id $store_id) e caixa $POS_ID prontos; external_pos_id gravado em .env.kind.local."
