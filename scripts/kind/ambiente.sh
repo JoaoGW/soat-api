@@ -160,7 +160,7 @@ apply_secrets() {
     --from-literal=EXECUTION_MESSAGE_PUBLIC_KEY="$(cat "$STATE/execution.pub")" \
     --from-literal=JWT_CLIENT_SECRET="$(cat "$STATE/jwt-client-secret")" \
     --from-literal=MERCADO_PAGO_ACCESS_TOKEN="$mp_token" --from-literal=MERCADO_PAGO_WEBHOOK_SECRET="$mp_secret" \
-    "${billing_extra[@]}" "${otel[@]}"
+    ${billing_extra[@]+"${billing_extra[@]}"} "${otel[@]}"
   secret soat-execution-runtime \
     --from-literal=COSMOS_ENDPOINT=http://cosmos:8081 --from-literal=COSMOS_KEY="$COSMOS_EMULATOR_KEY" \
     --from-literal=COSMOS_DATABASE=execution --from-literal=COSMOS_CONTAINER=operations \
