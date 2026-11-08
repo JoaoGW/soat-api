@@ -69,6 +69,10 @@ MERCADO_PAGO_EXTERNAL_POS_ID=...   # external_pos_id do caixa de teste
 NEW_RELIC_LICENSE_KEY=...          # ingest license key
 ```
 
+O `external_pos_id` vem do caixa do vendedor de teste. Com o token já no
+arquivo, `scripts/kind/mercado-pago-caixa.sh` cria a loja e o caixa pela API e
+grava o identificador em `.env.kind.local`, sem exibir o token.
+
 Depois de `subir`, execute `scripts/kind/ambiente.sh tunel` e cadastre no painel
 do Mercado Pago a URL HTTPS exibida seguida de `/webhooks/mercado-pago`, para o
 evento de orders. Em seguida rode `jornada`: o script mostra o QR e aguarda o

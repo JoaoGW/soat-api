@@ -232,10 +232,16 @@ jornada pelas APIs HTTP e propagação de trace. A preparação está em
 Billing, Execution e Auth; ele exige o secret `CROSS_REPO_READ_TOKEN` com
 leitura dos repositórios privados e o aceite dos termos dos emuladores.
 
-`npm run quality:sonarjs` aplica regras selecionadas do analisador SonarJS
-(SonarSource) para erros lógicos e segurança com `--max-warnings=0`. É o gate
-de qualidade similar ao SonarQube adotado no CI; não inclui o painel do
-SonarQube.
+A qualidade é verificada no **SonarQube Cloud**
+([painel do projeto](https://sonarcloud.io/project/overview?id=JoaoGW_soat-api)): o CI
+envia o código e a cobertura (`coverage/full/report/lcov.info`) e aguarda o Quality Gate *Sonar way*
+(confiabilidade, segurança, manutenibilidade, duplicação ≤ 3% e cobertura ≥ 80%
+no código novo); reprovação bloqueia o pipeline e o merge. Antes disso,
+`npm run quality:sonarjs` aplica localmente regras selecionadas do SonarJS com
+`--max-warnings=0`.
+
+[![Quality Gate](https://sonarcloud.io/api/project_badges/measure?project=JoaoGW_soat-api&metric=alert_status)](https://sonarcloud.io/project/overview?id=JoaoGW_soat-api)
+[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=JoaoGW_soat-api&metric=coverage)](https://sonarcloud.io/project/overview?id=JoaoGW_soat-api)
 
 ## CI/CD e deploy
 
