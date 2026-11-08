@@ -5,6 +5,7 @@
  * força a falha após o pagamento e acompanha a compensação da Saga.
  */
 const { createHmac, randomUUID, randomInt } = require('node:crypto');
+const { spawnSync } = require('node:child_process');
 
 const env = (name) => {
   const value = process.env[name];
@@ -134,7 +135,10 @@ async function main() {
     const paid = await call('POST', `${SIMULATOR}/simulador/pagamentos/${providerOrder.id}`);
     if (paid.webhook !== 200) throw new Error(`Webhook recusado pelo Billing: ${paid.webhook}`);
   } else {
-    step('Pague o QR acima com o comprador de teste do Mercado Pago; aguardando o webhook');
+    // O QR dinâmico é exibido no terminal quando o qrencode está instalado.
+    const qr = spawnSync('qrencode', ['-t', 'ansiutf8', charge.qrData ?? ''], { encoding: 'utf8' });
+    if (qr.status === 0) process.stdout.write(qr.stdout);
+    step('Pague o QR com o comprador de teste no app do Mercado Pago; aguardando o webhook');
   }
   await waitSaga(admin, order.id, 'NA_FILA');
 

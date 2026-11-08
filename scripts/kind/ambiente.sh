@@ -12,7 +12,7 @@ CLUSTER="${KIND_CLUSTER:-soat}"
 NAMESPACE=soat-local
 NETWORK=kind
 STATE="$ROOT/.kind-local"
-LOCAL_ENV="$ROOT/.env.kind.local"
+LOCAL_ENV="${SOAT_ENV_FILE:-$ROOT/.env.kind.local}"
 MSSQL_IMAGE="${MSSQL_IMAGE:-mcr.microsoft.com/mssql/server:2022-latest}"
 SERVICEBUS_IMAGE="${SERVICEBUS_IMAGE:-mcr.microsoft.com/azure-messaging/servicebus-emulator:latest}"
 COSMOS_IMAGE="${COSMOS_IMAGE:-mcr.microsoft.com/cosmosdb/linux/azure-cosmos-emulator:vnext-latest}"
@@ -31,11 +31,13 @@ load_local_env() {
 }
 
 ensure_repos() {
-  for pair in "soat-billing-service:$BILLING_DIR" "soat-execution-service:$EXECUTION_DIR"; do
-    local name="${pair%%:*}" dir="${pair#*:}"
+  local branch="${SOAT_SERVICES_BRANCH:-development}"
+  for entry in "soat-billing-service:$BILLING_DIR:${BILLING_BRANCH:-$branch}" "soat-execution-service:$EXECUTION_DIR:${EXECUTION_BRANCH:-$branch}"; do
+    local name="${entry%%:*}" rest="${entry#*:}"
+    local dir="${rest%%:*}" ref="${rest#*:}"
     if [[ ! -d "$dir/.git" ]]; then
-      log "Clonando $name em $dir"
-      git clone --branch "${SOAT_SERVICES_BRANCH:-development}" "https://github.com/JoaoGW/$name.git" "$dir"
+      log "Clonando $name ($ref) em $dir"
+      git clone --branch "$ref" "https://github.com/JoaoGW/$name.git" "$dir"
     fi
   done
 }
@@ -218,7 +220,7 @@ EOF
     ;;
   portas) forward; echo 'OS :3001 | Billing :3002 | Execution :3003 | Mercado Pago simulado :3004' ;;
   jornada)
-    load_local_env; forward
+    need node; load_local_env; forward
     OS_URL=http://localhost:3001 BILLING_URL=http://localhost:3002 EXECUTION_URL=http://localhost:3003 \
       MP_SIMULADO_URL="$( [[ -n "${MERCADO_PAGO_ACCESS_TOKEN:-}" ]] || echo http://localhost:3004 )" \
       ADMIN_USERNAME=admin ADMIN_PASSWORD="$(cat "$STATE/admin-password")" JWT_CLIENT_SECRET="$(cat "$STATE/jwt-client-secret")" \

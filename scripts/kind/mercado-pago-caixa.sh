@@ -26,7 +26,10 @@ EOF
 )" 2>&1)" || echo "Loja não criada (pode já existir): $store"
 store_id="$(api GET "/users/$user_id/stores/search?external_id=$STORE_ID" | json "['results'][0]['id']")"
 
-pos="$(api POST /pos "{\"name\":\"Caixa oficina\",\"fixed_amount\":false,\"store_id\":$store_id,\"external_store_id\":\"$STORE_ID\",\"external_id\":\"$POS_ID\",\"category\":621102}" 2>&1)" || echo "Caixa não criado (pode já existir): $pos"
+# A categoria (MCC) é opcional e o código aceito varia por país; o caixa é criado sem ela.
+pos="$(api POST /pos "{\"name\":\"Caixa oficina\",\"fixed_amount\":false,\"store_id\":$store_id,\"external_store_id\":\"$STORE_ID\",\"external_id\":\"$POS_ID\"}" 2>&1)" || echo "Caixa não criado (pode já existir): $pos"
+found="$(api GET "/pos?external_id=$POS_ID" | json "['paging']['total']")"
+[[ "$found" -ge 1 ]] || { echo "Caixa $POS_ID não encontrado no Mercado Pago" >&2; exit 1; }
 
 if ! grep -q '^MERCADO_PAGO_EXTERNAL_POS_ID=' "$ENV_FILE"; then
   printf 'MERCADO_PAGO_EXTERNAL_POS_ID=%s\n' "$POS_ID" >> "$ENV_FILE"
