@@ -13,6 +13,7 @@ export type FailureEvent = {
     | 'billing.quote-failed.v1'
     | 'billing.charge-failed.v1'
     | 'billing.refund-blocked.v1'
+    | 'billing.charge-cancel-blocked.v1'
     | 'execution.parts-reservation-failed.v1';
   producer: string;
   data: Record<string, unknown>;
@@ -54,6 +55,11 @@ export class ReceiveFailureEvent {
         producer: 'soat-billing-service',
         command: 'billing.refund-payment.v1',
         state: 'REEMBOLSO_PENDENTE',
+      },
+      'billing.charge-cancel-blocked.v1': {
+        producer: 'soat-billing-service',
+        command: 'billing.cancel-charge.v1',
+        state: 'RECONCILIACAO_NECESSARIA',
       },
       'execution.parts-reservation-failed.v1': {
         producer: 'soat-execution-service',
@@ -139,6 +145,21 @@ export class ReceiveFailureEvent {
           ))
       )
         throw new Error('Falha diverge do comando');
+      if (
+        event.type === 'billing.charge-cancel-blocked.v1' &&
+        (!event.causationId ||
+          command.payload.messageId !== event.causationId ||
+          data.chargeId !== event.data.chargeId ||
+          data.reservationId !== event.data.reservationId ||
+          data.cancelOperationId !== event.data.cancelOperationId ||
+          data.cancelEventId !== event.data.cancelEventId ||
+          ![
+            'CANCEL_EVIDENCE_MISMATCH',
+            'CANCEL_CHARGE_MISMATCH',
+            'CANCEL_OPERATION_MISMATCH',
+          ].includes(String(event.data.reasonCode)))
+      )
+        throw new Error('Falha diverge do comando');
       await tx.$executeRaw`INSERT INTO "Inbox" ("consumer", "messageId", "operationId", "type", "payload", "status") VALUES (${consumer}, ${event.messageId}, ${event.operationId}, ${event.type}, ${encoded}::jsonb, 'PENDING') ON CONFLICT DO NOTHING`;
       const inbox = await tx.$queryRaw<
         Array<{ matches: boolean; status: string }>
@@ -146,6 +167,16 @@ export class ReceiveFailureEvent {
       if (!inbox[0]?.matches)
         throw new Error('Mensagem reutilizada com outro conteúdo');
       if (inbox[0].status === 'APPLIED') return 'APPLIED';
+      if (event.type === 'billing.charge-cancel-blocked.v1') {
+        const reason = `CHARGE_${String(event.data.reasonCode)}`;
+        // Impede novas tentativas. Uma publicação reclamada pode já estar em voo
+        // e seu resultado permanece incerto, sem presumir rollback físico.
+        await tx.$executeRaw`UPDATE "Outbox" SET "status"='CANCELLED' WHERE "type"='execution.release-parts.v1' AND "payload"->>'sagaId'=${event.sagaId} AND "status"='PENDING'`;
+        await tx.$executeRaw`UPDATE "SagaOperation" op SET "status"=CASE WHEN EXISTS (SELECT 1 FROM "Outbox" o WHERE o."type"='execution.release-parts.v1' AND o."status"='CANCELLED' AND o."payload"->>'operationId'=op."operationId" AND o."claimOwner" IS NOT NULL) THEN 'RECONCILIACAO_NECESSARIA' ELSE 'CANCELLED' END, "updatedAt"=NOW() WHERE op."sagaId"=${event.sagaId} AND op."commandType"='execution.release-parts.v1' AND op."status"='PENDING' AND EXISTS (SELECT 1 FROM "Outbox" o WHERE o."type"='execution.release-parts.v1' AND o."status"='CANCELLED' AND o."payload"->>'operationId'=op."operationId")`;
+        await tx.$executeRaw`UPDATE "SagaInstance" SET "status"='RECONCILIACAO_NECESSARIA', "requiresAttention"=true, "lastError"=CASE WHEN "lastError" IS NULL OR "lastError"='CHARGE_CANCEL_PENDING' THEN ${reason} ELSE "lastError" END, "version"="version"+1, "updatedAt"=NOW() WHERE "id"=${event.sagaId}`;
+        await tx.$executeRaw`UPDATE "Inbox" SET "status"='APPLIED', "appliedAt"=NOW() WHERE "consumer"=${consumer} AND "messageId"=${event.messageId}`;
+        return 'APPLIED';
+      }
       if (event.type === 'billing.refund-blocked.v1') {
         // A confirmação canônica pode chegar antes do aviso de incerteza.
         if (

@@ -81,6 +81,8 @@ async function init(c) {
   let db, cosmos, executionContainer;
   let allowRefund = !c.badEvidence;
   actions.resumeRefund = async () => { allowRefund = true; };
+  let allowCancel = !c.badCancelEvidence;
+  actions.resumeCancel = async () => { allowCancel = true; };
   function poll(fn) {
     if (c.productionWorkers) return;
     let busy = false;
@@ -408,7 +410,7 @@ async function init(c) {
   } else throw Error('Serviço inválido');
   let application;
   if (c.productionWorkers) {
-    application = await startProductionWorkers(c, provider, () => allowRefund);
+    application = await startProductionWorkers(c, provider, () => allowRefund, () => allowCancel);
   }
   if (c.role === 'billing' && c.refundTimeout && application) {
     actions.expediteReconciliation = async () => {
@@ -468,7 +470,7 @@ async function init(c) {
 
 // Adapta somente as fronteiras de rede deste processo de teste. Os próprios
 // workers, roteamento, assinatura, ACK, polling e ciclo Nest são de produção.
-async function startProductionWorkers(c, provider, canProcessRefund) {
+async function startProductionWorkers(c, provider, canProcessRefund, canProcessCancel) {
   const Module = require('node:module');
   const originalLoad = Module._load;
   const roleDir = c.role === 'os' ? root : c.role === 'billing' ? c.billingDir : c.execDir;
@@ -481,6 +483,13 @@ async function startProductionWorkers(c, provider, canProcessRefund) {
     const original = RefundCommandProcessor.prototype.processOne;
     RefundCommandProcessor.prototype.processOne = function() {
       return canProcessRefund() ? original.call(this) : Promise.resolve('EMPTY');
+    };
+  }
+  if (c.role === 'billing' && c.badCancelEvidence) {
+    const { CancelChargeCommandProcessor } = require(path.join(roleDir, 'dist/infrastructure/service-bus/cancel-charge-command'));
+    const original = CancelChargeCommandProcessor.prototype.processOne;
+    CancelChargeCommandProcessor.prototype.processOne = function() {
+      return canProcessCancel() ? original.call(this) : Promise.resolve('EMPTY');
     };
   }
   Object.assign(process.env, {

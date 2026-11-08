@@ -54,6 +54,11 @@ Funcionalidade: Aceite distribuído da oficina pelo broker
     Quando o provedor cancela a cobrança e perde a resposta
     Então a execução confirma "Workers Nest cancelaram cobrança sem pagamento e liberaram reserva pelo broker"
 
+  Cenário: Evidência divergente bloqueia cancelamento financeiro
+    Dado que os serviços e seus bancos locais de teste estão configurados
+    Quando a evidência do cancelamento financeiro é corrompida
+    Então a execução confirma "Evidência divergente bloqueou cancelamento financeiro e preservou reserva pelo broker"
+
   Cenário: Retomada após interrupção abrupta do processo OS
     Dado que os serviços e seus bancos locais de teste estão configurados
     Quando reinicio o processo OS durante a Saga com workers Nest

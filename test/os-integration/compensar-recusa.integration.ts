@@ -148,82 +148,90 @@ describe('compensação de recusa antes de pagamento', () => {
     >`SELECT count(*) AS count FROM "Outbox" WHERE "payload"->>'sagaId'=${saga2} AND "type" IN ('execution.release-parts.v1', 'billing.refund-payment.v1')`;
     expect(unsafe[0].count).toBe(0n);
   });
-  it.each(['normal', 'payment', 'physical'] as const)(
-    'cancelamento de cobrança com evidência: %s',
-    async (mode) => {
-      const suffix = randomUUID();
-      const os2 = `os-${suffix}`,
-        saga2 = `saga-${suffix}`,
-        chargeId = `charge-${suffix}`,
-        reservationId = `res-${suffix}`;
-      await db.$executeRaw`INSERT INTO "OrdemDeServico" ("id", "codigoAcompanhamento", "clienteId", "veiculoId", "filialId", "status", "updatedAt") VALUES (${os2}, ${suffix}, ${client}, ${vehicle}, 'branch', 'AGUARDANDO_PAGAMENTO', NOW())`;
-      await db.$executeRaw`INSERT INTO "SagaInstance" ("id", "osId", "filialId", "status", "quoteId", "quoteVersion", "reservationId", "chargeId", "updatedAt") VALUES (${saga2}, ${os2}, 'branch', 'AGUARDANDO_PAGAMENTO', ${`quote-${suffix}`}, 1, ${reservationId}, ${chargeId}, NOW())`;
-      const result = { data: { chargeId, providerOrderId: `order-${suffix}` } };
-      await db.$executeRaw`INSERT INTO "SagaOperation" ("operationId", "sagaId", "step", "businessAttempt", "commandType", "status", "result", "updatedAt") VALUES (${`chargeop-${suffix}`}, ${saga2}, 'CREATE_CHARGE', 1, 'billing.create-charge.v1', 'SUCCEEDED', ${JSON.stringify(result)}::jsonb, NOW())`;
-      expect(
-        await new StartCompensation(db).execute(saga2, 'SAGA_COMPENSATION'),
-      ).toBe('STARTED');
-      const operations = await db.$queryRaw<
-        Array<{ operationId: string }>
-      >`SELECT "operationId" FROM "SagaOperation" WHERE "sagaId"=${saga2} AND "commandType"='execution.cancel-work.v1'`;
-      const event: CancellationEvent = {
-        messageId: `cancel-${suffix}`,
-        operationId: operations[0].operationId,
-        type: 'execution.work-cancelled.v1',
-        producer: 'soat-execution-service',
-        osId: os2,
-        sagaId: saga2,
-        filialId: 'branch',
-        data: { outcome: 'CANCELLED', reason: 'SAGA_COMPENSATION' },
-      };
-      const handler = new ReceiveCancellationEvent(db, true);
-      expect(
-        await Promise.all([handler.execute(event), handler.execute(event)]),
-      ).toEqual(['APPLIED', 'APPLIED']);
-      const commands = await db.$queryRaw<
-        Array<{
-          payload: {
-            data: {
-              chargeId: string;
-              reservationId: string;
-              cancelEventId: string;
-              cancelOperationId: string;
-            };
+  it.each([
+    'normal',
+    'payment',
+    'physical',
+    'blocked',
+    'late-blocked',
+    'late-claimed',
+  ] as const)('cancelamento de cobrança com evidência: %s', async (mode) => {
+    const suffix = randomUUID();
+    const os2 = `os-${suffix}`,
+      saga2 = `saga-${suffix}`,
+      chargeId = `charge-${suffix}`,
+      reservationId = `res-${suffix}`;
+    await db.$executeRaw`INSERT INTO "OrdemDeServico" ("id", "codigoAcompanhamento", "clienteId", "veiculoId", "filialId", "status", "updatedAt") VALUES (${os2}, ${suffix}, ${client}, ${vehicle}, 'branch', 'AGUARDANDO_PAGAMENTO', NOW())`;
+    await db.$executeRaw`INSERT INTO "SagaInstance" ("id", "osId", "filialId", "status", "quoteId", "quoteVersion", "reservationId", "chargeId", "updatedAt") VALUES (${saga2}, ${os2}, 'branch', 'AGUARDANDO_PAGAMENTO', ${`quote-${suffix}`}, 1, ${reservationId}, ${chargeId}, NOW())`;
+    const result = { data: { chargeId, providerOrderId: `order-${suffix}` } };
+    await db.$executeRaw`INSERT INTO "SagaOperation" ("operationId", "sagaId", "step", "businessAttempt", "commandType", "status", "result", "updatedAt") VALUES (${`chargeop-${suffix}`}, ${saga2}, 'CREATE_CHARGE', 1, 'billing.create-charge.v1', 'SUCCEEDED', ${JSON.stringify(result)}::jsonb, NOW())`;
+    expect(
+      await new StartCompensation(db).execute(saga2, 'SAGA_COMPENSATION'),
+    ).toBe('STARTED');
+    const operations = await db.$queryRaw<
+      Array<{ operationId: string }>
+    >`SELECT "operationId" FROM "SagaOperation" WHERE "sagaId"=${saga2} AND "commandType"='execution.cancel-work.v1'`;
+    const event: CancellationEvent = {
+      messageId: `cancel-${suffix}`,
+      operationId: operations[0].operationId,
+      type: 'execution.work-cancelled.v1',
+      producer: 'soat-execution-service',
+      osId: os2,
+      sagaId: saga2,
+      filialId: 'branch',
+      data: { outcome: 'CANCELLED', reason: 'SAGA_COMPENSATION' },
+    };
+    const handler = new ReceiveCancellationEvent(db, true);
+    expect(
+      await Promise.all([handler.execute(event), handler.execute(event)]),
+    ).toEqual(['APPLIED', 'APPLIED']);
+    const commands = await db.$queryRaw<
+      Array<{
+        payload: {
+          messageId: string;
+          data: {
+            chargeId: string;
+            reservationId: string;
+            cancelEventId: string;
+            cancelOperationId: string;
           };
-        }>
-      >`SELECT "payload" FROM "Outbox" WHERE "type"='billing.cancel-charge.v1' AND "payload"->>'sagaId'=${saga2}`;
-      expect(commands).toHaveLength(1);
-      expect(commands[0].payload.data).toEqual({
-        chargeId,
-        reservationId,
-        cancelEventId: event.messageId,
-        cancelOperationId: event.operationId,
-      });
-      const unsafe = await db.$queryRaw<
-        Array<{ count: bigint }>
-      >`SELECT count(*) AS count FROM "Outbox" WHERE "payload"->>'sagaId'=${saga2} AND "type" IN ('execution.release-parts.v1','billing.refund-payment.v1')`;
-      expect(unsafe[0].count).toBe(0n);
-      const state = await db.$queryRaw<
-        Array<{ status: string; lastError: string }>
-      >`SELECT "status", "lastError" FROM "SagaInstance" WHERE "id"=${saga2}`;
-      expect(state[0]).toEqual({
-        status: 'RECONCILIACAO_NECESSARIA',
-        lastError: 'CHARGE_CANCEL_PENDING',
-      });
-      if (mode !== 'normal') {
-        const type =
-          mode === 'payment'
-            ? 'billing.payment-confirmed.v1'
-            : 'execution.work-started.v1';
-        await db.$executeRaw`INSERT INTO "Inbox" ("consumer", "messageId", "operationId", "type", "payload", "status") VALUES ('os.saga-events', ${`conflict-${suffix}`}, ${`op-conflict-${suffix}`}, ${type}, ${JSON.stringify({ sagaId: saga2 })}::jsonb, 'PENDING')`;
-      }
-      const commandId = await db.$queryRaw<
-        Array<{ operationId: string }>
-      >`SELECT "operationId" FROM "SagaOperation" WHERE "sagaId"=${saga2} AND "commandType"='billing.cancel-charge.v1'`;
-      const canceled: ChargeCancellationEvent = {
-        messageId: `charge-canceled-${suffix}`,
+        };
+      }>
+    >`SELECT "payload" FROM "Outbox" WHERE "type"='billing.cancel-charge.v1' AND "payload"->>'sagaId'=${saga2}`;
+    expect(commands).toHaveLength(1);
+    expect(commands[0].payload.data).toEqual({
+      chargeId,
+      reservationId,
+      cancelEventId: event.messageId,
+      cancelOperationId: event.operationId,
+    });
+    const unsafe = await db.$queryRaw<
+      Array<{ count: bigint }>
+    >`SELECT count(*) AS count FROM "Outbox" WHERE "payload"->>'sagaId'=${saga2} AND "type" IN ('execution.release-parts.v1','billing.refund-payment.v1')`;
+    expect(unsafe[0].count).toBe(0n);
+    const state = await db.$queryRaw<
+      Array<{ status: string; lastError: string }>
+    >`SELECT "status", "lastError" FROM "SagaInstance" WHERE "id"=${saga2}`;
+    expect(state[0]).toEqual({
+      status: 'RECONCILIACAO_NECESSARIA',
+      lastError: 'CHARGE_CANCEL_PENDING',
+    });
+    if (mode === 'payment' || mode === 'physical') {
+      const type =
+        mode === 'payment'
+          ? 'billing.payment-confirmed.v1'
+          : 'execution.work-started.v1';
+      await db.$executeRaw`INSERT INTO "Inbox" ("consumer", "messageId", "operationId", "type", "payload", "status") VALUES ('os.saga-events', ${`conflict-${suffix}`}, ${`op-conflict-${suffix}`}, ${type}, ${JSON.stringify({ sagaId: saga2 })}::jsonb, 'PENDING')`;
+    }
+    const commandId = await db.$queryRaw<
+      Array<{ operationId: string }>
+    >`SELECT "operationId" FROM "SagaOperation" WHERE "sagaId"=${saga2} AND "commandType"='billing.cancel-charge.v1'`;
+    if (mode === 'blocked') {
+      const blocked: FailureEvent = {
+        messageId: `blocked-${suffix}`,
         operationId: commandId[0].operationId,
-        type: 'billing.charge-canceled.v1',
+        causationId: commands[0].payload.messageId,
+        type: 'billing.charge-cancel-blocked.v1',
         producer: 'soat-billing-service',
         osId: os2,
         sagaId: saga2,
@@ -231,50 +239,123 @@ describe('compensação de recusa antes de pagamento', () => {
         correlationId: suffix,
         data: {
           chargeId,
-          quoteId: `quote-${suffix}`,
-          quoteVersion: 1,
-          providerOrderId: `order-${suffix}`,
           reservationId,
           cancelOperationId: event.operationId,
           cancelEventId: event.messageId,
+          reasonCode: 'CANCEL_EVIDENCE_MISMATCH',
         },
       };
-      const receiver = new ReceiveChargeCancellation(db);
+      const failures = new ReceiveFailureEvent(db);
       await expect(
-        receiver.execute({
-          ...canceled,
-          data: { ...canceled.data, providerOrderId: 'other' },
-        }),
-      ).rejects.toThrow('Evidência');
-      await expect(
-        receiver.execute({
-          ...canceled,
-          data: { ...canceled.data, reservationId: 'other' },
-        }),
+        failures.execute({ ...blocked, causationId: 'wrong' }),
       ).rejects.toThrow('diverge');
       expect(
         await Promise.all([
-          receiver.execute(canceled),
-          receiver.execute(canceled),
+          failures.execute(blocked),
+          failures.execute(blocked),
         ]),
       ).toEqual(['APPLIED', 'APPLIED']);
-      const release = await db.$queryRaw<
-        Array<{ count: bigint }>
-      >`SELECT count(*) AS count FROM "Outbox" WHERE "payload"->>'sagaId'=${saga2} AND "type"='execution.release-parts.v1'`;
-      expect(release[0].count).toBe(mode === 'normal' ? 1n : 0n);
-      const finalState = await db.$queryRaw<
-        Array<{ status: string; lastError: string | null }>
-      >`SELECT "status", "lastError" FROM "SagaInstance" WHERE "id"=${saga2}`;
-      expect(finalState[0]).toEqual(
-        mode === 'normal'
-          ? { status: 'LIBERACAO_PENDENTE', lastError: null }
+    }
+    const canceled: ChargeCancellationEvent = {
+      messageId: `charge-canceled-${suffix}`,
+      operationId: commandId[0].operationId,
+      type: 'billing.charge-canceled.v1',
+      producer: 'soat-billing-service',
+      osId: os2,
+      sagaId: saga2,
+      filialId: 'branch',
+      correlationId: suffix,
+      data: {
+        chargeId,
+        quoteId: `quote-${suffix}`,
+        quoteVersion: 1,
+        providerOrderId: `order-${suffix}`,
+        reservationId,
+        cancelOperationId: event.operationId,
+        cancelEventId: event.messageId,
+      },
+    };
+    const receiver = new ReceiveChargeCancellation(db);
+    await expect(
+      receiver.execute({
+        ...canceled,
+        data: { ...canceled.data, providerOrderId: 'other' },
+      }),
+    ).rejects.toThrow('Evidência');
+    await expect(
+      receiver.execute({
+        ...canceled,
+        data: { ...canceled.data, reservationId: 'other' },
+      }),
+    ).rejects.toThrow('diverge');
+    expect(
+      await Promise.all([
+        receiver.execute(canceled),
+        receiver.execute(canceled),
+      ]),
+    ).toEqual(
+      mode === 'blocked' ? ['PENDING', 'PENDING'] : ['APPLIED', 'APPLIED'],
+    );
+    if (mode === 'late-blocked' || mode === 'late-claimed') {
+      if (mode === 'late-claimed')
+        await db.$executeRaw`UPDATE "Outbox" SET "claimOwner"='worker', "claimUntil"=NOW()+INTERVAL '1 minute' WHERE "type"='execution.release-parts.v1' AND "payload"->>'sagaId'=${saga2}`;
+      const blocked: FailureEvent = {
+        messageId: `late-blocked-${suffix}`,
+        operationId: commandId[0].operationId,
+        causationId: commands[0].payload.messageId,
+        type: 'billing.charge-cancel-blocked.v1',
+        producer: 'soat-billing-service',
+        osId: os2,
+        sagaId: saga2,
+        filialId: 'branch',
+        correlationId: suffix,
+        data: {
+          chargeId,
+          reservationId,
+          cancelOperationId: event.operationId,
+          cancelEventId: event.messageId,
+          reasonCode: 'CANCEL_EVIDENCE_MISMATCH',
+        },
+      };
+      expect(await new ReceiveFailureEvent(db).execute(blocked)).toBe(
+        'APPLIED',
+      );
+    }
+    const release = await db.$queryRaw<
+      Array<{ count: bigint }>
+    >`SELECT count(*) AS count FROM "Outbox" WHERE "payload"->>'sagaId'=${saga2} AND "type"='execution.release-parts.v1'`;
+    expect(release[0].count).toBe(
+      ['normal', 'late-blocked', 'late-claimed'].includes(mode) ? 1n : 0n,
+    );
+    if (mode === 'late-blocked' || mode === 'late-claimed') {
+      const [unsent] = await db.$queryRaw<
+        Array<{ status: string }>
+      >`SELECT "status" FROM "Outbox" WHERE "payload"->>'sagaId'=${saga2} AND "type"='execution.release-parts.v1'`;
+      expect(unsent.status).toBe('CANCELLED');
+      const [releaseOperation] = await db.$queryRaw<
+        Array<{ status: string }>
+      >`SELECT "status" FROM "SagaOperation" WHERE "sagaId"=${saga2} AND "commandType"='execution.release-parts.v1'`;
+      expect(releaseOperation.status).toBe(
+        mode === 'late-blocked' ? 'CANCELLED' : 'RECONCILIACAO_NECESSARIA',
+      );
+    }
+    const finalState = await db.$queryRaw<
+      Array<{ status: string; lastError: string | null }>
+    >`SELECT "status", "lastError" FROM "SagaInstance" WHERE "id"=${saga2}`;
+    expect(finalState[0]).toEqual(
+      mode === 'normal'
+        ? { status: 'LIBERACAO_PENDENTE', lastError: null }
+        : ['blocked', 'late-blocked', 'late-claimed'].includes(mode)
+          ? {
+              status: 'RECONCILIACAO_NECESSARIA',
+              lastError: 'CHARGE_CANCEL_EVIDENCE_MISMATCH',
+            }
           : {
               status: 'RECONCILIACAO_NECESSARIA',
               lastError: 'CHARGE_CANCEL_CONFLICT',
             },
-      );
-    },
-  );
+    );
+  });
   it.each([
     'normal',
     'resultado incerto',

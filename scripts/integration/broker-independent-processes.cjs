@@ -72,6 +72,7 @@ const config = {
   compensateAfterPayment: process.env.SOAT_TEST_COMPENSATE === '1',
   cancelBeforePayment: process.env.SOAT_TEST_CANCEL_BEFORE_PAYMENT === '1',
   cancelTimeout: process.env.SOAT_TEST_CANCEL_TIMEOUT === '1',
+  badCancelEvidence: process.env.SOAT_TEST_BAD_CANCEL_EVIDENCE === '1',
   badEvidence: process.env.SOAT_TEST_BAD_EVIDENCE === '1',
   refundTimeout: process.env.SOAT_TEST_REFUND_TIMEOUT === '1',
   restartOs: process.env.SOAT_TEST_RESTART_OS === '1',
@@ -306,6 +307,30 @@ async function main() {
         return rows[0]?.status === 'AGUARDANDO_PAGAMENTO';
       });
       assert.equal((await o.call('compensate', { sagaId: opened.sagaId })).result, 'STARTED');
+      if (config.badCancelEvidence) {
+        const [staged] = await waitFor('comando e evidência de cancelamento financeiro', async () => {
+          const rows = await billing.$queryRaw`SELECT s."messageId", s."payload"->'data'->>'cancelEventId' AS "eventId" FROM "Inbox" s JOIN "Inbox" e ON e."consumer"='billing.compensation-evidence' AND e."messageId"=s."payload"->'data'->>'cancelEventId' WHERE s."consumer"='billing.cancel-charge-staging' AND s."payload"->>'sagaId'=${opened.sagaId} AND s."status"='PENDING' AND e."status"='APPLIED'`;
+          return rows.length ? rows : null;
+        });
+        await billing.$executeRaw`UPDATE "Inbox" SET "payload"=jsonb_set("payload", '{data,outcome}', '"ALREADY_STARTED"'::jsonb) WHERE "consumer"='billing.compensation-evidence' AND "messageId"=${staged.eventId}`;
+        await b.call('resumeCancel');
+        await waitFor('cancelamento financeiro bloqueado', async () => {
+          const rows = await billing.$queryRaw`SELECT "status" FROM "Inbox" WHERE "consumer"='billing.cancel-charge-staging' AND "messageId"=${staged.messageId}`;
+          return rows[0]?.status === 'RECONCILIACAO_NECESSARIA';
+        });
+        assert.equal(await billing.billingRecoveryAudit.count({ where: { messageId: staged.messageId, reasonCode: 'CANCEL_EVIDENCE_MISMATCH' } }), 1);
+        assert.equal((await b.call('cancelCalls')).result, 0);
+        await waitFor('OS recebe bloqueio autenticado de Billing', async () => {
+          const rows = await os.$queryRaw`SELECT "status", "lastError" FROM "SagaInstance" WHERE "id"=${opened.sagaId}`;
+          return rows[0]?.status === 'RECONCILIACAO_NECESSARIA' && rows[0]?.lastError === 'CHARGE_CANCEL_EVIDENCE_MISMATCH';
+        });
+        const stock = (await container.item('stock:p1', 'branch').read()).resource;
+        assert.equal(stock.reserved, 2);
+        const release = await os.$queryRaw`SELECT "operationId" FROM "SagaOperation" WHERE "sagaId"=${opened.sagaId} AND "commandType"='execution.release-parts.v1'`;
+        assert.equal(release.length, 0);
+        process.stdout.write('Evidência divergente bloqueou cancelamento financeiro e preservou reserva pelo broker.\n');
+        return;
+      }
       await waitFor('cancelamento financeiro e liberação', async () => {
         const rows = await os.$queryRaw`SELECT "status" FROM "SagaInstance" WHERE "id"=${opened.sagaId}`;
         return rows[0]?.status === 'COMPENSADA';

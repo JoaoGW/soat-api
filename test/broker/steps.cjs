@@ -79,6 +79,13 @@ When('o provedor cancela a cobrança e perde a resposta', async function () {
   await this.attach(result.stdout, 'text/plain');
 });
 
+When('a evidência do cancelamento financeiro é corrompida', async function () {
+  const result = await runChecked('scripts/integration/broker-independent-processes.cjs', [], { ...process.env, SOAT_TEST_PRODUCTION_WORKERS: '1', SOAT_TEST_CANCEL_BEFORE_PAYMENT: '1', SOAT_TEST_BAD_CANCEL_EVIDENCE: '1' });
+  this.output = result.stdout;
+  if (result.stderr) await this.attach(result.stderr, 'text/plain');
+  await this.attach(result.stdout, 'text/plain');
+});
+
 When('reinicio o processo OS durante a Saga com workers Nest', async function () {
   const result = await runChecked('scripts/integration/broker-independent-processes.cjs', [], { ...process.env, SOAT_TEST_PRODUCTION_WORKERS: '1', SOAT_TEST_RESTART_OS: '1' });
   this.output = result.stdout;

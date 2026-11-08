@@ -115,3 +115,16 @@ A entrega administrativa é idempotente e exige Saga concluída, OS finalizada,
 pagamento aplicado correspondente, ausência de alerta e de operação de
 reembolso. Ela grava histórico append-only. Se qualquer pré-condição falhar,
 investigue o estado e mantenha o veículo retido até a situação ser resolvida.
+
+## Bloqueio de cancelamento de cobrança
+
+O aviso autenticado `billing.charge-cancel-blocked.v1` mantém a Saga em
+`RECONCILIACAO_NECESSARIA`. Confira o motivo, o comando, a evidência de
+Execution e a auditoria no Billing. O OS impede novas tentativas de publicação
+para liberações ainda `PENDING`, marcando-as `CANCELLED`. Se a publicação já
+estava reclamada, a operação fica em `RECONCILIACAO_NECESSARIA`: o envio pode
+ter ocorrido e é necessário consultar Execution para apurar a reserva e o
+trabalho físico. Se já havia sido enviada, não se presume que houve nem que
+faltou liberação. Preserve o incidente e não autorize entrega ou nova operação
+financeira somente porque a mensagem foi marcada como cancelada. Ainda não há
+comando automático de resolução para evidência divergente.
