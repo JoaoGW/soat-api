@@ -60,10 +60,10 @@ Ele verifica confirmação posterior, retomada auditada e uma única solicitaç�
 ao provedor; não demonstra os prazos reais nem uma integração Mercado Pago real.
 
 O workflow manual `BDD distribuído local` aceita SHAs completos de Billing,
-Execution e Auth, registra os quatro commits e falha quando a credencial de leitura
-`CROSS_REPO_READ_TOKEN` ou o aceite dos emuladores estiverem ausentes. Como os
-outros repositórios são privados, a execução no GitHub depende dessa credencial;
-o workflow não é check automático de PR. Os testes locais não provam deploy ou
+Execution e Auth, registra os quatro commits e falha sem o aceite dos emuladores.
+Com os repositórios públicos a leitura usa o token do próprio workflow; o secret
+`CROSS_REPO_READ_TOKEN` só é necessário se eles voltarem a ser privados. O
+workflow não é check automático de PR. Os testes locais não provam deploy ou
 identidades reais na nuvem.
 
 O workflow também executa `npm run test:auth-os-trace` com a Function e o
