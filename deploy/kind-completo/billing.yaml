@@ -1,0 +1,106 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: billing-migrate
+  labels:
+    app.kubernetes.io/component: migration
+spec:
+  backoffLimit: 3
+  template:
+    spec:
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+      containers:
+        - name: migrate
+          image: ghcr.io/joaogw/soat-billing-service:local-migration
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: soat-billing-runtime
+                  key: DATABASE_URL
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: soat-billing-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: soat-billing-service
+  template:
+    metadata:
+      labels:
+        app: soat-billing-service
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+      containers:
+        - name: api
+          image: ghcr.io/joaogw/soat-billing-service:local
+          ports:
+            - name: http
+              containerPort: 3000
+          env:
+            - name: OTEL_SERVICE_NAME
+              value: soat-billing-service
+            - name: ALLOW_LOCAL_EMULATORS
+              value: "true"
+            - name: SERVICE_BUS_COMMAND_QUEUE
+              value: billing.commands
+            - name: SERVICE_BUS_EVENT_TOPIC
+              value: soat.domain.events
+            - name: SERVICE_BUS_BILLING_EVIDENCE_SUBSCRIPTION
+              value: billing.evidence
+            - name: ENABLE_SERVICE_BUS_WORKER
+              value: "true"
+            - name: ENABLE_BILLING_COMPENSATION_EVIDENCE
+              value: "true"
+            - name: ENABLE_MERCADO_PAGO_COMMANDS
+              value: "true"
+            - name: ENABLE_MERCADO_PAGO_WEBHOOK
+              value: "true"
+            - name: ENABLE_MERCADO_PAGO_WEBHOOK_PROCESSOR
+              value: "true"
+            - name: ENABLE_MERCADO_PAGO_CHARGE_RECONCILIATION
+              value: "true"
+            - name: ENABLE_MERCADO_PAGO_REFUND_COMMANDS
+              value: "true"
+            - name: ENABLE_MERCADO_PAGO_REFUND_RECONCILIATION
+              value: "true"
+            - name: ENABLE_MERCADO_PAGO_CANCEL_COMMANDS
+              value: "true"
+            - name: JWT_CLIENT_ISSUER
+              value: soat-auth-function
+            - name: JWT_CLIENT_AUDIENCE
+              value: soat-api
+          envFrom:
+            - secretRef:
+                name: soat-billing-runtime
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              memory: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: soat-billing-service
+spec:
+  selector:
+    app: soat-billing-service
+  ports:
+    - name: http
+      port: 80
+      targetPort: http

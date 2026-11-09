@@ -1,0 +1,40 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Ambiente efêmero do pipeline: cluster kind criado no runner, sem Azure.
+# Os segredos vêm de um Secret gerado pelo CI no lugar do Key Vault.
+namespace: soat-kind
+
+resources:
+  - ../../base
+  - ../../migration/base
+  - postgres.yaml
+  - os-migration-job.yaml
+
+patches:
+  - path: deployment-patch.yaml
+  - patch: |-
+      $patch: delete
+      apiVersion: secrets-store.csi.x-k8s.io/v1
+      kind: SecretProviderClass
+      metadata:
+        name: soat-api-key-vault
+  - target:
+      kind: ServiceAccount
+      name: soat-api
+    patch: |-
+      - op: remove
+        path: /metadata/annotations
+      - op: add
+        path: /metadata/labels/app.kubernetes.io~1component
+        value: identity
+  - target:
+      kind: (Deployment|Job)
+      name: soat-api(-migrate)?
+    patch: |-
+      - op: remove
+        path: /spec/template/spec/volumes
+      - op: remove
+        path: /spec/template/spec/containers/0/volumeMounts
+      - op: remove
+        path: /spec/template/metadata/labels/azure.workload.identity~1use

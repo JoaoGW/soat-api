@@ -6,6 +6,13 @@ O workflow `Deploy imutável da API` publica a imagem exclusivamente como
 `ghcr.io/joaogw/soat-api:<SHA_DO_COMMIT>`. Não há tag `latest`, tag de branch
 nem credencial persistente de Azure ou Kubernetes.
 
+O pipeline inicia após o CI de um push aprovado em `development` ou `main`.
+Também pode ser iniciado manualmente, informando `approved_sha` e selecionando
+a branch correspondente. Antes de publicar, verifica na API do GitHub se o SHA
+é a ponta atual e possui CI aprovado por push no próprio repositório. Antes do
+deploy, volta a conferir a ponta; o checkout, a imagem e `APP_VERSION` usam o
+mesmo SHA. `npm run test:deploy-gate` testa as recusas sem acesso ao cluster.
+
 Em cada ambiente, o pipeline usa OIDC do GitHub Actions, aplica primeiro um
 Job `prisma migrate deploy` e só então atualiza o Deployment. A referência da
 imagem é substituída por seu SHA no diretório temporário do runner, antes da
@@ -88,5 +95,5 @@ bash -n scripts/deploy-api.sh
 ```
 
 O script de deploy é destinado ao runner autenticado pelo OIDC. Ele exige o
-SHA atual em `GITHUB_SHA`, rejeita `latest` e não deve ser executado localmente
+SHA aprovado em `APP_VERSION`, verifica o checkout e não deve ser executado localmente
 contra Azure sem a liberação de custo.

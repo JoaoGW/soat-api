@@ -1,4 +1,4 @@
-FROM node:20-alpine AS builder
+FROM node:24-alpine AS builder
 
 WORKDIR /app
 
@@ -13,7 +13,7 @@ RUN npx prisma generate
 RUN npm run build
 
 
-FROM node:20-alpine AS production
+FROM node:24-alpine AS production
 
 WORKDIR /app
 
@@ -26,6 +26,8 @@ RUN npm ci --omit=dev
 RUN npx prisma generate
 
 COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/docs/contracts/messages ./docs/contracts/messages
+COPY --from=builder --chown=node:node /app/scripts/operations/recover-saga-dlq.cjs ./scripts/operations/recover-saga-dlq.cjs
 
 EXPOSE 3000
 
