@@ -74,7 +74,9 @@ start_emulators() {
   password="$(cat "$STATE/mssql-password")"
   docker rm -f soat-mssql soat-servicebus soat-cosmos >/dev/null 2>&1 || true
   # Imagens publicadas somente para amd64; no Apple Silicon o Docker usa emulação.
-  docker run -d --name soat-mssql --network "$NETWORK" --platform linux/amd64 \
+  # Sob emulação o SQL Server pode encerrar com falha de segmentação (código 139);
+  # sem ele o Service Bus Emulator para de entregar mensagens, então o Docker o religa.
+  docker run -d --name soat-mssql --network "$NETWORK" --platform linux/amd64 --restart unless-stopped \
     -e ACCEPT_EULA="${SOAT_ACCEPT_EULA:?Leia os termos do SQL Server e do Service Bus Emulator e defina SOAT_ACCEPT_EULA=Y}" \
     -e MSSQL_SA_PASSWORD="$password" "$MSSQL_IMAGE" >/dev/null
   docker run -d --name soat-servicebus --network "$NETWORK" --platform linux/amd64 \
