@@ -229,8 +229,9 @@ resposta perdida, evidência divergente, retomada após queda de processos,
 jornada pelas APIs HTTP e propagação de trace. A preparação está em
 [`test/broker/README.md`](test/broker/README.md) e o workflow manual
 [`bdd-distribuido.yml`](.github/workflows/bdd-distribuido.yml) fixa os SHAs de
-Billing, Execution e Auth; ele exige o secret `CROSS_REPO_READ_TOKEN` com
-leitura dos repositórios privados e o aceite dos termos dos emuladores.
+Billing, Execution e Auth e exige o aceite dos termos dos emuladores. Com os
+repositórios públicos a leitura usa o token do próprio workflow; o secret
+`CROSS_REPO_READ_TOKEN` só é necessário se eles voltarem a ser privados.
 
 A qualidade é verificada no **SonarQube Cloud**
 ([painel do projeto](https://sonarcloud.io/project/overview?id=JoaoGW_soat-api)): o CI

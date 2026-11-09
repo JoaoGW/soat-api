@@ -83,3 +83,21 @@ do Mercado Pago a URL HTTPS exibida seguida de `/webhooks/mercado-pago`, para o
 evento de orders. Em seguida rode `jornada`: o script mostra o QR e aguarda o
 pagamento feito com o comprador de teste. Com a chave do New Relic, os três
 serviços exportam traces e métricas com o mesmo contexto W3C da OS.
+
+## Solução de problemas
+
+- **Pagamento aprovado e a Saga parada em `AGUARDANDO_PAGAMENTO`:** o webhook
+  não chegou ao Billing (o Terminal do túnel mostra `Unable to reach the origin
+  service`). Isso acontece quando os pods reiniciam durante o pagamento; rode a
+  `jornada` só depois que o `subir` terminar. O Mercado Pago tenta reenviar a
+  notificação, e o Billing confirma o pagamento consultando a order.
+- **Pagamento confirmado depois do prazo da cobrança (15 minutos):** a Saga vai
+  para `RECONCILIACAO_NECESSARIA` com `DEADLINE_EXPIRED`, de propósito: o OS não
+  enfileira trabalho de cobrança vencida e deixa a decisão para a operação.
+- **Mensagens paradas e `soat-mssql` encerrado com código 139:** sob emulação
+  amd64 o SQL Server pode falhar e o Service Bus Emulator deixa de entregar
+  mensagens. O contêiner é religado pelo Docker; confira com
+  `docker ps -a --filter name=soat-mssql`.
+- **New Relic sem dados (HTTP 403 na exportação OTLP):** `NEW_RELIC_LICENSE_KEY`
+  precisa ser a chave do tipo *Ingest - License* (40 caracteres terminados em
+  `NRAL`), não o ID da chave exibido na lista de API keys.

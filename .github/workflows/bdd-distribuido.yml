@@ -44,17 +44,15 @@ jobs:
       SOAT_TEST_ACCEPT_EULA: Y
       SOAT_TEST_MSSQL_PASSWORD: SoatLocalTest_2026!
     steps:
-      - name: Validar consentimento, SHAs e credencial de leitura
+      - name: Validar consentimento e SHAs
         env:
           ACCEPT: ${{ inputs.accept_emulator_eula }}
           BILLING_SHA: ${{ inputs.billing_sha }}
           EXECUTION_SHA: ${{ inputs.execution_sha }}
           AUTH_SHA: ${{ inputs.auth_sha }}
-          CROSS_REPO_TOKEN: ${{ secrets.CROSS_REPO_READ_TOKEN }}
         run: |
           [[ "$ACCEPT" == 'true' ]] || { echo 'Aceite dos emuladores obrigatório'; exit 1; }
           [[ "$BILLING_SHA" =~ ^[0-9a-f]{40}$ && "$EXECUTION_SHA" =~ ^[0-9a-f]{40}$ && "$AUTH_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo 'Informe SHAs completos'; exit 1; }
-          [[ -n "$CROSS_REPO_TOKEN" ]] || { echo 'CROSS_REPO_READ_TOKEN ausente'; exit 1; }
       - uses: actions/checkout@v4
         with:
           path: os
@@ -62,19 +60,19 @@ jobs:
         with:
           repository: JoaoGW/soat-billing-service
           ref: ${{ inputs.billing_sha }}
-          token: ${{ secrets.CROSS_REPO_READ_TOKEN }}
+          token: ${{ secrets.CROSS_REPO_READ_TOKEN || github.token }}
           path: billing
       - uses: actions/checkout@v4
         with:
           repository: JoaoGW/soat-execution-service
           ref: ${{ inputs.execution_sha }}
-          token: ${{ secrets.CROSS_REPO_READ_TOKEN }}
+          token: ${{ secrets.CROSS_REPO_READ_TOKEN || github.token }}
           path: execution
       - uses: actions/checkout@v4
         with:
           repository: JoaoGW/soat-auth-function
           ref: ${{ inputs.auth_sha }}
-          token: ${{ secrets.CROSS_REPO_READ_TOKEN }}
+          token: ${{ secrets.CROSS_REPO_READ_TOKEN || github.token }}
           path: auth
       - uses: actions/setup-node@v4
         with:
