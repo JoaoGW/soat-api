@@ -4,9 +4,7 @@ import { Test } from '@nestjs/testing';
 import { PassportModule } from '@nestjs/passport';
 import * as jwt from 'jsonwebtoken';
 import request from 'supertest';
-import { ConsultarStatusOSUseCase } from '../../../application/use-cases/ConsultarStatusOSUseCase';
 import { ObterTempoMedioExecucaoUseCase } from '../../../application/use-cases/ObterTempoMedioExecucaoUseCase';
-import { ConsultaPublicaController } from '../publico/ConsultaPublicaController';
 import { JwtAuthGuard } from '../../guards/JwtAuthGuard';
 import { JwtStrategy } from '../../strategies/JwtStrategy';
 import { RelatorioController } from './RelatorioController';
@@ -16,10 +14,6 @@ describe('RelatorioController + JwtAuthGuard', () => {
   let app: INestApplication;
 
   const obterTempoMedio = {
-    execute: jest.fn(),
-  };
-
-  const consultarStatus = {
     execute: jest.fn(),
   };
 
@@ -37,17 +31,13 @@ describe('RelatorioController + JwtAuthGuard', () => {
         }),
         PassportModule,
       ],
-      controllers: [RelatorioController, ConsultaPublicaController],
+      controllers: [RelatorioController],
       providers: [
         JwtAuthGuard,
         JwtStrategy,
         {
           provide: ObterTempoMedioExecucaoUseCase,
           useValue: obterTempoMedio,
-        },
-        {
-          provide: ConsultarStatusOSUseCase,
-          useValue: consultarStatus,
         },
       ],
     }).compile();
@@ -66,12 +56,6 @@ describe('RelatorioController + JwtAuthGuard', () => {
         execucao: { mediaEmMinutos: 127, totalOSConsideradas: 42 },
         finalizacao: { mediaEmMinutos: 10, totalOSConsideradas: 40 },
       },
-    });
-    consultarStatus.execute.mockResolvedValue({
-      codigoAcompanhamento: 'OS-2026-A8K92P',
-      status: 'EM_EXECUCAO',
-      descricaoStatus: 'Seu veiculo esta em execucao de servico.',
-      dataAtualizacao: '2026-01-15T10:30:00.000Z',
     });
   });
 
@@ -157,11 +141,5 @@ describe('RelatorioController + JwtAuthGuard', () => {
       .get('/relatorios/tempo-medio-execucao')
       .set('Authorization', `Bearer ${token}`)
       .expect(401);
-  });
-
-  it('deve manter rota publica acessivel sem token', async () => {
-    await request(app.getHttpServer())
-      .get('/consulta/os/OS-2026-A8K92P/status')
-      .expect(200);
   });
 });

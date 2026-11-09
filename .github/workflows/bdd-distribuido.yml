@@ -1,0 +1,177 @@
+name: BDD distribuído local
+on:
+  workflow_dispatch:
+    inputs:
+      billing_sha:
+        description: SHA completo aprovado de Billing
+        required: true
+        type: string
+      execution_sha:
+        description: SHA completo aprovado de Execution
+        required: true
+        type: string
+      auth_sha:
+        description: SHA completo aprovado da Function Auth
+        required: true
+        type: string
+      accept_emulator_eula:
+        description: Aceitar termos do Service Bus Emulator e SQL Server
+        required: true
+        type: boolean
+        default: false
+permissions:
+  contents: read
+jobs:
+  bdd:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: soattest
+          POSTGRES_PASSWORD: localtest
+          POSTGRES_DB: postgres
+        ports: ['55446:5432']
+        options: >-
+          --health-cmd "pg_isready -U soattest -d postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      OS_TEST_DATABASE_URL: postgresql://soattest:localtest@127.0.0.1:55446/os_bdd_test
+      BILLING_TEST_DATABASE_URL: postgresql://soattest:localtest@127.0.0.1:55446/billing_bdd_test
+      COSMOS_TEST_ENDPOINT: http://127.0.0.1:8081
+      SERVICE_BUS_TEST_CONNECTION_STRING: 'Endpoint=sb://localhost/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;'
+      SOAT_TEST_ACCEPT_EULA: Y
+      SOAT_TEST_MSSQL_PASSWORD: SoatLocalTest_2026!
+    steps:
+      - name: Validar consentimento, SHAs e credencial de leitura
+        env:
+          ACCEPT: ${{ inputs.accept_emulator_eula }}
+          BILLING_SHA: ${{ inputs.billing_sha }}
+          EXECUTION_SHA: ${{ inputs.execution_sha }}
+          AUTH_SHA: ${{ inputs.auth_sha }}
+          CROSS_REPO_TOKEN: ${{ secrets.CROSS_REPO_READ_TOKEN }}
+        run: |
+          [[ "$ACCEPT" == 'true' ]] || { echo 'Aceite dos emuladores obrigatório'; exit 1; }
+          [[ "$BILLING_SHA" =~ ^[0-9a-f]{40}$ && "$EXECUTION_SHA" =~ ^[0-9a-f]{40}$ && "$AUTH_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo 'Informe SHAs completos'; exit 1; }
+          [[ -n "$CROSS_REPO_TOKEN" ]] || { echo 'CROSS_REPO_READ_TOKEN ausente'; exit 1; }
+      - uses: actions/checkout@v4
+        with:
+          path: os
+      - uses: actions/checkout@v4
+        with:
+          repository: JoaoGW/soat-billing-service
+          ref: ${{ inputs.billing_sha }}
+          token: ${{ secrets.CROSS_REPO_READ_TOKEN }}
+          path: billing
+      - uses: actions/checkout@v4
+        with:
+          repository: JoaoGW/soat-execution-service
+          ref: ${{ inputs.execution_sha }}
+          token: ${{ secrets.CROSS_REPO_READ_TOKEN }}
+          path: execution
+      - uses: actions/checkout@v4
+        with:
+          repository: JoaoGW/soat-auth-function
+          ref: ${{ inputs.auth_sha }}
+          token: ${{ secrets.CROSS_REPO_READ_TOKEN }}
+          path: auth
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Fixar versões exatas
+        env:
+          BILLING_SHA: ${{ inputs.billing_sha }}
+          EXECUTION_SHA: ${{ inputs.execution_sha }}
+          AUTH_SHA: ${{ inputs.auth_sha }}
+        run: |
+          [[ "$(git -C billing rev-parse HEAD)" == "$BILLING_SHA" ]]
+          [[ "$(git -C execution rev-parse HEAD)" == "$EXECUTION_SHA" ]]
+          [[ "$(git -C auth rev-parse HEAD)" == "$AUTH_SHA" ]]
+          printf 'OS=%s\nBilling=%s\nExecution=%s\nAuth=%s\n' "$(git -C os rev-parse HEAD)" "$(git -C billing rev-parse HEAD)" "$(git -C execution rev-parse HEAD)" "$(git -C auth rev-parse HEAD)" > "$RUNNER_TEMP/versions.txt"
+      - name: Instalar e compilar serviços
+        run: |
+          npm ci --prefix os
+          npm ci --prefix billing
+          npm ci --prefix execution
+          npm ci --prefix auth
+          npm run db:generate --prefix billing
+          (cd os && npx prisma generate && npm run build)
+          npm run build --prefix billing
+          npm run build --prefix execution
+          npm run build --prefix auth
+      - name: Preparar bancos isolados
+        env:
+          PGPASSWORD: localtest
+        run: |
+          createdb -h 127.0.0.1 -p 55446 -U soattest os_bdd_test
+          createdb -h 127.0.0.1 -p 55446 -U soattest billing_bdd_test
+          (cd os && DATABASE_URL="$OS_TEST_DATABASE_URL" npm run db:migrate:deploy)
+          (cd billing && DATABASE_URL="$BILLING_TEST_DATABASE_URL" npm run db:migrate:deploy)
+      - name: Validar trace da Function até o OS via HTTPS local
+        working-directory: os
+        env:
+          AUTH_REPO_DIR: ${{ github.workspace }}/auth
+        run: npm run test:auth-os-trace | tee "$RUNNER_TEMP/auth-trace.txt"
+      - name: Iniciar emuladores locais
+        run: |
+          docker compose -f os/test/broker/compose.yaml up -d
+          docker run -d --name soat-bdd-cosmos -p 127.0.0.1:8081:8081 mcr.microsoft.com/cosmosdb/linux/azure-cosmos-emulator:vnext-latest --enable-explorer false
+          attempt=0
+          until curl -fsS http://127.0.0.1:5300/health >/dev/null && curl -fsS http://127.0.0.1:8081/ >/dev/null; do
+            attempt=$((attempt + 1))
+            if (( attempt >= 90 )); then echo 'Emuladores não ficaram prontos'; exit 1; fi
+            sleep 2
+          done
+      - name: Verificar catálogo e estoque no Cosmos emulado
+        run: npm run test:cosmos-queue --prefix execution | tee "$RUNNER_TEMP/cosmos-contracts.txt"
+      - name: Verificar recuperação de orçamento na DLQ
+        working-directory: billing
+        env:
+          DATABASE_URL: ${{ env.BILLING_TEST_DATABASE_URL }}
+        run: npm run test:broker-quote-dlq | tee "$RUNNER_TEMP/billing-dlq.txt"
+      - name: Verificar recuperação de evidência e reembolso na DLQ
+        working-directory: billing
+        env:
+          DATABASE_URL: ${{ env.BILLING_TEST_DATABASE_URL }}
+        run: |
+          npm run test:broker-evidence-dlq | tee "$RUNNER_TEMP/billing-evidence-dlq.txt"
+          npm run test:broker-refund-dlq | tee "$RUNNER_TEMP/billing-refund-dlq.txt"
+          npm run test:broker-charge-dlq | tee "$RUNNER_TEMP/billing-charge-dlq.txt"
+          npm run test:broker-cancel-charge-dlq | tee "$RUNNER_TEMP/billing-cancel-charge-dlq.txt"
+      - name: Verificar comando e evidência de cancelamento no broker
+        working-directory: billing
+        env:
+          DATABASE_URL: ${{ env.BILLING_TEST_DATABASE_URL }}
+        run: npm run test:broker-cancel-charge | tee "$RUNNER_TEMP/billing-cancel-charge.txt"
+      - name: Executar jornadas e compensações pelo broker
+        working-directory: os
+        env:
+          BILLING_REPO_DIR: ${{ github.workspace }}/billing
+          EXECUTION_REPO_DIR: ${{ github.workspace }}/execution
+        run: npm run test:bdd-distributed -- --format "json:$RUNNER_TEMP/bdd-results.json"
+      - name: Verificar recuperação da Saga após ACK incerto
+        working-directory: os
+        run: npm run test:broker-recover-dlq | tee "$RUNNER_TEMP/os-dlq.txt"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bdd-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/versions.txt
+            ${{ runner.temp }}/bdd-results.json
+            ${{ runner.temp }}/auth-trace.txt
+            ${{ runner.temp }}/cosmos-contracts.txt
+            ${{ runner.temp }}/billing-dlq.txt
+            ${{ runner.temp }}/billing-evidence-dlq.txt
+            ${{ runner.temp }}/billing-refund-dlq.txt
+            ${{ runner.temp }}/billing-charge-dlq.txt
+            ${{ runner.temp }}/billing-cancel-charge-dlq.txt
+            ${{ runner.temp }}/billing-cancel-charge.txt
+            ${{ runner.temp }}/os-dlq.txt
+          if-no-files-found: warn
+      - name: Encerrar emuladores
+        if: always()
+        run: |
+          docker compose -f os/test/broker/compose.yaml down || true
+          docker rm -f soat-bdd-cosmos || true

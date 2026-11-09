@@ -1,0 +1,231 @@
+name: Deploy imutável da API
+
+on:
+  workflow_dispatch:
+    inputs:
+      approved_sha:
+        description: SHA completo aprovado pelo CI na branch selecionada
+        required: true
+        type: string
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [development, main]
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  IMAGE_NAME: ghcr.io/joaogw/soat-api
+
+jobs:
+  authorize:
+    name: Verificar SHA aprovado pelo CI
+    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_repository.full_name == github.repository)
+    runs-on: ubuntu-latest
+    outputs:
+      sha: ${{ steps.approved.outputs.sha }}
+      branch: ${{ steps.approved.outputs.branch }}
+    steps:
+      - name: Validar CI e ponta atual da branch
+        id: approved
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_SHA: ${{ github.event.workflow_run.head_sha }}
+          RUN_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          RUN_EVENT: ${{ github.event.workflow_run.event }}
+          RUN_REPOSITORY: ${{ github.event.workflow_run.head_repository.full_name }}
+          RUN_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+          MANUAL_SHA: ${{ inputs.approved_sha }}
+          MANUAL_BRANCH: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_EVENT_NAME" == 'workflow_run' ]]; then
+            [[ "$RUN_CONCLUSION" == 'success' && "$RUN_EVENT" == 'push' && "$RUN_REPOSITORY" == "$GITHUB_REPOSITORY" ]] || { echo 'CI não autorizado'; exit 1; }
+            sha="$RUN_SHA"; branch="$RUN_BRANCH"
+          elif [[ "$GITHUB_EVENT_NAME" == 'workflow_dispatch' ]]; then
+            sha="$MANUAL_SHA"; branch="$MANUAL_BRANCH"
+          else
+            echo 'Gatilho inválido'; exit 1
+          fi
+          [[ "$sha" =~ ^[0-9a-f]{40}$ && ( "$branch" == 'development' || "$branch" == 'main' ) ]] || { echo 'SHA ou branch inválidos'; exit 1; }
+          current="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/$branch" --jq '.object.sha')"
+          [[ "$current" == "$sha" ]] || { echo 'A branch avançou após o CI'; exit 1; }
+          gh api -X GET "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs" -f head_sha="$sha" -f branch="$branch" -f event=push -f status=success -F per_page=100 |
+            jq -e --arg sha "$sha" --arg branch "$branch" --arg repo "$GITHUB_REPOSITORY" 'any(.workflow_runs[]; .head_sha == $sha and .head_branch == $branch and .event == "push" and .conclusion == "success" and .head_repository.full_name == $repo)' >/dev/null || { echo 'CI aprovado para o SHA não encontrado'; exit 1; }
+          printf 'sha=%s\nbranch=%s\n' "$sha" "$branch" >> "$GITHUB_OUTPUT"
+  build_and_publish:
+    name: Publicar imagem por SHA
+    needs: authorize
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.authorize.outputs.sha }}
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ env.IMAGE_NAME }}:${{ needs.authorize.outputs.sha }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ needs.authorize.outputs.sha }}
+  deploy_hml:
+    name: Deploy hml
+    needs: [authorize, build_and_publish]
+    if: needs.authorize.outputs.branch == 'development'
+    runs-on: ubuntu-latest
+    environment: hml
+    concurrency:
+      group: os-deploy-hml
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Verificar autorização de deploy
+        id: gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          APPROVED_SHA: ${{ needs.authorize.outputs.sha }}
+          APPROVED_BRANCH: ${{ needs.authorize.outputs.branch }}
+          DEPLOY_ENABLED: ${{ vars.TF_APPLY_ENABLED }}
+          CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+        run: |
+          if [[ "$DEPLOY_ENABLED" == 'true' && -n "$CLIENT_ID" ]]; then
+            current="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/$APPROVED_BRANCH" --jq '.object.sha')"
+            [[ "$current" == "$APPROVED_SHA" ]] || { echo 'A branch avançou antes do deploy'; exit 1; }
+            echo 'deploy=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'deploy=false' >> "$GITHUB_OUTPUT"
+            echo 'Deploy HML bloqueado pela trava de custo.'
+          fi
+      - uses: actions/checkout@v4
+        if: steps.gate.outputs.deploy == 'true'
+        with:
+          ref: ${{ needs.authorize.outputs.sha }}
+      - uses: azure/login@v2
+        if: steps.gate.outputs.deploy == 'true'
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - uses: azure/use-kubelogin@v1
+        if: steps.gate.outputs.deploy == 'true'
+        with:
+          kubelogin-version: v0.1.4
+      - uses: imranismail/setup-kustomize@v2
+        if: steps.gate.outputs.deploy == 'true'
+      - name: Autenticar no cluster AKS
+        if: steps.gate.outputs.deploy == 'true'
+        run: |
+          az aks get-credentials \
+            --resource-group '${{ vars.AKS_RESOURCE_GROUP }}' \
+            --name '${{ vars.AKS_NAME }}' \
+            --overwrite-existing
+          kubelogin convert-kubeconfig -l azurecli
+      - name: Executar migrations antes do rollout
+        if: steps.gate.outputs.deploy == 'true'
+        env:
+          ENVIRONMENT: hml
+          IMAGE: ${{ env.IMAGE_NAME }}:${{ needs.authorize.outputs.sha }}
+          KEY_VAULT_NAME: ${{ vars.KEY_VAULT_NAME }}
+          AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+          API_WORKLOAD_CLIENT_ID: ${{ vars.API_WORKLOAD_CLIENT_ID }}
+          APP_VERSION: ${{ needs.authorize.outputs.sha }}
+        run: ./scripts/deploy-api.sh migration "$ENVIRONMENT" "$IMAGE"
+      - name: Aplicar Deployment da API
+        if: steps.gate.outputs.deploy == 'true'
+        env:
+          ENVIRONMENT: hml
+          IMAGE: ${{ env.IMAGE_NAME }}:${{ needs.authorize.outputs.sha }}
+          KEY_VAULT_NAME: ${{ vars.KEY_VAULT_NAME }}
+          AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+          API_WORKLOAD_CLIENT_ID: ${{ vars.API_WORKLOAD_CLIENT_ID }}
+          APP_VERSION: ${{ needs.authorize.outputs.sha }}
+        run: ./scripts/deploy-api.sh application "$ENVIRONMENT" "$IMAGE"
+
+  deploy_prod:
+    name: Deploy prod
+    needs: [authorize, build_and_publish]
+    if: needs.authorize.outputs.branch == 'main'
+    runs-on: ubuntu-latest
+    environment: prod
+    concurrency:
+      group: os-deploy-prod
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Verificar autorização de deploy
+        id: gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          APPROVED_SHA: ${{ needs.authorize.outputs.sha }}
+          APPROVED_BRANCH: ${{ needs.authorize.outputs.branch }}
+          DEPLOY_ENABLED: ${{ vars.TF_APPLY_ENABLED }}
+          CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+        run: |
+          if [[ "$DEPLOY_ENABLED" == 'true' && -n "$CLIENT_ID" ]]; then
+            current="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/$APPROVED_BRANCH" --jq '.object.sha')"
+            [[ "$current" == "$APPROVED_SHA" ]] || { echo 'A branch avançou antes do deploy'; exit 1; }
+            echo 'deploy=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'deploy=false' >> "$GITHUB_OUTPUT"
+            echo 'Deploy PROD bloqueado pela trava de custo.'
+          fi
+      - uses: actions/checkout@v4
+        if: steps.gate.outputs.deploy == 'true'
+        with:
+          ref: ${{ needs.authorize.outputs.sha }}
+      - uses: azure/login@v2
+        if: steps.gate.outputs.deploy == 'true'
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - uses: azure/use-kubelogin@v1
+        if: steps.gate.outputs.deploy == 'true'
+        with:
+          kubelogin-version: v0.1.4
+      - uses: imranismail/setup-kustomize@v2
+        if: steps.gate.outputs.deploy == 'true'
+      - name: Autenticar no cluster AKS
+        if: steps.gate.outputs.deploy == 'true'
+        run: |
+          az aks get-credentials \
+            --resource-group '${{ vars.AKS_RESOURCE_GROUP }}' \
+            --name '${{ vars.AKS_NAME }}' \
+            --overwrite-existing
+          kubelogin convert-kubeconfig -l azurecli
+      - name: Executar migrations antes do rollout
+        if: steps.gate.outputs.deploy == 'true'
+        env:
+          ENVIRONMENT: prod
+          IMAGE: ${{ env.IMAGE_NAME }}:${{ needs.authorize.outputs.sha }}
+          KEY_VAULT_NAME: ${{ vars.KEY_VAULT_NAME }}
+          AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+          API_WORKLOAD_CLIENT_ID: ${{ vars.API_WORKLOAD_CLIENT_ID }}
+          APP_VERSION: ${{ needs.authorize.outputs.sha }}
+        run: ./scripts/deploy-api.sh migration "$ENVIRONMENT" "$IMAGE"
+      - name: Aplicar Deployment da API
+        if: steps.gate.outputs.deploy == 'true'
+        env:
+          ENVIRONMENT: prod
+          IMAGE: ${{ env.IMAGE_NAME }}:${{ needs.authorize.outputs.sha }}
+          KEY_VAULT_NAME: ${{ vars.KEY_VAULT_NAME }}
+          AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+          API_WORKLOAD_CLIENT_ID: ${{ vars.API_WORKLOAD_CLIENT_ID }}
+          APP_VERSION: ${{ needs.authorize.outputs.sha }}
+        run: ./scripts/deploy-api.sh application "$ENVIRONMENT" "$IMAGE"

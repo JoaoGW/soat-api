@@ -408,13 +408,16 @@ Temporary Items
 
 # Local
 .env
+.env.test
 .env.docker
 dist
+generated/os
 .webpack
 .serverless/**/*.zip
 .env.local
 .env.*.local
 !.env.example
+!.env.test.example
 
 # Kubernetes local secrets
 k8s/secret.yaml
@@ -431,3 +434,7 @@ override.tf
 override.tf.json
 *_override.tf
 *_override.tf.json
+
+# Ambiente kind local
+.kind-local/
+.env.kind.local

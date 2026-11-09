@@ -1,0 +1,56 @@
+# Provedor simulado usado no CI e quando não há credenciais de teste do
+# Mercado Pago. Com credenciais, o Billing chama a API oficial.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mercado-pago-simulado
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mercado-pago-simulado
+  template:
+    metadata:
+      labels:
+        app: mercado-pago-simulado
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+      containers:
+        - name: simulador
+          image: node:24-alpine
+          command: ["node", "/app/mercado-pago-simulado.cjs"]
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: WEBHOOK_URL
+              value: http://soat-billing-service/webhooks/mercado-pago
+          envFrom:
+            - secretRef:
+                name: mercado-pago-simulado
+          readinessProbe:
+            httpGet:
+              path: /saude
+              port: http
+            periodSeconds: 3
+          volumeMounts:
+            - name: app
+              mountPath: /app
+      volumes:
+        - name: app
+          configMap:
+            name: mercado-pago-simulado
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mercado-pago-simulado
+spec:
+  selector:
+    app: mercado-pago-simulado
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http

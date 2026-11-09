@@ -417,11 +417,6 @@ describe('Ordens de Servico (e2e)', () => {
       .expect(200);
     expect(detalheOs.body.props.status).toBe('ENTREGUE');
 
-    const consultaPublica = await request(app.getHttpServer())
-      .get(`/consulta/os/${osCriada.codigoAcompanhamento}/status`)
-      .expect(200);
-    expect(consultaPublica.body.status).toBe('ENTREGUE');
-
     const historico = await prisma.historicoStatusOS.findMany({
       where: { osId: osCriada.id },
       orderBy: { ocorridoEm: 'asc' },

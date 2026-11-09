@@ -8,10 +8,12 @@ memória nos ambientes de execução ou integração.
 
 - Node.js 20 ou superior e dependências instaladas com `npm ci`;
 - Docker em execução para os testes e2e;
-- arquivo `.env.test` configurado para o PostgreSQL de teste na porta `5433`.
+- uma cópia local de `.env.test.example` como `.env.test`, configurada para o
+  PostgreSQL de teste na porta `5433`.
 
 O banco de teste é isolado do banco de desenvolvimento. Nunca use uma URL de
-produção em `.env.test`.
+produção em `.env.test`. A CI injeta as variáveis de teste e não versiona esse
+arquivo local.
 
 ## Preparação do banco e2e
 

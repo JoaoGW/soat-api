@@ -1,3 +1,4 @@
+import './infrastructure/observability/instrumentation';
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
@@ -5,6 +6,7 @@ import { AppModule } from './app.module';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  app.enableShutdownHooks();
 
   app.useGlobalPipes(
     new ValidationPipe({
@@ -25,11 +27,33 @@ async function bootstrap() {
         type: 'http',
         scheme: 'bearer',
         bearerFormat: 'JWT',
-        name: 'JWT',
+        name: 'JWT_ADMIN',
         description: 'Informe o token JWT recebido no login administrativo.',
         in: 'header',
       },
-      'JWT',
+      'JWT_ADMIN',
+    )
+    .addBearerAuth(
+      {
+        type: 'http',
+        scheme: 'bearer',
+        bearerFormat: 'JWT',
+        name: 'JWT_CLIENTE',
+        description:
+          'Informe o token JWT emitido pela autenticacao CPF para o cliente.',
+        in: 'header',
+      },
+      'JWT_CLIENTE',
+    )
+    .addBearerAuth(
+      {
+        type: 'http',
+        scheme: 'bearer',
+        name: 'INTEGRACAO_INTERNA',
+        description: 'Credencial exclusiva da integração de validação de CPF.',
+        in: 'header',
+      },
+      'INTEGRACAO_INTERNA',
     )
     .build();
 

@@ -12,7 +12,7 @@ import {
 import { JwtAuthGuard } from '../../guards/JwtAuthGuard';
 
 @ApiTags('Relatorios')
-@ApiBearerAuth('JWT')
+@ApiBearerAuth('JWT_ADMIN')
 @Controller('relatorios')
 @UseGuards(JwtAuthGuard)
 export class RelatorioController {

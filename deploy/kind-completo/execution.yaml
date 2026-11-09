@@ -1,0 +1,95 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: execution-cosmos-init
+  labels:
+    app.kubernetes.io/component: migration
+spec:
+  backoffLimit: 10
+  template:
+    spec:
+      restartPolicy: OnFailure
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+      containers:
+        - name: init
+          image: ghcr.io/joaogw/soat-execution-service:local
+          # Cria banco e container particionado por filial, como o Terraform faz no Azure.
+          command:
+            - node
+            - -e
+            - >-
+              const { CosmosClient } = require('@azure/cosmos');
+              const client = new CosmosClient({ endpoint: process.env.COSMOS_ENDPOINT, key: process.env.COSMOS_KEY, connectionPolicy: { enableEndpointDiscovery: false } });
+              (async () => {
+                const { database } = await client.databases.createIfNotExists({ id: process.env.COSMOS_DATABASE });
+                await database.containers.createIfNotExists({ id: process.env.COSMOS_CONTAINER, partitionKey: { paths: ['/filialId'] } });
+                console.log('Cosmos pronto');
+              })().catch((error) => { console.error(error.message); process.exit(1); });
+          envFrom:
+            - secretRef:
+                name: soat-execution-runtime
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: soat-execution-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: soat-execution-service
+  template:
+    metadata:
+      labels:
+        app: soat-execution-service
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+      containers:
+        - name: api
+          image: ghcr.io/joaogw/soat-execution-service:local
+          ports:
+            - name: http
+              containerPort: 3000
+          env:
+            - name: OTEL_SERVICE_NAME
+              value: soat-execution-service
+            - name: ALLOW_LOCAL_EMULATORS
+              value: "true"
+            - name: SERVICE_BUS_COMMAND_QUEUE
+              value: execution.commands
+            - name: SERVICE_BUS_EVENT_TOPIC
+              value: soat.domain.events
+            - name: ENABLE_EXECUTION_COMMANDS
+              value: "true"
+            - name: ENABLE_EXECUTION_OUTBOX
+              value: "true"
+          envFrom:
+            - secretRef:
+                name: soat-execution-runtime
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              memory: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: soat-execution-service
+spec:
+  selector:
+    app: soat-execution-service
+  ports:
+    - name: http
+      port: 80
+      targetPort: http

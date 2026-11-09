@@ -39,7 +39,7 @@ import { OrdemDeServicoSemServicoError } from '../../../domain/errors/OrdemDeSer
 import { TransicaoStatusInvalidaError } from '../../../domain/errors/TransicaoStatusInvalidaError';
 
 @ApiTags('Ordens de Servico')
-@ApiBearerAuth('JWT')
+@ApiBearerAuth('JWT_ADMIN')
 @Controller('ordens-servico')
 @UseGuards(JwtAuthGuard)
 export class OrdemDeServicoController {

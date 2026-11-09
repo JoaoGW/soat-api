@@ -1,4 +1,22 @@
-import { Module } from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
+import {
+  OpenOrderController,
+  OpenOrderRuntime,
+} from './interfaces/controllers/fase4/AbrirOrdemController';
+import {
+  Phase4RegistryRuntime,
+  Phase4ClientController,
+  Phase4VehicleController,
+  Phase4InternalClientController,
+  Phase4AdminOrderQueryController,
+  Phase4CustomerOrderQueryController,
+  Phase4ReportController,
+} from './interfaces/controllers/fase4/CadastrosController';
+import { SagaDeadlineWorker } from './infrastructure/saga/RevisarPrazos';
+import { SagaReplayWorker } from './infrastructure/saga/AgendarReaplicacao';
+import { SagaCommandWorker } from './infrastructure/service-bus/SagaCommandWorker';
+import { SagaEventWorker } from './infrastructure/service-bus/SagaEventWorker';
+import { APP_INTERCEPTOR } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -51,15 +69,20 @@ import { PrismaVeiculoRepository } from './infrastructure/repositories/PrismaVei
 import { EmailAdapter } from './infrastructure/adapters/email/EmailAdapter';
 import { JwtOrcamentoWebhookTokenAdapter } from './infrastructure/adapters/webhook/JwtOrcamentoWebhookTokenAdapter';
 import { ClienteController } from './interfaces/controllers/admin/ClienteController';
+import { ClienteIntegracaoController } from './interfaces/controllers/internal/ClienteIntegracaoController';
 import { OrdemDeServicoController } from './interfaces/controllers/admin/OrdemDeServicoController';
 import { PecaController } from './interfaces/controllers/admin/PecaController';
 import { ServicoController } from './interfaces/controllers/admin/ServicoController';
 import { VeiculoController } from './interfaces/controllers/admin/VeiculoController';
+import { ClienteOrdemServicoController } from './interfaces/controllers/cliente/ClienteOrdemServicoController';
 import { JwtAuthGuard } from './interfaces/guards/JwtAuthGuard';
+import { JwtClienteAuthGuard } from './interfaces/guards/JwtClienteAuthGuard';
 import { AuthModule } from './modules/auth.module';
 import { PublicoModule } from './modules/publico.module';
 import { RelatorioModule } from './modules/relatorio.module';
 import { RepositoryModule } from './modules/repository.module';
+import { CorrelationIdMiddleware } from './interfaces/observability/CorrelationIdMiddleware';
+import { HttpObservabilityInterceptor } from './interfaces/observability/HttpObservabilityInterceptor';
 
 @Module({
   imports: [
@@ -75,14 +98,35 @@ import { RepositoryModule } from './modules/repository.module';
   controllers: [
     AppController,
     ClienteController,
+    ClienteIntegracaoController,
     VeiculoController,
+    ClienteOrdemServicoController,
     ServicoController,
     PecaController,
     OrdemDeServicoController,
+    OpenOrderController,
+    Phase4ClientController,
+    Phase4VehicleController,
+    Phase4InternalClientController,
+    Phase4AdminOrderQueryController,
+    Phase4CustomerOrderQueryController,
+    Phase4ReportController,
   ],
   providers: [
+    OpenOrderRuntime,
+    Phase4RegistryRuntime,
+    SagaReplayWorker,
+    SagaDeadlineWorker,
+    SagaEventWorker,
+    SagaCommandWorker,
     AppService,
+    CorrelationIdMiddleware,
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: HttpObservabilityInterceptor,
+    },
     JwtAuthGuard,
+    JwtClienteAuthGuard,
     EmailAdapter,
     JwtOrcamentoWebhookTokenAdapter,
     {
@@ -354,4 +398,8 @@ import { RepositoryModule } from './modules/repository.module';
     },
   ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer): void {
+    consumer.apply(CorrelationIdMiddleware).forRoutes('*');
+  }
+}

@@ -1,0 +1,142 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: os-migrate-legacy
+  labels:
+    app.kubernetes.io/component: migration
+spec:
+  backoffLimit: 3
+  template:
+    spec:
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+      containers:
+        - name: migrate
+          image: ghcr.io/joaogw/soat-api:local
+          command: ["npx", "prisma", "migrate", "deploy"]
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: soat-os-runtime
+                  key: DATABASE_URL
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: os-migrate-saga
+  labels:
+    app.kubernetes.io/component: migration
+spec:
+  backoffLimit: 3
+  template:
+    spec:
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+      containers:
+        - name: migrate
+          image: ghcr.io/joaogw/soat-api:local
+          command: ["npx", "prisma", "migrate", "deploy", "--schema", "prisma/os/schema.prisma"]
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: soat-os-runtime
+                  key: SAGA_DATABASE_URL
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: soat-api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: soat-api
+  template:
+    metadata:
+      labels:
+        app: soat-api
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+      containers:
+        - name: api
+          image: ghcr.io/joaogw/soat-api:local
+          ports:
+            - name: http
+              containerPort: 3000
+          env:
+            - name: NODE_ENV
+              value: production
+            - name: OTEL_SERVICE_NAME
+              value: soat-api
+            - name: ALLOW_LOCAL_EMULATORS
+              value: "true"
+            - name: SERVICE_BUS_BILLING_QUEUE
+              value: billing.commands
+            - name: SERVICE_BUS_EXECUTION_QUEUE
+              value: execution.commands
+            - name: SERVICE_BUS_EVENT_TOPIC
+              value: soat.domain.events
+            - name: SERVICE_BUS_SAGA_SUBSCRIPTION
+              value: os.saga-events
+            - name: ENABLE_FASE4_REGISTRY
+              value: "true"
+            - name: ENABLE_FASE4_OPEN
+              value: "true"
+            - name: ENABLE_FASE4_COMPENSATION
+              value: "true"
+            - name: ENABLE_FASE4_DELIVERY
+              value: "true"
+            - name: ENABLE_FASE4_RECOVERY
+              value: "true"
+            - name: ENABLE_SAGA_COMMAND_PUBLISHER
+              value: "true"
+            - name: ENABLE_SAGA_EVENT_CONSUMER
+              value: "true"
+            - name: ENABLE_SAGA_REPLAY
+              value: "true"
+            - name: ENABLE_SAGA_DEADLINE_REVIEW
+              value: "true"
+            - name: ENABLE_SAGA_CHARGE_CANCELLATION
+              value: "true"
+            - name: JWT_EXPIRES_IN
+              value: 1h
+            - name: JWT_CLIENT_ISSUER
+              value: soat-auth-function
+            - name: JWT_CLIENT_AUDIENCE
+              value: soat-api
+            - name: WEBHOOK_TOKEN_EXPIRES_IN
+              value: 24h
+          envFrom:
+            - secretRef:
+                name: soat-os-runtime
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              memory: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: soat-api
+spec:
+  selector:
+    app: soat-api
+  ports:
+    - name: http
+      port: 80
+      targetPort: http

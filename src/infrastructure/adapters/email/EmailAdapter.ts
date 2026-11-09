@@ -2,12 +2,16 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as nodemailer from 'nodemailer';
 import { NotificacaoPort } from '../../../application/ports/output/NotificacaoPort';
+import { ObservabilityService } from '../../observability/ObservabilityService';
 
 @Injectable()
 export class EmailAdapter implements NotificacaoPort {
   private readonly transporter: nodemailer.Transporter;
 
-  constructor(private readonly config: ConfigService) {
+  constructor(
+    private readonly config: ConfigService,
+    private readonly observability: ObservabilityService,
+  ) {
     this.transporter = nodemailer.createTransport({
       host: this.config.getOrThrow<string>('MAIL_HOST'),
       port: Number(this.config.getOrThrow<string>('MAIL_PORT')),
@@ -27,11 +31,12 @@ export class EmailAdapter implements NotificacaoPort {
   }): Promise<void> {
     const appUrl = this.config.getOrThrow<string>('APP_URL').replace(/\/$/, '');
 
-    await this.transporter.sendMail({
-      from: this.config.getOrThrow<string>('MAIL_FROM'),
-      to: params.destinatario,
-      subject: `Orcamento aguardando aprovacao - OS ${params.codigoAcompanhamento}`,
-      html: `
+    try {
+      await this.transporter.sendMail({
+        from: this.config.getOrThrow<string>('MAIL_FROM'),
+        to: params.destinatario,
+        subject: `Orcamento aguardando aprovacao - OS ${params.codigoAcompanhamento}`,
+        html: `
         <h2>Seu orcamento esta pronto</h2>
         <p>OS: <strong>${params.codigoAcompanhamento}</strong></p>
         <p>
@@ -49,6 +54,10 @@ export class EmailAdapter implements NotificacaoPort {
           </a>
         </p>
       `,
-    });
+      });
+    } catch (error) {
+      this.observability.registrarErroIntegracao('email');
+      throw error;
+    }
   }
 }
