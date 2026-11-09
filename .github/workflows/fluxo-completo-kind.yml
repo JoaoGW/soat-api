@@ -29,6 +29,10 @@ jobs:
     if: vars.SOAT_ACCEPT_EULA == 'Y'
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    # Com shell bash explícito o runner usa pipefail: a falha da jornada não é mascarada pelo tee.
+    defaults:
+      run:
+        shell: bash
     env:
       SOAT_WORKSPACE: ${{ github.workspace }}
       SOAT_ACCEPT_EULA: ${{ vars.SOAT_ACCEPT_EULA }}

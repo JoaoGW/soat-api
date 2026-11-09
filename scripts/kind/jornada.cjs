@@ -158,7 +158,18 @@ async function main() {
   }
 
   step('Execution: início e conclusão do reparo');
-  const queued = await waitFor('trabalho na fila', async () => (await call('GET', `${OS}/fase4/ordens-servico/${order.id}`, { token: admin })).executionId);
+  // O OS só grava o executionId quando o reparo começa; até lá ele está na fila do Execution.
+  const queued = await waitFor('trabalho na fila do Execution', async () => {
+    let token;
+    do {
+      const query = new URLSearchParams({ filialId: BRANCH, limit: '100', ...(token ? { continuationToken: token } : {}) });
+      const page = await call('GET', `${EXECUTION}/execucoes/fila?${query}`, { token: admin });
+      const item = page.items.find((entry) => entry.osId === order.id);
+      if (item) return item.executionId;
+      token = page.continuationToken;
+    } while (token);
+    return null;
+  });
   const repair = { ...action, executionId: queued };
   await call('POST', `${EXECUTION}/execucoes/${order.id}/iniciar`, { token: admin, key: `work-start-${order.id}`, body: repair });
   await waitSaga(admin, order.id, 'EM_EXECUCAO');
