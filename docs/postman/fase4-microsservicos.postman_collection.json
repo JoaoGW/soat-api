@@ -69,6 +69,10 @@
     {
       "key": "sku",
       "value": "peca-001"
+    },
+    {
+      "key": "executionId",
+      "value": ""
     }
   ],
   "item": [
@@ -554,7 +558,20 @@
                 }
               ]
             }
-          }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "const item = (json.items || []).find((entry) => entry.osId === pm.collectionVariables.get('osId'));",
+                  "if (item && item.executionId) pm.collectionVariables.set('executionId', item.executionId);"
+                ]
+              }
+            }
+          ]
         },
         {
           "name": "Iniciar diagnóstico",
@@ -861,7 +878,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"sagaId\": \"{{sagaId}}\",\n  \"filialId\": \"{{filialId}}\",\n  \"correlationId\": \"{{sagaId}}\"\n}",
+              "raw": "{\n  \"sagaId\": \"{{sagaId}}\",\n  \"filialId\": \"{{filialId}}\",\n  \"correlationId\": \"{{sagaId}}\",\n  \"executionId\": \"{{executionId}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -907,7 +924,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"sagaId\": \"{{sagaId}}\",\n  \"filialId\": \"{{filialId}}\",\n  \"correlationId\": \"{{sagaId}}\"\n}",
+              "raw": "{\n  \"sagaId\": \"{{sagaId}}\",\n  \"filialId\": \"{{filialId}}\",\n  \"correlationId\": \"{{sagaId}}\",\n  \"executionId\": \"{{executionId}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -953,7 +970,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"sagaId\": \"{{sagaId}}\",\n  \"filialId\": \"{{filialId}}\",\n  \"correlationId\": \"{{sagaId}}\",\n  \"reason\": \"REPARO_INVIAVEL\"\n}",
+              "raw": "{\n  \"sagaId\": \"{{sagaId}}\",\n  \"filialId\": \"{{filialId}}\",\n  \"correlationId\": \"{{sagaId}}\",\n  \"reason\": \"REPARO_INVIAVEL\",\n  \"executionId\": \"{{executionId}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -962,7 +979,8 @@
             }
           }
         }
-      ]
+      ],
+      "description": "Antes de iniciar, rode \"Fila de execução da filial\" (pasta 3) depois do pagamento para capturar o executionId da OS."
     },
     {
       "name": "7. OS Service — acompanhamento, entrega e operação da Saga",

@@ -178,7 +178,7 @@ async function main() {
 
   if (SCENARIO === 'falha-execucao') {
     step('Execution: mecânico declara o reparo inviável após o início');
-    await call('POST', `${EXECUTION}/execucoes/${order.id}/falhar`, { token: admin, key: `work-fail-${order.id}`, body: { reason: 'REPARO_INVIAVEL' } });
+    await call('POST', `${EXECUTION}/execucoes/${order.id}/falhar`, { token: admin, key: `work-fail-${order.id}`, body: { ...repair, reason: 'REPARO_INVIAVEL' } });
     await waitSaga(admin, order.id, ['COMPENSADA', 'RECONCILIACAO_NECESSARIA']);
     const saga = await call('GET', `${OS}/fase4/ordens-servico/${order.id}/saga`, { token: admin });
     process.stdout.write(`Operações da Saga: ${saga.operations.map((item) => `${item.step}=${item.status}`).join(', ')}\n`);
