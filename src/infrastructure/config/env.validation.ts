@@ -21,6 +21,7 @@ const envSchema = z.object({
   OTEL_SERVICE_NAME: z.string().min(1).default('soat-api'),
   OTEL_SERVICE_VERSION: z.string().min(1).default('local'),
   NEW_RELIC_LICENSE_KEY: z.string().min(1).optional(),
+  ALLOW_LOCAL_EMULATORS: z.enum(['true', 'false']).default('false'),
 });
 
 export function validateEnv(config: Record<string, unknown>) {
@@ -32,7 +33,9 @@ export function validateEnv(config: Record<string, unknown>) {
 
   if (
     parsed.data.OBSERVABILITY_ENABLED === 'true' &&
-    !parsed.data.NEW_RELIC_LICENSE_KEY
+    !parsed.data.NEW_RELIC_LICENSE_KEY &&
+    // No kind a telemetria vai ao Collector do cluster, que dispensa a chave.
+    parsed.data.ALLOW_LOCAL_EMULATORS !== 'true'
   ) {
     throw new Error(
       'NEW_RELIC_LICENSE_KEY é obrigatória quando OBSERVABILITY_ENABLED=true',
