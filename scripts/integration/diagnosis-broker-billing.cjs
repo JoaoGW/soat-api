@@ -59,6 +59,9 @@ async function main() {
   const quote = await billing.quote.findFirst({ where: { osId }, include: { items: true } });
   assert.ok(quote); assert.equal(quote.totalInCents, 1000); assert.equal(quote.items[0].unitPriceInCents, 500); assert.equal(quote.clientId, client);
   assert.equal(await billing.outbox.count({ where: { type: 'billing.quote-issued.v1', payload: { path: ['sagaId'], equals: sagaId } } }), 1);
+  // Este cenário não publica os eventos do Billing; retirá-los da fila de envio
+  // evita que os cenários seguintes do mesmo banco recebam este quote-issued.
+  await billing.outbox.updateMany({ where: { status: 'PENDING', payload: { path: ['sagaId'], equals: sagaId } }, data: { status: 'SENT', publishedAt: new Date() } });
   process.stdout.write('OS → broker → Billing: mensagem e reentrega processadas; outros serviços e Saga completa não foram exercitados.\n');
 }
 main().finally(async () => { await receiver.close(); await sender.close(); await bus.close(); await os.$disconnect(); await billing.$disconnect(); }).catch((error) => { process.stderr.write(`${error.stack || error}\n`); process.exitCode = 1; });
