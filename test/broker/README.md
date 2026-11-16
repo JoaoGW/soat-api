@@ -1,6 +1,8 @@
 # Cenários distribuídos locais
 
-O arquivo `jornada.feature` documenta os cenários; o executor é o script
+Todos os cenários estão em `aceite.feature` (os antigos `jornada.feature` e
+`diagnostico-orcamento.feature` foram incorporados a ele). Os casos do esquema
+de cenário são executados pelo script
 JavaScript `scripts/integration/broker-three-services.cjs`, que usa os casos de
 uso, consumidores, outboxes e contratos de produção dos três repositórios.
 Todos os comandos e eventos atravessam filas ou tópico do emulador Service Bus.
@@ -9,7 +11,11 @@ casos de uso são instanciados no mesmo processo, sem servidores HTTP; apenas a
 fronteira do Mercado Pago é simulada. O teste não prova isolamento entre
 workloads reais, infraestrutura Azure ou segurança do Cosmos.
 
-`aceite.feature` é executável pelo Cucumber via `npm run test:bdd-distributed`.
+`aceite.feature` é executável pelo Cucumber via `npm run test:bdd-distributed`,
+que carrega todos os `.feature` de `test/broker` exceto os cenários `@kind`.
+Os cenários `@kind` (falha na execução após o pagamento: estorno e OS
+cancelada) usam o ambiente de `scripts/kind/ambiente.sh subir` e rodam com
+`npm run test:bdd-kind`; sem o ambiente, a etapa inicial falha explicitamente.
 Cada exemplo invoca um cenário correspondente do script e falha se o processo
 ou qualquer verificação falhar. A execução é sequencial e exige as variáveis e
 emuladores abaixo; ela não ignora ambientes ausentes. O webhook do provedor é

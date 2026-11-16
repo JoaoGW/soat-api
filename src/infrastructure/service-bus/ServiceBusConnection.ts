@@ -31,6 +31,12 @@ export function createServiceBusClient(
     ? new ServiceBusClient(connection)
     : new ServiceBusClient(
         namespace as string,
-        new WorkloadIdentityCredential(),
+        // A ServiceAccount do OS também usa a identidade do Key Vault; a de
+        // mensageria é escolhida explicitamente quando SERVICE_BUS_CLIENT_ID existe.
+        new WorkloadIdentityCredential(
+          process.env.SERVICE_BUS_CLIENT_ID
+            ? { clientId: process.env.SERVICE_BUS_CLIENT_ID }
+            : undefined,
+        ),
       );
 }

@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { captureTrace } from '../observability/TraceContext';
+import { sagaDeadlineAt } from './PrazosSaga';
 
 type Input = {
   actorId: string;
@@ -121,7 +122,7 @@ export class OpenOrderWithSaga {
       };
       await tx.$executeRaw`INSERT INTO "OrdemDeServico" ("id", "codigoAcompanhamento", "clienteId", "veiculoId", "filialId", "status", "createdAt", "updatedAt") VALUES (${osId}, ${codigoAcompanhamento}, ${input.clienteId}, ${input.veiculoId}, ${input.filialId}, 'RECEBIDA', ${now}, ${now})`;
       await tx.$executeRaw`INSERT INTO "HistoricoStatusOS" ("id", "osId", "status", "ocorridoEm") VALUES (${randomUUID()}, ${osId}, 'RECEBIDA', ${now})`;
-      await tx.$executeRaw`INSERT INTO "SagaInstance" ("id", "osId", "filialId", "status", "version", "createdAt", "updatedAt") VALUES (${sagaId}, ${osId}, ${input.filialId}, 'DIAGNOSTICO_PENDENTE', 1, ${now}, ${now})`;
+      await tx.$executeRaw`INSERT INTO "SagaInstance" ("id", "osId", "filialId", "status", "version", "deadlineAt", "createdAt", "updatedAt") VALUES (${sagaId}, ${osId}, ${input.filialId}, 'DIAGNOSTICO_PENDENTE', 1, ${sagaDeadlineAt('SAGA_DIAGNOSIS_DEADLINE_MINUTES', now)}, ${now}, ${now})`;
       await tx.$executeRaw`INSERT INTO "SagaOperation" ("operationId", "sagaId", "step", "businessAttempt", "commandType", "status", "updatedAt") VALUES (${operationId}, ${sagaId}, 'REQUEST_DIAGNOSIS', 1, ${type}, 'PENDING', ${now})`;
       await tx.$executeRaw`INSERT INTO "Outbox" ("messageId", "type", "payload") VALUES (${messageId}, ${type}, ${JSON.stringify(event)}::jsonb)`;
       await tx.$executeRaw`INSERT INTO "IdempotencyRequest" ("actorId", "route", "key", "requestHash", "statusCode", "response") VALUES (${input.actorId}, ${route}, ${input.key}, ${requestHash}, 201, ${JSON.stringify(response)}::jsonb)`;

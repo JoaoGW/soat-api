@@ -81,8 +81,29 @@ grava o identificador em `.env.kind.local`, sem exibir o token.
 Depois de `subir`, execute `scripts/kind/ambiente.sh tunel` e cadastre no painel
 do Mercado Pago a URL HTTPS exibida seguida de `/webhooks/mercado-pago`, para o
 evento de orders. Em seguida rode `jornada`: o script mostra o QR e aguarda o
-pagamento feito com o comprador de teste. Com a chave do New Relic, os três
-serviços exportam traces e métricas com o mesmo contexto W3C da OS.
+pagamento feito com o comprador de teste. Com a chave do New Relic, o
+OpenTelemetry Collector do cluster também encaminha ao New Relic os traces,
+métricas e logs dos três serviços, com o mesmo contexto W3C da OS.
+
+## Observabilidade no cluster (sem custo)
+
+O `subir` implanta no namespace `soat-local` um OpenTelemetry Collector, o
+Jaeger (traces), o Prometheus (métricas) e o Grafana (painel **SOAT Fase 4 —
+Microsserviços**, com requisições, latência p95, erros 5xx e traces recentes
+por serviço). Os três serviços sempre enviam OTLP ao Collector
+(`http://otel-collector:4318`), sem chave; a chave do New Relic, se existir,
+fica apenas no Collector.
+
+```bash
+scripts/kind/ambiente.sh observabilidade   # Jaeger :16686, Grafana :3005, Prometheus :9090
+scripts/kind/ambiente.sh traces            # confere um único trace atravessando OS, Billing e Execution
+```
+
+No Jaeger, busque o serviço `soat-execution-service` ou `soat-api` e abra o
+trace indicado pelo comando `traces`: ele mostra a requisição HTTP, a mensagem
+no Service Bus e o processamento nos outros serviços com o mesmo trace ID. O
+workflow "Fluxo completo em Kubernetes" executa a mesma verificação após a
+jornada e publica o resultado no resumo do job.
 
 ## Solução de problemas
 

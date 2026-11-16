@@ -18,14 +18,21 @@ const environment = process.env.NODE_ENV ?? 'development';
 
 if (enabled) {
   const licenseKey = process.env.NEW_RELIC_LICENSE_KEY;
-  if (!licenseKey)
+  // No kind (ALLOW_LOCAL_EMULATORS=true) a telemetria vai ao OpenTelemetry
+  // Collector do próprio cluster, sem chave; o Collector encaminha ao New Relic
+  // quando houver chave.
+  const localCollector = process.env.ALLOW_LOCAL_EMULATORS === 'true';
+  if (!licenseKey && !localCollector)
     throw new Error(
       'NEW_RELIC_LICENSE_KEY é obrigatória quando OBSERVABILITY_ENABLED=true',
     );
 
-  const endpoint =
-    process.env.OTEL_EXPORTER_OTLP_ENDPOINT ?? 'https://otlp.nr-data.net:4318';
-  const headers = { 'api-key': licenseKey };
+  const endpoint = (
+    process.env.OTEL_EXPORTER_OTLP_ENDPOINT ?? 'https://otlp.nr-data.net:4318'
+  ).replace(/\/$/, '');
+  const headers: Record<string, string> = licenseKey
+    ? { 'api-key': licenseKey }
+    : {};
   const resource = resourceFromAttributes({
     'service.name': serviceName,
     'service.version': serviceVersion,

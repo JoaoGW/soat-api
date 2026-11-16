@@ -37,7 +37,7 @@ try {
     { MOCK_RUNS: JSON.stringify({ workflow_runs: [{ ...runs[0], head_repository: { full_name: 'fork/repo' } }] }) },
     { GITHUB_EVENT_NAME: 'workflow_dispatch', MANUAL_SHA: '$(echo injected)', MANUAL_BRANCH: branch },
   ]) assert.notEqual(execute(overrides).status, 0, `Gate aceitou ${JSON.stringify(overrides)}`);
-  const deployEnv = { ...process.env, KEY_VAULT_NAME: 'test', AZURE_TENANT_ID: 'test', API_WORKLOAD_CLIENT_ID: 'test', APP_VERSION: sha };
+  const deployEnv = { ...process.env, KEY_VAULT_NAME: 'test', AZURE_TENANT_ID: 'test', API_WORKLOAD_CLIENT_ID: 'test', SERVICE_BUS_NAMESPACE: 'test.servicebus.windows.net', OS_SERVICE_BUS_CLIENT_ID: 'test', APP_VERSION: sha };
   for (const image of [`ghcr.io/joaogw/soat-api:${sha}`, 'ghcr.io/joaogw/soat-api:latest', `example/soat-api:${sha}`]) {
     const deploy = spawnSync('bash', ['scripts/deploy-api.sh', 'application', 'hml', image], { encoding: 'utf8', env: deployEnv });
     assert.notEqual(deploy.status, 0, `Deploy aceitou imagem ou checkout não autorizado: ${image}`);

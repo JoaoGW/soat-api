@@ -408,9 +408,13 @@ describe('pagamento e autorização da fila em PostgreSQL', () => {
       ),
     ).toEqual(['APPLIED', 'APPLIED', 'APPLIED', 'APPLIED']);
     const saga = await db.$queryRaw<
-      Array<{ status: string }>
-    >`SELECT "status" FROM "SagaInstance" WHERE "id" = ${paymentEvent.sagaId}`;
+      Array<{ status: string; deadlineAt: Date | null }>
+    >`SELECT "status", "deadlineAt" FROM "SagaInstance" WHERE "id" = ${paymentEvent.sagaId}`;
     expect(saga[0].status).toBe('NA_FILA');
+    // Prazo padrão da fila: 72 h a partir do processamento do evento.
+    expect(saga[0].deadlineAt!.getTime() - Date.now()).toBeGreaterThan(
+      71 * 3600000,
+    );
     await expect(
       handler.execute({ ...event, messageId: `again-${event.messageId}` }),
     ).resolves.toBe('APPLIED');

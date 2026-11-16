@@ -38,9 +38,15 @@ fluxos não compartilham segredo nem guard.
 
 ## Entrega e arquitetura
 
-- Swagger: `http://localhost:3000/docs` local e
-  `http://20.226.244.207/docs` em HML;
-- Collection: `docs/postman/oficina-api.postman_collection.json`;
+- Swagger: `http://localhost:3000/docs` local (ou `http://localhost:3001/docs`
+  no ambiente kind com `scripts/kind/ambiente.sh portas`); o HML no AKS
+  (`http://20.226.244.207/docs`) está desligado junto com a assinatura Azure;
+- Collection Postman da Fase 4 (OS, Billing e Execution, fluxo completo da OS):
+  `docs/postman/fase4-microsservicos.postman_collection.json`; a collection
+  `docs/postman/oficina-api.postman_collection.json` cobre apenas as rotas
+  legadas das Fases 1–3;
+- Arquitetura final da Fase 4 (microsserviços, bancos e mensageria):
+  `docs/architecture/README.md#arquitetura-final-da-fase-4-microsserviços`;
 - Testes: `docs/testes.md`;
 - RFCs e ADRs: `docs/architecture/README.md`.
 - Modelo ER e decisão de banco:
@@ -66,6 +72,12 @@ cliente. A coleção mantém esses tokens separados nas variáveis `token` e
 `clienteToken`; não inclua valores reais no arquivo.
 
 ## Fase 4 — OS Service
+
+As rotas legadas das Fases 1–3 (`/clientes`, `/veiculos`, `/ordens-servico`,
+`/pecas`, `/servicos`, `/cliente/ordens-servico`, `/internal/clientes`,
+`/webhook` e `/relatorios`) só são registradas com `ENABLE_LEGACY_OFICINA=true`.
+Por padrão o OS expõe apenas as rotas `/fase4`, `/auth` e `/health`: catálogo,
+estoque e execução pertencem ao Execution, e orçamento e pagamento ao Billing.
 
 ### Microsserviços e propriedade dos dados
 
@@ -140,14 +152,22 @@ sequenceDiagram
 | Cobrança expirada ou cancelada antes do pagamento | `billing.cancel-charge.v1` (uma tentativa e consulta canônica), depois liberação das peças |
 | Falha após pagamento confirmado | Cancelamento do trabalho, `billing.refund-payment.v1` com evidência de não início e liberação após o reembolso |
 | Pagamento tardio | Execução cercada e reconciliação, sem liberar o reparo |
-| Reparo físico já iniciado | Sem rollback fictício: a Saga vai para reconciliação operacional |
+| Falha durante o reparo (`execution.work-failed.v1`, `POST /execucoes/:osId/falhar` no Execution) | `billing.refund-payment.v1` com o `work-failed` como evidência; após `billing.payment-refunded.v1` a Saga fica `COMPENSADA` e a OS `CANCELADA` (peças já consumidas no início não são liberadas) |
+| Prazo vencido em diagnóstico, aprovação ou fila | Compensação automática (`execution.cancel-work.v1` com `DEADLINE_EXPIRED`); o Execution decide se o trabalho ainda não começou |
+| Prazo vencido com reparo em andamento | Sem rollback fictício: `RECONCILIACAO_NECESSARIA` (`EXECUTION_DEADLINE_EXPIRED`) com alerta |
+| Comando que esgotou as tentativas na outbox | Saga sinalizada (`requiresAttention`, `OUTBOX_FAILED`) e reprocessável por `POST /fase4/ordens-servico/:sagaId/comandos/:messageId/reprocessar` |
 
 Cada etapa grava estado, operação, inbox e outbox na mesma transação local. A
 entrega é pelo menos uma vez, com `messageId` e `operationId` estáveis,
 deduplicação, correlação/causalidade e assinatura Ed25519 por produtor.
 Timeout, falha de rede ou ausência de evento nunca são tratados como prova de
-cancelamento, reembolso ou liberação: a Saga fica em `RECONCILIACAO_NECESSARIA`
-e o [procedimento operacional](docs/operacao-fase4.md) descreve a retomada.
+cancelamento, reembolso ou liberação: um prazo vencido apenas *pede* o
+cancelamento ao Execution (que responde se o trabalho começou) ou leva a Saga a
+`RECONCILIACAO_NECESSARIA`, e o [procedimento operacional](docs/operacao-fase4.md)
+descreve a retomada. Detalhes por estado em [`docs/fase4-saga.md`](docs/fase4-saga.md).
+Prazos configuráveis: diagnóstico (`SAGA_DIAGNOSIS_DEADLINE_MINUTES`, 24 h),
+fila (`SAGA_QUEUE_DEADLINE_MINUTES`, 72 h) e execução
+(`SAGA_EXECUTION_DEADLINE_MINUTES`, 48 h).
 Prazos padrão: aprovação em 24 horas, cobrança em 15 minutos, revisão da reserva
 em 20 minutos, verificação a cada 60 segundos e até cinco tentativas transitórias.
 
@@ -204,20 +224,29 @@ contornar essas verificações.
 
 | Suíte | Comando | Escopo |
 | --- | --- | --- |
-| Unitários com cobertura | `npm run test:cov` | Domínio, casos de uso, controllers e adapters |
+| Unitários com cobertura | `npm run test:cov` | Domínio e casos de uso (gate de 80%) |
 | Mensageria | `npm run test:coverage-messaging` | Publicadores, consumidores e assinatura (gate de 80%) |
 | Saga com PostgreSQL | `npm run test:coverage-saga` | Infraestrutura da Saga (gate de 80%) |
 | Cobertura total | `npm run test:coverage-full` | Unitários, integração da Saga e HTTP, inclusive o legado (gate de 80%) |
 | e2e | `npm run test:e2e` | API HTTP contra PostgreSQL |
-| BDD distribuído | `npm run test:bdd-distributed` | `test/broker/aceite.feature` com OS, Billing e Execution |
+| BDD distribuído | `npm run test:bdd-distributed` | Todos os `.feature` de `test/broker` (exceto `@kind`) com OS, Billing e Execution pelo broker |
+| BDD no kind | `npm run test:bdd-kind` | Cenários `@kind` no ambiente kind (falha na execução → estorno e OS cancelada) |
 
 ### Evidência de cobertura
 
-Medição do [CI](https://github.com/JoaoGW/soat-api/actions/workflows/ci.yml) no commit `d1762d8`, com gate mínimo de 80% em cada métrica (`npm run test:coverage-full`):
+Gate mínimo de 80% em cada métrica. Última medição da revisão da auditoria da
+Fase 4 (mesmos comandos do [CI](https://github.com/JoaoGW/soat-api/actions/workflows/ci.yml)):
 
-| Escopo | Statements | Branches | Functions | Lines |
-| --- | --- | --- | --- | --- |
-| OS completo (unitários, Saga e HTTP) | 90.98% | 81.60% | 93.40% | 91.98% |
+| Escopo | Comando | Statements | Branches | Functions | Lines |
+| --- | --- | --- | --- | --- | --- |
+| OS completo (unitários, Saga e HTTP) | `npm run test:coverage-full` | 91.09% | 81.98% | 93.25% | 91.99% |
+| Saga com PostgreSQL | `npm run test:coverage-saga` | 86.22% | 83.76% | 94.03% | 88.65% |
+| Domínio e casos de uso | `npm run test:cov` | 96.61% | 86.63% | 96.23% | 97.45% |
+
+Os números oficiais de cada revisão ficam no resumo dos jobs **API quality and
+tests** e **Cobertura combinada de todo o OS** (passo de resumo de cobertura),
+nos artefatos de cobertura do run e no
+[painel do SonarCloud](https://sonarcloud.io/project/overview?id=JoaoGW_soat-api).
 
 Cada execução publica os totais do próprio SHA no resumo do job e como anotação (`scripts/quality/coverage-summary.cjs`) e anexa o relatório completo como artefato.
 
@@ -227,9 +256,13 @@ pagamento simulado: jornada feliz, timeouts de cobrança e reembolso, pagamento
 tardio, estoque insuficiente, reparo iniciado, cancelamento sem pagamento,
 resposta perdida, evidência divergente, retomada após queda de processos,
 jornada pelas APIs HTTP e propagação de trace. A preparação está em
-[`test/broker/README.md`](test/broker/README.md) e o workflow manual
-[`bdd-distribuido.yml`](.github/workflows/bdd-distribuido.yml) fixa os SHAs de
-Billing, Execution e Auth e exige o aceite dos termos dos emuladores. Com os
+[`test/broker/README.md`](test/broker/README.md). O workflow
+[`bdd-distribuido.yml`](.github/workflows/bdd-distribuido.yml) roda em todo pull
+request e push para `main`/`development` com Billing, Execution e Auth em
+`development` (ou nos refs das variáveis `SOAT_BILLING_REF`,
+`SOAT_EXECUTION_REF` e `SOAT_AUTH_REF`) e, manualmente, com os SHAs fixados;
+todos os arquivos `.feature` de `test/broker` são executados. O aceite dos
+termos dos emuladores é a variável `SOAT_ACCEPT_EULA=Y`. Com os
 repositórios públicos a leitura usa o token do próprio workflow; o secret
 `CROSS_REPO_READ_TOKEN` só é necessário se eles voltarem a ser privados.
 
@@ -269,10 +302,22 @@ variável protegida `TF_APPLY_ENABLED=true`; ela permanece `false` enquanto a
 assinatura Azure estiver desativada, por isso o ambiente kind é o deploy
 automatizado verificável de cada revisão.
 
+Os overlays `hml` e `prod` incluem o componente
+[`deploy/kustomize/components/fase4-aks`](deploy/kustomize/components/fase4-aks),
+que liga a Saga com Azure Service Bus por Workload Identity
+(`SERVICE_BUS_NAMESPACE` e `SERVICE_BUS_CLIENT_ID`, variáveis do Environment
+`SERVICE_BUS_NAMESPACE` e `OS_SERVICE_BUS_CLIENT_ID`), lê do Key Vault o banco
+da Saga (`saga-database-url-<env>`), as chaves de assinatura das mensagens e o
+token da integração com a Function, e o job de migration aplica os dois schemas
+(`soat-api-migrate` e `soat-api-migrate-saga`). A infraestrutura correspondente
+está em `soat-aks-infra` (módulo `fase4-messaging`) e `soat-postgres-infra`
+(bancos `os_saga_<env>` e `billing_<env>`).
+
 O workflow [**Fluxo completo em Kubernetes**](.github/workflows/fluxo-completo-kind.yml)
 sobe OS, Billing e Execution juntos em um cluster kind, cada um com o próprio
 banco, com os emuladores de Service Bus e Cosmos DB e o Mercado Pago simulado, e
-executa pelas APIs HTTP a jornada completa da OS e a compensação após pagamento.
+executa pelas APIs HTTP a jornada completa da OS, a compensação após pagamento e
+(via BDD `@kind`) a falha na execução com estorno e OS cancelada.
 O mesmo ambiente roda no Mac com `scripts/kind/ambiente.sh` e aceita credenciais
 de teste do Mercado Pago e a chave do New Relic; o passo a passo está em
 [`docs/ambiente-kind.md`](docs/ambiente-kind.md). Os serviços só aceitam
@@ -287,7 +332,12 @@ substituindo `sha-not-set`, `__ENVIRONMENT__` e `__APP_VERSION__`.
 ## Observabilidade
 
 Traces, métricas e logs OpenTelemetry são exportados ao New Relic, reutilizando
-a stack da Fase 3 (`OBSERVABILITY_ENABLED=true` e `NEW_RELIC_LICENSE_KEY`). O
+a stack da Fase 3 (`OBSERVABILITY_ENABLED=true` e `NEW_RELIC_LICENSE_KEY`). No
+ambiente kind, os três serviços enviam a telemetria a um OpenTelemetry
+Collector do cluster, com Jaeger, Prometheus e Grafana (painel **SOAT Fase 4**)
+sem custo; o Collector encaminha ao New Relic quando a chave existe. O workflow
+"Fluxo completo em Kubernetes" confirma no Jaeger um único trace atravessando
+OS, Billing e Execution (`scripts/kind/ambiente.sh traces`). O
 contexto W3C é propagado pelas mensagens do Service Bus, de modo que a mesma OS
 pode ser rastreada entre OS, Billing e Execution. Detalhes em
 [`docs/observabilidade.md`](docs/observabilidade.md).

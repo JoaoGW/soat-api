@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # Ambiente completo da Fase 4 em kind: OS, Billing e Execution com bancos
 # próprios, emuladores de Service Bus e Cosmos DB e Mercado Pago (simulado ou
-# de teste). Uso: scripts/kind/ambiente.sh subir|jornada|tunel|status|destruir
+# de teste), com observabilidade no cluster (OpenTelemetry Collector, Jaeger,
+# Prometheus e Grafana). Uso: scripts/kind/ambiente.sh
+# subir|portas|jornada|observabilidade|traces|tunel|status|destruir
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -127,7 +129,7 @@ generate_secrets() {
 }
 
 apply_secrets() {
-  local admin_hash mp_token mp_secret mp_base pos observability
+  local admin_hash mp_token mp_secret mp_base pos
   admin_hash="$(docker run --rm --entrypoint node ghcr.io/joaogw/soat-api:local -e 'process.stdout.write(require("bcrypt").hashSync(process.argv[1], 10))' "$(cat "$STATE/admin-password")")"
   if [[ -n "${MERCADO_PAGO_ACCESS_TOKEN:-}" ]]; then
     mp_token="$MERCADO_PAGO_ACCESS_TOKEN"; mp_secret="${MERCADO_PAGO_WEBHOOK_SECRET:?Defina MERCADO_PAGO_WEBHOOK_SECRET}"
@@ -135,13 +137,15 @@ apply_secrets() {
   else
     mp_token='TEST-simulado'; mp_secret="$(cat "$STATE/mp-webhook-secret")"; pos='CAIXA_KIND'; mp_base='http://mercado-pago-simulado:8080'
   fi
-  observability=false
-  [[ -n "${NEW_RELIC_LICENSE_KEY:-}" ]] && observability=true
   k create namespace "$NAMESPACE" --dry-run=client -o yaml | kubectl --context "kind-$CLUSTER" apply -f - >/dev/null
   local sb='Endpoint=sb://servicebus;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;'
-  local otel=(--from-literal=OBSERVABILITY_ENABLED="$observability" --from-literal=OTEL_SERVICE_VERSION="$(git -C "$ROOT" rev-parse --short HEAD)")
-  [[ "$observability" == true ]] && otel+=(--from-literal=NEW_RELIC_LICENSE_KEY="$NEW_RELIC_LICENSE_KEY" --from-literal=OTEL_EXPORTER_OTLP_ENDPOINT="${OTEL_EXPORTER_OTLP_ENDPOINT:-https://otlp.nr-data.net:4318}")
+  # Os serviços sempre enviam telemetria ao OpenTelemetry Collector do cluster
+  # (Jaeger + Prometheus + Grafana). A chave do New Relic, quando existe, fica só
+  # no Collector, que encaminha a mesma telemetria ao New Relic.
+  local otel=(--from-literal=OBSERVABILITY_ENABLED=true --from-literal=OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318 --from-literal=OTEL_SERVICE_VERSION="$(git -C "$ROOT" rev-parse --short HEAD)")
   secret() { k create secret generic "$1" "${@:2}" --dry-run=client -o yaml | k apply -f - >/dev/null; }
+  if [[ -n "${NEW_RELIC_LICENSE_KEY:-}" ]]; then secret otel-collector --from-literal=NEW_RELIC_LICENSE_KEY="$NEW_RELIC_LICENSE_KEY"
+  else k delete secret otel-collector --ignore-not-found >/dev/null; fi
   secret os-postgres --from-literal=POSTGRES_USER=os --from-literal=POSTGRES_PASSWORD="$(cat "$STATE/os-db")" --from-literal=POSTGRES_DB=oficina
   secret billing-postgres --from-literal=POSTGRES_USER=billing --from-literal=POSTGRES_PASSWORD="$(cat "$STATE/billing-db")" --from-literal=POSTGRES_DB=billing
   secret mercado-pago-simulado --from-literal=MERCADO_PAGO_WEBHOOK_SECRET="$mp_secret"
@@ -198,6 +202,13 @@ deploy() {
   endpoint_slice servicebus soat-servicebus 5672
   endpoint_slice cosmos soat-cosmos 8081
   k rollout status deployment/os-postgres deployment/billing-postgres --timeout=180s
+  k apply -f "$rendered" -l app.kubernetes.io/component=observability
+  if [[ -n "${NEW_RELIC_LICENSE_KEY:-}" ]]; then
+    k create configmap otel-collector --from-file=config.yaml="$ROOT/deploy/kind-completo/otel-collector-newrelic.yaml" --dry-run=client -o yaml |
+      k label --local -f - app.kubernetes.io/component=observability -o yaml | k apply -f - >/dev/null
+  fi
+  k rollout restart deployment/otel-collector >/dev/null
+  k rollout status deployment/otel-collector deployment/jaeger deployment/prometheus deployment/grafana --timeout=300s
   k delete job -l app.kubernetes.io/component=migration --ignore-not-found >/dev/null
   k apply -f "$rendered" -l app.kubernetes.io/component=migration
   for job in os-migrate-legacy os-migrate-saga billing-migrate execution-cosmos-init; do wait_job "$job"; done
@@ -237,6 +248,10 @@ forward() {
   done
 }
 
+forward_observability() {
+  forward service/jaeger=16686:16686 service/grafana=3005:3000 service/prometheus=9090:9090
+}
+
 forward_all() {
   forward service/soat-api=3001:80 service/soat-billing-service=3002:80 \
     service/soat-execution-service=3003:80 service/mercado-pago-simulado=3004:8080
@@ -251,14 +266,28 @@ case "${1:-}" in
 Ambiente pronto. Próximos passos:
   scripts/kind/ambiente.sh jornada              # fluxo completo (OS, Billing, Execution e Saga)
   CENARIO=compensacao scripts/kind/ambiente.sh jornada   # falha após pagamento e compensação
+  CENARIO=falha-execucao scripts/kind/ambiente.sh jornada # falha no reparo: estorno e OS cancelada
   scripts/kind/ambiente.sh tunel                # URL HTTPS pública do webhook (Mercado Pago de teste)
+  scripts/kind/ambiente.sh observabilidade      # Jaeger, Grafana e Prometheus do cluster
+  scripts/kind/ambiente.sh traces               # confere o trace distribuído da jornada no Jaeger
 Swagger do OS com 'portas' em execução: http://localhost:3001/docs
 EOF
     ;;
   portas)
-    forward_all
-    echo 'OS :3001 | Billing :3002 | Execution :3003 | Mercado Pago simulado :3004 (Ctrl+C encerra)'
+    forward_all; forward_observability
+    echo 'OS :3001 | Billing :3002 | Execution :3003 | Mercado Pago simulado :3004'
+    echo 'Jaeger http://localhost:16686 | Grafana http://localhost:3005 | Prometheus http://localhost:9090 (Ctrl+C encerra)'
     wait
+    ;;
+  observabilidade)
+    forward_observability
+    echo 'Jaeger http://localhost:16686 | Grafana http://localhost:3005 (painel SOAT Fase 4) | Prometheus http://localhost:9090 (Ctrl+C encerra)'
+    wait
+    ;;
+  traces)
+    # Confere no Jaeger que a mesma jornada atravessa OS, Billing e Execution.
+    need node; forward_observability
+    JAEGER_URL=http://localhost:16686 node "$ROOT/scripts/kind/verificar-traces.cjs"
     ;;
   jornada)
     need node; load_local_env; forward_all
@@ -279,5 +308,5 @@ EOF
     docker rm -f soat-mssql soat-servicebus soat-cosmos >/dev/null 2>&1 || true
     kind delete cluster --name "$CLUSTER"
     ;;
-  *) echo 'Uso: scripts/kind/ambiente.sh subir|portas|jornada|tunel|status|destruir' >&2; exit 2 ;;
+  *) echo 'Uso: scripts/kind/ambiente.sh subir|portas|jornada|observabilidade|traces|tunel|status|destruir' >&2; exit 2 ;;
 esac

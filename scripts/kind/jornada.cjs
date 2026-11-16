@@ -3,6 +3,8 @@
  * HTTP públicas: cadastro, abertura, diagnóstico, orçamento, aprovação do
  * cliente, cobrança, pagamento, fila, reparo e entrega. CENARIO=compensacao
  * força a falha após o pagamento e acompanha a compensação da Saga.
+ * CENARIO=falha-execucao inicia o reparo, declara a falha no Execution e
+ * acompanha o estorno do pagamento até a OS cancelada (peças já consumidas).
  */
 const { createHmac, randomUUID, randomInt } = require('node:crypto');
 const { spawnSync } = require('node:child_process');
@@ -99,7 +101,7 @@ async function main() {
   const { accessToken: admin } = await call('POST', `${OS}/auth/login`, { body: { username: env('ADMIN_USERNAME'), password: env('ADMIN_PASSWORD') } });
 
   step('Execution: catálogo e estoque da filial');
-  await call('PUT', `${EXECUTION}/catalogo/${BRANCH}/PART/pastilha-freio`, { token: admin, body: { name: 'Pastilha de freio', unitPriceInCents: 500, active: true } });
+  await call('PUT', `${EXECUTION}/catalogo/${BRANCH}/PART/pastilha-freio`, { token: admin, key: randomUUID(), body: { name: 'Pastilha de freio', unitPriceInCents: 500, active: true } });
   const stock = await call('GET', `${EXECUTION}/estoque/${BRANCH}/pastilha-freio`, { token: admin, expected: [200, 404] });
   await call('PUT', `${EXECUTION}/estoque/${BRANCH}/pastilha-freio`, { token: admin, key: randomUUID(), body: { balance: (stock?.reserved ?? 0) + 10, reason: 'INVENTORY' } });
 
@@ -173,6 +175,23 @@ async function main() {
   const repair = { ...action, executionId: queued };
   await call('POST', `${EXECUTION}/execucoes/${order.id}/iniciar`, { token: admin, key: `work-start-${order.id}`, body: repair });
   await waitSaga(admin, order.id, 'EM_EXECUCAO');
+
+  if (SCENARIO === 'falha-execucao') {
+    step('Execution: mecânico declara o reparo inviável após o início');
+    await call('POST', `${EXECUTION}/execucoes/${order.id}/falhar`, { token: admin, key: `work-fail-${order.id}`, body: { ...repair, reason: 'REPARO_INVIAVEL' } });
+    await waitSaga(admin, order.id, ['COMPENSADA', 'RECONCILIACAO_NECESSARIA']);
+    const saga = await call('GET', `${OS}/fase4/ordens-servico/${order.id}/saga`, { token: admin });
+    process.stdout.write(`Operações da Saga: ${saga.operations.map((item) => `${item.step}=${item.status}`).join(', ')}\n`);
+    if (saga.status !== 'COMPENSADA') throw new Error(`Saga terminou em ${saga.status} (${saga.lastError})`);
+    if (saga.operations.some((item) => item.step === 'RELEASE_PARTS')) throw new Error('Peças consumidas não deveriam ser liberadas');
+    const history = await call('GET', `${OS}/fase4/ordens-servico/${order.id}/historico`, { token: admin });
+    const statuses = history.map((item) => item.status);
+    process.stdout.write(`Histórico: ${statuses.join(' -> ')}\n`);
+    if (statuses.at(-1) !== 'CANCELADA' || !statuses.includes('FALHA_EXECUCAO')) throw new Error('OS não terminou cancelada após a falha');
+    step('Falha na execução compensada: estorno confirmado e OS cancelada');
+    return;
+  }
+
   await call('POST', `${EXECUTION}/execucoes/${order.id}/finalizar`, { token: admin, key: `work-end-${order.id}`, body: repair });
   await waitSaga(admin, order.id, 'CONCLUIDA');
 

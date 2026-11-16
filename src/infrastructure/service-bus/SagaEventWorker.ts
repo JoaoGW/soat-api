@@ -31,6 +31,11 @@ import {
   repairEventValidator,
 } from './RepairEventConsumer';
 import { ReceiveRepairEvent } from '../saga/ReceberReparo';
+import { ReceiveWorkFailedEvent } from '../saga/ReceberFalhaExecucao';
+import {
+  WorkFailedEventConsumer,
+  workFailedEventValidator,
+} from './RepairEventConsumer';
 import {
   DiagnosisEventConsumer,
   diagnosisEventValidator,
@@ -125,6 +130,7 @@ export class SagaEventWorker implements OnModuleInit, OnApplicationShutdown {
     const paymentValidate = paymentEventValidator(directory);
     const workValidate = workEnqueuedEventValidator(directory);
     const repairValidate = repairEventValidator(directory);
+    const workFailedValidate = workFailedEventValidator(directory);
     const diagnosisValidate = diagnosisEventValidator(directory);
     const quoteValidate = quoteEventValidator(directory);
     const reservationValidate = reservationEventValidator(directory);
@@ -155,6 +161,10 @@ export class SagaEventWorker implements OnModuleInit, OnApplicationShutdown {
     const repair = new RepairEventConsumer(
       new ReceiveRepairEvent(this.db),
       repairValidate,
+    );
+    const workFailed = new WorkFailedEventConsumer(
+      new ReceiveWorkFailedEvent(this.db),
+      workFailedValidate,
     );
     const diagnosis = new DiagnosisEventConsumer(
       new ReceiveDiagnosisEvent(this.db),
@@ -263,6 +273,8 @@ export class SagaEventWorker implements OnModuleInit, OnApplicationShutdown {
               type === 'execution.work-completed.v1'
             )
               return repair.process(message, receiver);
+            if (type === 'execution.work-failed.v1')
+              return workFailed.process(message, receiver);
             this.logger.warn(
               'Evento da Saga ainda não suportado; mensagem não confirmada',
             );

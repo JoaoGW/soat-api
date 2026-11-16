@@ -93,15 +93,18 @@ export class SagaCommandWorker implements OnModuleInit, OnApplicationShutdown {
   }
   private async poll(): Promise<void> {
     if (this.stopping || !this.dispatcher) return;
+    // Esvazia a outbox em lotes; só aguarda quando não há trabalho ou há erro.
+    let delay = 1000;
     try {
-      await this.dispatcher.execute();
+      const batch = await this.dispatcher.drain(20);
+      if (!batch.drained) delay = 0;
     } catch {
       this.logger.error('Falha ao publicar comando da Saga');
     }
     if (!this.stopping)
       this.timer = setTimeout(() => {
         this.active = this.poll();
-      }, 1000);
+      }, delay);
   }
   async onApplicationShutdown(): Promise<void> {
     this.stopping = true;

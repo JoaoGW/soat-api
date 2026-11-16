@@ -71,5 +71,8 @@ describe('recuperação de comandos da Saga', () => {
     const reconcile = await setup('RECONCILIACAO_NECESSARIA');
     await expect(retry.execute(obsolete)).rejects.toThrow('incompatível');
     await expect(retry.execute(reconcile)).rejects.toThrow('Saga não permite');
+    const flagged = await setup();
+    await db.$executeRaw`UPDATE "SagaInstance" SET "requiresAttention"=true, "lastError"='REFUND_RESULT_UNKNOWN' WHERE "id"=${flagged.sagaId}`;
+    await expect(retry.execute(flagged)).rejects.toThrow('Saga não permite');
   });
 });
