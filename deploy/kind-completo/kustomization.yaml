@@ -15,6 +15,7 @@ resources:
   - billing.yaml
   - execution.yaml
   - observabilidade.yaml
+  - mailpit.yaml
 
 configMapGenerator:
   - name: mercado-pago-simulado

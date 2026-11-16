@@ -142,6 +142,14 @@ describe('orçamento na Saga', () => {
       Array<{ status: string }>
     >`SELECT "status" FROM "SagaInstance" WHERE "id" = ${sagaId}`;
     expect(state[0].status).toBe('RESERVA_PENDENTE');
+    const os = await db.$queryRaw<
+      Array<{ status: string }>
+    >`SELECT "status" FROM "OrdemDeServico" WHERE "id" = ${osId}`;
+    expect(os[0].status).toBe('APROVADA');
+    const approvedHistory = await db.$queryRaw<
+      Array<{ status: string }>
+    >`SELECT "status" FROM "HistoricoStatusOS" WHERE "osId" = ${osId} AND "status" = 'APROVADA'`;
+    expect(approvedHistory).toHaveLength(1);
     const reservation: ReservationEvent = {
       messageId: `reserved-${id}`,
       operationId: commands[0].payload.operationId,

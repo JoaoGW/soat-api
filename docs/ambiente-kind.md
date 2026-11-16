@@ -85,6 +85,13 @@ pagamento feito com o comprador de teste. Com a chave do New Relic, o
 OpenTelemetry Collector do cluster também encaminha ao New Relic os traces,
 métricas e logs dos três serviços, com o mesmo contexto W3C da OS.
 
+## E-mail do orçamento (Mailpit)
+
+O Billing envia o orçamento para aprovação por e-mail (itens, total, validade e
+como aprovar). No kind o envio vai a um Mailpit dentro do cluster: com
+`scripts/kind/ambiente.sh portas` em execução, os e-mails aparecem em
+http://localhost:8025. A `jornada` confere que o e-mail da OS chegou e o exibe.
+
 ## Observabilidade no cluster (sem custo)
 
 O `subir` implanta no namespace `soat-local` um OpenTelemetry Collector, o

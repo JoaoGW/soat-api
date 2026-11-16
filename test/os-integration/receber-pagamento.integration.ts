@@ -149,6 +149,14 @@ describe('pagamento e autorização da fila em PostgreSQL', () => {
       Array<{ status: string }>
     >`SELECT "status" FROM "SagaInstance" WHERE "id" = ${paymentEvent.sagaId}`;
     expect(rows[0].status).toBe('FILA_PENDENTE');
+    const order = await db.$queryRaw<
+      Array<{ status: string }>
+    >`SELECT "status" FROM "OrdemDeServico" WHERE "id" = ${paymentEvent.osId}`;
+    expect(order[0].status).toBe('PAGAMENTO_CONFIRMADO');
+    const paidHistory = await db.$queryRaw<
+      Array<{ status: string }>
+    >`SELECT "status" FROM "HistoricoStatusOS" WHERE "osId" = ${paymentEvent.osId} AND "status" = 'PAGAMENTO_CONFIRMADO'`;
+    expect(paidHistory).toHaveLength(1);
     await expect(
       paymentService.execute({
         ...paymentEvent,

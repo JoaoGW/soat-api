@@ -74,6 +74,15 @@ spec:
               value: "true"
             - name: ENABLE_MERCADO_PAGO_CANCEL_COMMANDS
               value: "true"
+            # Envio do orçamento para aprovação por e-mail, entregue ao Mailpit do cluster.
+            - name: ENABLE_NOTIFICATION_WORKER
+              value: "true"
+            - name: MAIL_HOST
+              value: mailpit
+            - name: MAIL_PORT
+              value: "1025"
+            - name: MAIL_FROM
+              value: oficina@soat.local
             - name: JWT_CLIENT_ISSUER
               value: soat-auth-function
             - name: JWT_CLIENT_AUDIENCE
