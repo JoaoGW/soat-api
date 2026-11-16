@@ -87,6 +87,10 @@ describe('compensação de recusa antes de pagamento', () => {
       Array<{ payload: { operationId: string; data: { reason: string } } }>
     >`SELECT "payload" FROM "Outbox" WHERE "type" = 'execution.cancel-work.v1' AND "payload"->>'sagaId' = ${sagaId}`;
     expect(commands).toHaveLength(1);
+    const refused = await db.$queryRaw<
+      Array<{ status: string }>
+    >`SELECT "status" FROM "OrdemDeServico" WHERE "id" = ${osId}`;
+    expect(refused[0].status).toBe('ORCAMENTO_RECUSADO');
     const event: CancellationEvent = {
       messageId: `cancelled-${id}`,
       operationId: commands[0].payload.operationId,

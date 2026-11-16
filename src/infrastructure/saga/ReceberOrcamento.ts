@@ -167,6 +167,8 @@ export class ReceiveQuoteEvent {
           await tx.$executeRaw`INSERT INTO "SagaOperation" ("operationId", "sagaId", "step", "businessAttempt", "commandType", "status", "updatedAt") VALUES (${operationId}, ${event.sagaId}, 'CANCEL_WORK', 1, ${type}, 'PENDING', NOW())`;
           await tx.$executeRaw`INSERT INTO "Outbox" ("messageId", "type", "payload") VALUES (${messageId}, ${type}, ${JSON.stringify(payload)}::jsonb)`;
           await tx.$executeRaw`UPDATE "SagaInstance" SET "status" = 'COMPENSANDO', "version" = "version" + 1, "updatedAt" = NOW() WHERE "id" = ${event.sagaId}`;
+          await tx.$executeRaw`UPDATE "OrdemDeServico" SET "status" = 'ORCAMENTO_RECUSADO', "version" = "version" + 1, "updatedAt" = NOW() WHERE "id" = ${event.osId}`;
+          await tx.$executeRaw`INSERT INTO "HistoricoStatusOS" ("id", "osId", "status", "ocorridoEm") VALUES (${randomUUID()}, ${event.osId}, 'ORCAMENTO_RECUSADO', ${now})`;
         } else {
           const reservationId = randomUUID();
           const operationId = randomUUID();
@@ -203,6 +205,9 @@ export class ReceiveQuoteEvent {
           await tx.$executeRaw`INSERT INTO "SagaOperation" ("operationId", "sagaId", "step", "businessAttempt", "commandType", "status", "updatedAt") VALUES (${operationId}, ${event.sagaId}, 'RESERVE_PARTS', 1, ${type}, 'PENDING', NOW())`;
           await tx.$executeRaw`INSERT INTO "Outbox" ("messageId", "type", "payload") VALUES (${messageId}, ${type}, ${JSON.stringify(payload)}::jsonb)`;
           await tx.$executeRaw`UPDATE "SagaInstance" SET "status" = 'RESERVA_PENDENTE', "reservationId" = ${reservationId}, "deadlineAt" = ${deadline}, "version" = "version" + 1, "updatedAt" = NOW() WHERE "id" = ${event.sagaId}`;
+          // Cliente aprovou no Billing: a OS sai de AGUARDANDO_APROVACAO e aguarda pagamento.
+          await tx.$executeRaw`UPDATE "OrdemDeServico" SET "status" = 'APROVADA', "version" = "version" + 1, "updatedAt" = NOW() WHERE "id" = ${event.osId}`;
+          await tx.$executeRaw`INSERT INTO "HistoricoStatusOS" ("id", "osId", "status", "ocorridoEm") VALUES (${randomUUID()}, ${event.osId}, 'APROVADA', ${now})`;
         }
       }
       await tx.$executeRaw`UPDATE "Inbox" SET "status" = 'APPLIED', "appliedAt" = NOW() WHERE "consumer" = ${consumer} AND "messageId" = ${event.messageId}`;

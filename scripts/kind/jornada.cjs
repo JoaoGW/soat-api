@@ -18,6 +18,7 @@ const OS = env('OS_URL');
 const BILLING = env('BILLING_URL');
 const EXECUTION = env('EXECUTION_URL');
 const SIMULATOR = process.env.MP_SIMULADO_URL || '';
+const MAILPIT = process.env.MAILPIT_URL || '';
 const SCENARIO = process.env.CENARIO || 'feliz';
 const BRANCH = process.env.FILIAL_ID || 'filial-kind';
 const TIMEOUT = Number(process.env.JORNADA_TIMEOUT_MS || (SIMULATOR ? 180000 : 900000));
@@ -124,6 +125,18 @@ async function main() {
   const customer = clientToken(client.id);
   const quote = await call('GET', `${BILLING}/orcamentos/${detail.quoteId}`, { token: customer });
   process.stdout.write(`Orçamento ${detail.quoteId} versão ${detail.quoteVersion}: ${JSON.stringify(quote)}\n`);
+  if (MAILPIT) {
+    // O Billing envia o orçamento para aprovação por e-mail (Mailpit do cluster).
+    const mail = await waitFor('e-mail do orçamento no Mailpit', async () => {
+      const response = await fetch(`${MAILPIT}/api/v1/messages?limit=50`);
+      if (!response.ok) return null;
+      const { messages = [] } = await response.json();
+      return messages.find((item) => String(item.Subject).includes(order.id)) || null;
+    });
+    const message = await (await fetch(`${MAILPIT}/api/v1/message/${mail.ID}`)).json();
+    if (!String(message.Text).includes(detail.quoteId) || !String(message.Text).includes('Total:')) throw new Error('E-mail do orçamento sem identificação ou total');
+    process.stdout.write(`E-mail enviado para ${mail.To?.[0]?.Address}: "${mail.Subject}"\n${message.Text}\n`);
+  }
 
   step('Cliente: aprovação do orçamento no Billing');
   await call('POST', `${BILLING}/orcamentos/${detail.quoteId}/aprovar`, { token: customer, key: randomUUID(), body: { versao: detail.quoteVersion } });
@@ -198,7 +211,11 @@ async function main() {
   step('OS: entrega do veículo');
   await call('POST', `${OS}/fase4/ordens-servico/${order.id}/entregar`, { token: admin });
   const history = await call('GET', `${OS}/fase4/ordens-servico/${order.id}/historico`, { token: admin });
-  process.stdout.write(`Histórico: ${history.map((item) => item.status).join(' -> ')}\n`);
+  const statuses = history.map((item) => item.status);
+  process.stdout.write(`Histórico: ${statuses.join(' -> ')}\n`);
+  for (const expected of ['RECEBIDA', 'EM_DIAGNOSTICO', 'AGUARDANDO_APROVACAO', 'APROVADA', 'PAGAMENTO_CONFIRMADO', 'EM_EXECUCAO', 'FINALIZADA', 'ENTREGUE']) {
+    if (!statuses.includes(expected)) throw new Error(`Histórico da OS sem o status ${expected}`);
+  }
   step('Jornada concluída de ponta a ponta');
 }
 
