@@ -16,7 +16,7 @@ export function sagaDeadlineMinutes(
   env: NodeJS.ProcessEnv = process.env,
 ): number {
   const raw = env[name]?.trim();
-  const value = raw && /^\d+$/.test(raw) ? Number(raw) : NaN;
+  const value = raw && /^\d+$/.test(raw) ? Number(raw) : Number.NaN;
   return Number.isSafeInteger(value) && value >= 1 && value <= MAX_MINUTES
     ? value
     : SAGA_DEADLINE_DEFAULTS[name];
