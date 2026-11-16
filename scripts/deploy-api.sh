@@ -20,6 +20,8 @@ esac
 : "${AZURE_TENANT_ID:?AZURE_TENANT_ID é obrigatório}"
 : "${API_WORKLOAD_CLIENT_ID:?API_WORKLOAD_CLIENT_ID é obrigatório}"
 : "${APP_VERSION:?APP_VERSION é obrigatório}"
+: "${SERVICE_BUS_NAMESPACE:?SERVICE_BUS_NAMESPACE é obrigatório}"
+: "${OS_SERVICE_BUS_CLIENT_ID:?OS_SERVICE_BUS_CLIENT_ID é obrigatório}"
 
 if [[ ! "$APP_VERSION" =~ ^[0-9a-f]{40}$ || "$image" != "ghcr.io/joaogw/soat-api:$APP_VERSION" || "$(git rev-parse HEAD)" != "$APP_VERSION" ]]; then
   echo "A imagem e o checkout precisam corresponder ao SHA aprovado." >&2
@@ -36,7 +38,9 @@ find "$workspace/deploy" -type f -name '*.yaml' -print0 | xargs -0 \
   -e "s|__KEY_VAULT_NAME__|$KEY_VAULT_NAME|g" \
   -e "s|__AZURE_TENANT_ID__|$AZURE_TENANT_ID|g" \
   -e "s|__API_WORKLOAD_CLIENT_ID__|$API_WORKLOAD_CLIENT_ID|g" \
-  -e "s|__APP_VERSION__|$APP_VERSION|g"
+  -e "s|__APP_VERSION__|$APP_VERSION|g" \
+  -e "s|__SERVICE_BUS_NAMESPACE__|$SERVICE_BUS_NAMESPACE|g" \
+  -e "s|__OS_SERVICE_BUS_CLIENT_ID__|$OS_SERVICE_BUS_CLIENT_ID|g"
 
 cd "$workspace/$overlay"
 kustomize edit set image "ghcr.io/joaogw/soat-api=$image"
@@ -45,9 +49,9 @@ if [[ "$mode" == "migration" ]]; then
   kubectl -n "$environment" apply --server-side --field-manager=soat-api-deploy \
     -f "$workspace/deploy/kustomize/base/serviceaccount.yaml" \
     -f "$workspace/deploy/kustomize/base/secret-provider-class.yaml"
-  kubectl -n "$environment" delete job soat-api-migrate --ignore-not-found=true
+  kubectl -n "$environment" delete job soat-api-migrate soat-api-migrate-saga --ignore-not-found=true
   kubectl apply --server-side --field-manager=soat-api-deploy -k .
-  kubectl -n "$environment" wait --for=condition=complete job/soat-api-migrate --timeout=10m
+  kubectl -n "$environment" wait --for=condition=complete job/soat-api-migrate job/soat-api-migrate-saga --timeout=10m
 else
   kubectl apply --server-side --field-manager=soat-api-deploy -k .
   kubectl -n "$environment" rollout status deployment/soat-api --timeout=10m

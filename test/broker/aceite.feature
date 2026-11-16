@@ -3,6 +3,30 @@ Funcionalidade: Aceite distribuído da oficina pelo broker
   Os casos de uso e consumidores dos três serviços usam bancos de teste,
   um broker emulado e um provedor de pagamento simulado.
 
+  # Recorte OS -> broker -> Billing (antigo diagnostico-orcamento.feature).
+  # Executado primeiro para encontrar a fila de comandos do Billing vazia.
+  Cenário: Mensagem repetida de orçamento gera um único orçamento
+    Dado que os serviços e seus bancos locais de teste estão configurados
+    Quando publico duas vezes o comando de orçamento do diagnóstico pelo broker
+    Então a execução confirma "OS → broker → Billing: mensagem e reentrega processadas"
+
+  # Casos de scripts/integration/broker-three-services.cjs (antigo jornada.feature):
+  # happy: ordem diagnosticada, aprovada e paga; trabalho enfileirado, iniciado
+  #   e concluído; peças consumidas e entrega após a confirmação financeira.
+  # charge-timeout: order criada no provedor com resposta perdida é recuperada
+  #   pela consulta canônica, sem criar outra order.
+  # compensate: falha após pagamento e antes do reparo; cancelamento confirmado
+  #   por Execution, reembolso com evidência autenticada, liberação da reserva e
+  #   evento repetido sem duplicar o reembolso.
+  # refund-timeout: provedor efetiva o reembolso e perde a resposta; Billing
+  #   confirma pelo estado canônico sem nova solicitação e a reserva é liberada.
+  # late-payment: pagamento confirmado após expiração; recuperação administrativa
+  #   cerca a execução, reembolsa e libera a reserva.
+  # no-stock: Execution rejeita a reserva; Saga compensada sem cobrança.
+  # started: compensação pedida após o início físico exige reconciliação, sem
+  #   reembolso nem liberação automáticos.
+  # started-completed: reparo concluído durante a reconciliação permite concluir
+  #   a Saga e entregar, recusando evidências de compensação conflitantes.
   Esquema do Cenário: Jornada e falhas entre os serviços
     Dado que os serviços e seus bancos locais de teste estão configurados
     Quando executo o cenário distribuído "<caso>" pelo broker
@@ -98,3 +122,12 @@ Funcionalidade: Aceite distribuído da oficina pelo broker
     Dado que os serviços e seus bancos locais de teste estão configurados
     Quando o provedor efetiva o reembolso e perde a resposta
     Então a execução confirma "Timeout financeiro reconciliado sem repetir reembolso e com recuperação auditada"
+
+  # Exige o ambiente kind (scripts/kind/ambiente.sh subir) e as versões de
+  # Billing e Execution com execution.work-failed.v1. Executado por
+  # npm run test:bdd-kind; o BDD do broker exclui a tag @kind.
+  @kind
+  Cenário: Falha na execução após pagamento estorna e cancela a OS
+    Dado que o ambiente kind da Fase 4 está implantado
+    Quando executo a jornada no kind com o cenário "falha-execucao"
+    Então a execução confirma "Falha na execução compensada: estorno confirmado e OS cancelada"

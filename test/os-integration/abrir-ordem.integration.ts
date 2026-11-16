@@ -41,8 +41,8 @@ describe('abertura de OS e Saga', () => {
     ]);
     expect(second).toEqual(first);
     const sagas = await db.$queryRaw<
-      Array<{ status: string }>
-    >`SELECT "status" FROM "SagaInstance" WHERE "osId" = ${first.id}`;
+      Array<{ status: string; withDeadline: boolean }>
+    >`SELECT "status", ("deadlineAt" > NOW() + INTERVAL '23 hours') AS "withDeadline" FROM "SagaInstance" WHERE "osId" = ${first.id}`;
     const events = await db.$queryRaw<
       Array<{
         payload: { data: { veiculoId: string; solicitacoes: string[] } };
@@ -51,7 +51,9 @@ describe('abertura de OS e Saga', () => {
     const history = await db.$queryRaw<
       Array<{ count: bigint }>
     >`SELECT COUNT(*) AS count FROM "HistoricoStatusOS" WHERE "osId" = ${first.id}`;
-    expect(sagas).toEqual([{ status: 'DIAGNOSTICO_PENDENTE' }]);
+    expect(sagas).toEqual([
+      { status: 'DIAGNOSTICO_PENDENTE', withDeadline: true },
+    ]);
     expect(events).toHaveLength(1);
     expect(events[0].payload.data).toEqual({
       veiculoId: vehicle,

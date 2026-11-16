@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { PrismaClient } from '@prisma/client';
+import { sagaDeadlineAt } from './PrazosSaga';
 
 export type RepairEvent = {
   messageId: string;
@@ -27,7 +28,10 @@ type Saga = {
 /** O transporte deve validar schema e origem antes de chamar este serviço. */
 export class ReceiveRepairEvent {
   constructor(private readonly db: PrismaClient) {}
-  async execute(event: RepairEvent): Promise<'APPLIED' | 'PENDING'> {
+  async execute(
+    event: RepairEvent,
+    now = new Date(),
+  ): Promise<'APPLIED' | 'PENDING'> {
     const start = event?.type === 'execution.work-started.v1';
     const finish = event?.type === 'execution.work-completed.v1';
     const startedAt = new Date(event?.data?.startedAt ?? '');
@@ -50,7 +54,8 @@ export class ReceiveRepairEvent {
       (finish &&
         (!completedAt ||
           !Number.isFinite(completedAt.getTime()) ||
-          completedAt < startedAt))
+          completedAt < startedAt)) ||
+      !Number.isFinite(now.getTime())
     )
       throw new Error('Evento de reparo inválido');
     const encoded = JSON.stringify(event);
@@ -108,7 +113,11 @@ export class ReceiveRepairEvent {
       const next = start ? 'EM_EXECUCAO' : 'CONCLUIDA';
       const osStatus = start ? 'EM_EXECUCAO' : 'FINALIZADA';
       const when = start ? startedAt : completedAt!;
-      await tx.$executeRaw`UPDATE "SagaInstance" SET "status" = ${next}, "version" = "version" + 1, "updatedAt" = NOW() WHERE "id" = ${event.sagaId}`;
+      // EM_EXECUCAO ganha prazo próprio; a conclusão encerra o acompanhamento.
+      const deadline = start
+        ? sagaDeadlineAt('SAGA_EXECUTION_DEADLINE_MINUTES', now)
+        : null;
+      await tx.$executeRaw`UPDATE "SagaInstance" SET "status" = ${next}, "deadlineAt" = ${deadline}, "version" = "version" + 1, "updatedAt" = NOW() WHERE "id" = ${event.sagaId}`;
       if (start)
         await tx.$executeRaw`UPDATE "OrdemDeServico" SET "status" = ${osStatus}, "executionId" = ${event.data.executionId}, "dataInicioExecucao" = ${when}, "version" = "version" + 1, "updatedAt" = NOW() WHERE "id" = ${event.osId}`;
       else

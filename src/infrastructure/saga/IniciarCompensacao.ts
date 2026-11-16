@@ -1,6 +1,24 @@
 import { randomUUID } from 'node:crypto';
-import { PrismaClient } from '@prisma/client';
+import { Prisma, PrismaClient } from '@prisma/client';
 import { captureTrace } from '../observability/TraceContext';
+type Saga = {
+  id: string;
+  osId: string;
+  filialId: string;
+  status: string;
+  version: number;
+  executionId: string | null;
+};
+const COMPENSABLE = [
+  'DIAGNOSTICO_PENDENTE',
+  'ORCAMENTO_PENDENTE',
+  'AGUARDANDO_APROVACAO',
+  'RESERVA_PENDENTE',
+  'COBRANCA_PENDENTE',
+  'AGUARDANDO_PAGAMENTO',
+  'FILA_PENDENTE',
+  'NA_FILA',
+];
 export class StartCompensation {
   constructor(private readonly db: PrismaClient) {}
   async execute(
@@ -17,69 +35,82 @@ export class StartCompensation {
       throw new Error('Compensação inválida');
     return this.db.$transaction(async (tx) => {
       const rows = await tx.$queryRaw<
-        Array<{
-          id: string;
-          osId: string;
-          filialId: string;
-          status: string;
-          version: number;
-          executionId: string | null;
-        }>
+        Saga[]
       >`SELECT "id", "osId", "filialId", "status", "version", "executionId" FROM "SagaInstance" WHERE "id" = ${sagaId} FOR UPDATE`;
       const saga = rows[0];
       if (!saga) throw new Error('Saga inexistente');
       if (saga.status === 'COMPENSANDO') return 'STARTED';
       if (saga.status === 'RECONCILIACAO_NECESSARIA')
         return 'RECONCILIACAO_NECESSARIA';
-      if (
-        ['EM_EXECUCAO', 'CONCLUIDA', 'RECONCILIACAO_NECESSARIA'].includes(
-          saga.status,
-        )
-      ) {
+      if (['EM_EXECUCAO', 'CONCLUIDA'].includes(saga.status)) {
         await tx.$executeRaw`UPDATE "SagaInstance" SET "status" = 'RECONCILIACAO_NECESSARIA', "requiresAttention" = true, "version" = "version" + 1, "updatedAt" = NOW() WHERE "id" = ${sagaId}`;
         return 'RECONCILIACAO_NECESSARIA';
       }
-      if (
-        ![
-          'DIAGNOSTICO_PENDENTE',
-          'ORCAMENTO_PENDENTE',
-          'AGUARDANDO_APROVACAO',
-          'RESERVA_PENDENTE',
-          'COBRANCA_PENDENTE',
-          'AGUARDANDO_PAGAMENTO',
-          'FILA_PENDENTE',
-          'NA_FILA',
-        ].includes(saga.status)
-      )
+      if (!COMPENSABLE.includes(saga.status))
         throw new Error('Saga não pode iniciar compensação');
-      const operationId = randomUUID();
-      const messageId = randomUUID();
-      const type = 'execution.cancel-work.v1';
-      const payload = {
-        messageId,
-        type,
-        schemaVersion: 1,
-        occurredAt: now.toISOString(),
-        producer: 'soat-os-service',
-        aggregateType: 'saga',
-        aggregateId: saga.id,
-        aggregateVersion: saga.version + 1,
-        osId: saga.osId,
-        sagaId: saga.id,
-        filialId: saga.filialId,
-        correlationId: saga.id,
-        causationId: operationId,
-        operationId,
-        ...captureTrace(),
-        data: {
-          reason,
-          ...(saga.executionId ? { executionId: saga.executionId } : {}),
-        },
-      };
-      await tx.$executeRaw`INSERT INTO "SagaOperation" ("operationId", "sagaId", "step", "businessAttempt", "commandType", "status", "updatedAt") VALUES (${operationId}, ${saga.id}, 'CANCEL_WORK', 1, ${type}, 'PENDING', NOW())`;
-      await tx.$executeRaw`INSERT INTO "Outbox" ("messageId", "type", "payload") VALUES (${messageId}, ${type}, ${JSON.stringify(payload)}::jsonb)`;
-      await tx.$executeRaw`UPDATE "SagaInstance" SET "status" = 'COMPENSANDO', "version" = "version" + 1, "updatedAt" = NOW() WHERE "id" = ${sagaId}`;
+      await this.requestCancellation(tx, saga, reason, now);
       return 'STARTED';
     });
+  }
+
+  /**
+   * Prazo vencido em etapa sem trabalho físico iniciado: pede o cancelamento a
+   * Execution, que é a autoridade (responde CANCELLED ou ALREADY_STARTED).
+   * SKIP LOCKED evita disputar a Saga com um evento em processamento; o estado
+   * e o prazo são reavaliados sob o bloqueio, na mesma transação do comando.
+   */
+  async startExpired(
+    sagaId: string,
+    now = new Date(),
+  ): Promise<'STARTED' | 'SKIPPED'> {
+    if (
+      typeof sagaId !== 'string' ||
+      !sagaId ||
+      !Number.isFinite(now.getTime())
+    )
+      throw new Error('Compensação inválida');
+    return this.db.$transaction(async (tx) => {
+      const rows = await tx.$queryRaw<
+        Saga[]
+      >`SELECT "id", "osId", "filialId", "status", "version", "executionId" FROM "SagaInstance" WHERE "id" = ${sagaId} AND "deadlineAt" <= ${now} AND "status" IN ('DIAGNOSTICO_PENDENTE','AGUARDANDO_APROVACAO','NA_FILA') FOR UPDATE SKIP LOCKED`;
+      if (!rows[0]) return 'SKIPPED';
+      await this.requestCancellation(tx, rows[0], 'DEADLINE_EXPIRED', now);
+      return 'STARTED';
+    });
+  }
+
+  private async requestCancellation(
+    tx: Prisma.TransactionClient,
+    saga: Saga,
+    reason: string,
+    now: Date,
+  ): Promise<void> {
+    const operationId = randomUUID();
+    const messageId = randomUUID();
+    const type = 'execution.cancel-work.v1';
+    const payload = {
+      messageId,
+      type,
+      schemaVersion: 1,
+      occurredAt: now.toISOString(),
+      producer: 'soat-os-service',
+      aggregateType: 'saga',
+      aggregateId: saga.id,
+      aggregateVersion: saga.version + 1,
+      osId: saga.osId,
+      sagaId: saga.id,
+      filialId: saga.filialId,
+      correlationId: saga.id,
+      causationId: operationId,
+      operationId,
+      ...captureTrace(),
+      data: {
+        reason,
+        ...(saga.executionId ? { executionId: saga.executionId } : {}),
+      },
+    };
+    await tx.$executeRaw`INSERT INTO "SagaOperation" ("operationId", "sagaId", "step", "businessAttempt", "commandType", "status", "updatedAt") VALUES (${operationId}, ${saga.id}, 'CANCEL_WORK', 1, ${type}, 'PENDING', NOW())`;
+    await tx.$executeRaw`INSERT INTO "Outbox" ("messageId", "type", "payload") VALUES (${messageId}, ${type}, ${JSON.stringify(payload)}::jsonb)`;
+    await tx.$executeRaw`UPDATE "SagaInstance" SET "status" = 'COMPENSANDO', "deadlineAt" = NULL, "version" = "version" + 1, "updatedAt" = NOW() WHERE "id" = ${saga.id}`;
   }
 }

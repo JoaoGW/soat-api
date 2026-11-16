@@ -19,11 +19,17 @@ export class RetryFailedCommand {
       throw new Error('Dados de recuperação inválidos');
     await this.db.$transaction(async (tx) => {
       const saga = await tx.$queryRaw<
-        Array<{ status: string; requiresAttention: boolean }>
-      >`SELECT "status", "requiresAttention" FROM "SagaInstance" WHERE "id" = ${input.sagaId} FOR UPDATE`;
+        Array<{
+          status: string;
+          requiresAttention: boolean;
+          lastError: string | null;
+        }>
+      >`SELECT "status", "requiresAttention", "lastError" FROM "SagaInstance" WHERE "id" = ${input.sagaId} FOR UPDATE`;
+      // O alerta OUTBOX_FAILED é exatamente o que este reprocessamento resolve;
+      // qualquer outra pendência continua bloqueando.
       if (
         saga.length !== 1 ||
-        saga[0].requiresAttention ||
+        (saga[0].requiresAttention && saga[0].lastError !== 'OUTBOX_FAILED') ||
         ![
           'DIAGNOSTICO_PENDENTE',
           'ORCAMENTO_PENDENTE',
@@ -66,6 +72,7 @@ export class RetryFailedCommand {
         throw new Error('Comando incompatível com o estado da Saga');
       await tx.$executeRaw`UPDATE "Outbox" SET "status" = 'PENDING', "attemptCount" = 0, "nextAttemptAt" = NOW(), "claimUntil" = NULL, "claimOwner" = NULL WHERE "messageId" = ${input.messageId}`;
       await tx.$executeRaw`INSERT INTO "SagaRecoveryAudit" ("id", "sagaId", "messageId", "actorId", "reason") VALUES (${randomUUID()}, ${input.sagaId}, ${input.messageId}, ${input.actorId}, ${input.reason})`;
+      await tx.$executeRaw`UPDATE "SagaInstance" SET "requiresAttention" = false, "lastError" = NULL, "version" = "version" + 1, "updatedAt" = NOW() WHERE "id" = ${input.sagaId} AND "lastError" = 'OUTBOX_FAILED' AND NOT EXISTS (SELECT 1 FROM "Outbox" WHERE "payload"->>'sagaId' = ${input.sagaId} AND "status" = 'FAILED')`;
     });
   }
 }

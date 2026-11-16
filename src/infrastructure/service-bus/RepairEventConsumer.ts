@@ -6,6 +6,7 @@ import { CancellationEvent } from '../saga/ReceberCancelamento';
 import { RefundEvent } from '../saga/ReceberReembolso';
 import { ReleaseEvent } from '../saga/ReceberLiberacao';
 import { FailureEvent } from '../saga/ReceberFalha';
+import { WorkFailedEvent } from '../saga/ReceberFalhaExecucao';
 import {
   ContractEventConsumer,
   contractValidator,
@@ -17,6 +18,10 @@ export const repairEventValidator = (directory: string) =>
     'execution.work-completed.v1',
   ]);
 export class RepairEventConsumer extends ContractEventConsumer<RepairEvent> {}
+
+export const workFailedEventValidator = (directory: string) =>
+  contractValidator(directory, ['execution.work-failed.v1']);
+export class WorkFailedEventConsumer extends ContractEventConsumer<WorkFailedEvent> {}
 
 export const diagnosisEventValidator = (directory: string) =>
   contractValidator(directory, [

@@ -1,4 +1,5 @@
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
 const path = require('node:path');
 const { execFile } = require('node:child_process');
 const { promisify } = require('node:util');
@@ -134,6 +135,34 @@ When('executo a jornada HTTP com rastreamento distribuído pelo broker', async f
   const result = await runChecked('scripts/integration/broker-independent-processes.cjs', [], { ...process.env, SOAT_TEST_PRODUCTION_WORKERS: '1', SOAT_TEST_HTTP_ACTIONS: '1', SOAT_TEST_TRACE: '1' });
   this.output = result.stdout;
   if (result.stderr) await this.attach(result.stderr, 'text/plain');
+  await this.attach(result.stdout, 'text/plain');
+});
+
+When('publico duas vezes o comando de orçamento do diagnóstico pelo broker', async function () {
+  const result = await runChecked('scripts/integration/diagnosis-broker-billing.cjs', [], process.env);
+  this.output = result.stdout;
+  if (result.stderr) await this.attach(result.stderr, 'text/plain');
+  await this.attach(result.stdout, 'text/plain');
+});
+
+const kindState = path.resolve('.kind-local');
+
+Given('que o ambiente kind da Fase 4 está implantado', async function () {
+  assert.ok(fs.existsSync(path.join(kindState, 'admin-password')), 'Ambiente kind ausente: execute scripts/kind/ambiente.sh subir');
+  const cluster = process.env.KIND_CLUSTER || 'soat';
+  await run('kubectl', ['--context', `kind-${cluster}`, '-n', 'soat-local', 'get', 'deployment/soat-api'], { timeout: 30000 });
+});
+
+When('executo a jornada no kind com o cenário {string}', { timeout: 20 * 60000 }, async function (scenario) {
+  let result;
+  try {
+    result = await run('bash', [path.resolve('scripts/kind/ambiente.sh'), 'jornada'], {
+      cwd: process.cwd(), env: { ...process.env, CENARIO: scenario }, timeout: 19 * 60000, maxBuffer: 4 * 1024 * 1024,
+    });
+  } catch (error) {
+    throw new Error(`Falha na jornada kind: ${error.message}\n${String(error.stderr || '').slice(-6000)}\n${String(error.stdout || '').slice(-6000)}`);
+  }
+  this.output = result.stdout;
   await this.attach(result.stdout, 'text/plain');
 });
 

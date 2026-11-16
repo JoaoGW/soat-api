@@ -190,6 +190,10 @@ jobs:
           grep -q 'kind: HorizontalPodAutoscaler' /tmp/prod.yaml
           grep -q 'kind: PodDisruptionBudget' /tmp/prod.yaml
           grep -q 'kind: Job' /tmp/migration-hml.yaml
+          grep -q 'soat-api-migrate-saga' /tmp/migration-hml.yaml
+          grep -q 'SAGA_DATABASE_URL' /tmp/hml.yaml
+          grep -q 'ENABLE_SAGA_EVENT_CONSUMER' /tmp/hml.yaml
+          grep -q 'ENABLE_SAGA_EVENT_CONSUMER' /tmp/prod.yaml
 
   deploy_kind:
     name: Deploy Kubernetes (kind)

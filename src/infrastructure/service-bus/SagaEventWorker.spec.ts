@@ -133,6 +133,7 @@ describe('SagaEventWorker', () => {
     const b = signed('billing.payment-confirmed.v1', 'soat-billing-service');
     const c = signed('execution.work-enqueued.v1', 'soat-execution-service');
     const d = signed('billing.unknown.v1', 'soat-billing-service');
+    const failed = signed('execution.work-failed.v1', 'soat-execution-service');
     const canceled = signed(
       'billing.charge-canceled.v1',
       'soat-billing-service',
@@ -141,6 +142,7 @@ describe('SagaEventWorker', () => {
     await handlers.processMessage(b);
     await handlers.processMessage(c);
     await handlers.processMessage(d);
+    await handlers.processMessage(failed);
     await handlers.processMessage(canceled);
     const forged = signed(
       'billing.payment-confirmed.v1',
@@ -157,6 +159,13 @@ describe('SagaEventWorker', () => {
     expect(payment.process).toHaveBeenCalledWith(b, receiver);
     expect(work.process).toHaveBeenCalledWith(c, receiver);
     expect(receiver.abandonMessage).toHaveBeenCalledWith(d);
+    // Falha de execução segue ao consumidor de contrato próprio (corpo
+    // incompleto vai à DLQ por contrato, não fica sem confirmação).
+    expect(receiver.deadLetterMessage).toHaveBeenCalledWith(
+      failed,
+      expect.objectContaining({ deadLetterReason: 'InvalidContract' }),
+    );
+    expect(receiver.abandonMessage).not.toHaveBeenCalledWith(failed);
     await worker.onApplicationShutdown();
     expect(subscription.close).toHaveBeenCalled();
     expect(receiver.close).toHaveBeenCalled();

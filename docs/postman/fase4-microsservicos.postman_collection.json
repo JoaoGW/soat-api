@@ -1,0 +1,1221 @@
+{
+  "info": {
+    "_postman_id": "e9f120da-c6af-4c63-b133-2730e28e98f3",
+    "name": "SOAT Fase 4 — Microsserviços (OS, Billing, Execution)",
+    "description": "Fluxo completo de uma OS pelos três microsserviços da Fase 4. Execute as pastas em ordem: 1) autenticação, 2) cadastros e abertura no OS, 3) diagnóstico no Execution, 4) aprovação do orçamento no Billing, 5) pagamento (webhook Mercado Pago ou simulador do kind), 6) execução, 7) acompanhamento. As chamadas entre serviços acontecem pela Saga (Azure Service Bus); esta collection só usa as APIs HTTP públicas. No ambiente kind local, as URLs são as portas expostas por `scripts/kind/ambiente.sh portas`.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "osBaseUrl",
+      "value": "http://localhost:3001"
+    },
+    {
+      "key": "billingBaseUrl",
+      "value": "http://localhost:3002"
+    },
+    {
+      "key": "executionBaseUrl",
+      "value": "http://localhost:3003"
+    },
+    {
+      "key": "adminUsername",
+      "value": "admin"
+    },
+    {
+      "key": "adminPassword",
+      "value": ""
+    },
+    {
+      "key": "token",
+      "value": ""
+    },
+    {
+      "key": "clienteToken",
+      "value": ""
+    },
+    {
+      "key": "executionToken",
+      "value": ""
+    },
+    {
+      "key": "filialId",
+      "value": "filial-001"
+    },
+    {
+      "key": "clienteId",
+      "value": ""
+    },
+    {
+      "key": "veiculoId",
+      "value": ""
+    },
+    {
+      "key": "osId",
+      "value": ""
+    },
+    {
+      "key": "sagaId",
+      "value": ""
+    },
+    {
+      "key": "orcamentoId",
+      "value": ""
+    },
+    {
+      "key": "cobrancaId",
+      "value": ""
+    },
+    {
+      "key": "sku",
+      "value": "peca-001"
+    },
+    {
+      "key": "executionId",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Autenticação",
+      "item": [
+        {
+          "name": "Login administrativo (OS)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{osBaseUrl}}/auth/login",
+              "host": [
+                "{{osBaseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{adminUsername}}\",\n  \"password\": \"{{adminPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Token administrativo. O Execution aceita JWT administrativo assinado com o mesmo JWT_SECRET; o token de cliente vem da Auth Function (CPF)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.accessToken) { pm.collectionVariables.set('token', json.accessToken); pm.collectionVariables.set('executionToken', json.accessToken); }"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "2. OS Service — cadastros e abertura",
+      "item": [
+        {
+          "name": "Criar cliente",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{osBaseUrl}}/fase4/clientes",
+              "host": [
+                "{{osBaseUrl}}"
+              ],
+              "path": [
+                "fase4",
+                "clientes"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Cliente Fase 4\",\n  \"documento\": \"52998224725\",\n  \"contato\": \"cliente@example.com\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.id) pm.collectionVariables.set('clienteId', json.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Listar clientes",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{osBaseUrl}}/fase4/clientes?page=1&limit=10",
+              "host": [
+                "{{osBaseUrl}}"
+              ],
+              "path": [
+                "fase4",
+                "clientes"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Criar veículo",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{osBaseUrl}}/fase4/veiculos",
+              "host": [
+                "{{osBaseUrl}}"
+              ],
+              "path": [
+                "fase4",
+                "veiculos"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"clienteId\": \"{{clienteId}}\",\n  \"placa\": \"ABC1D23\",\n  \"marca\": \"Fiat\",\n  \"modelo\": \"Uno\",\n  \"ano\": 2020\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.id) pm.collectionVariables.set('veiculoId', json.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Abrir OS (inicia a Saga)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": {
+              "raw": "{{osBaseUrl}}/fase4/ordens-servico",
+              "host": [
+                "{{osBaseUrl}}"
+              ],
+              "path": [
+                "fase4",
+                "ordens-servico"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"clienteId\": \"{{clienteId}}\",\n  \"veiculoId\": \"{{veiculoId}}\",\n  \"filialId\": \"{{filialId}}\",\n  \"solicitacoes\": [\n    \"Revisão de freios\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.osId || json.id) pm.collectionVariables.set('osId', json.osId || json.id);",
+                  "if (json.sagaId) pm.collectionVariables.set('sagaId', json.sagaId);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Consultar OS",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{osBaseUrl}}/fase4/ordens-servico/{{osId}}",
+              "host": [
+                "{{osBaseUrl}}"
+              ],
+              "path": [
+                "fase4",
+                "ordens-servico",
+                "{{osId}}"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.quoteId) pm.collectionVariables.set('orcamentoId', json.quoteId);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Histórico de status da OS",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{osBaseUrl}}/fase4/ordens-servico/{{osId}}/historico",
+              "host": [
+                "{{osBaseUrl}}"
+              ],
+              "path": [
+                "fase4",
+                "ordens-servico",
+                "{{osId}}",
+                "historico"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Estado da Saga",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{osBaseUrl}}/fase4/ordens-servico/{{osId}}/saga",
+              "host": [
+                "{{osBaseUrl}}"
+              ],
+              "path": [
+                "fase4",
+                "ordens-servico",
+                "{{osId}}",
+                "saga"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.id) pm.collectionVariables.set('sagaId', json.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Fila operacional",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{osBaseUrl}}/fase4/ordens-servico/fila-operacional?filialId={{filialId}}",
+              "host": [
+                "{{osBaseUrl}}"
+              ],
+              "path": [
+                "fase4",
+                "ordens-servico",
+                "fila-operacional"
+              ],
+              "query": [
+                {
+                  "key": "filialId",
+                  "value": "{{filialId}}"
+                }
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Execution — estoque e diagnóstico",
+      "item": [
+        {
+          "name": "Ajustar estoque da peça",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": {
+              "raw": "{{executionBaseUrl}}/estoque/{{filialId}}/{{sku}}",
+              "host": [
+                "{{executionBaseUrl}}"
+              ],
+              "path": [
+                "estoque",
+                "{{filialId}}",
+                "{{sku}}"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{executionToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"balance\": 10,\n  \"reason\": \"CARGA_INICIAL\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Fila de execução da filial",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{executionBaseUrl}}/execucoes/fila?filialId={{filialId}}",
+              "host": [
+                "{{executionBaseUrl}}"
+              ],
+              "path": [
+                "execucoes",
+                "fila"
+              ],
+              "query": [
+                {
+                  "key": "filialId",
+                  "value": "{{filialId}}"
+                }
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{executionToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "const item = (json.items || []).find((entry) => entry.osId === pm.collectionVariables.get('osId'));",
+                  "if (item && item.executionId) pm.collectionVariables.set('executionId', item.executionId);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Iniciar diagnóstico",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": {
+              "raw": "{{executionBaseUrl}}/execucoes/{{osId}}/iniciar-diagnostico",
+              "host": [
+                "{{executionBaseUrl}}"
+              ],
+              "path": [
+                "execucoes",
+                "{{osId}}",
+                "iniciar-diagnostico"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{executionToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sagaId\": \"{{sagaId}}\",\n  \"filialId\": \"{{filialId}}\",\n  \"correlationId\": \"{{sagaId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Concluir diagnóstico (gera orçamento no Billing)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": {
+              "raw": "{{executionBaseUrl}}/execucoes/{{osId}}/concluir-diagnostico",
+              "host": [
+                "{{executionBaseUrl}}"
+              ],
+              "path": [
+                "execucoes",
+                "{{osId}}",
+                "concluir-diagnostico"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{executionToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sagaId\": \"{{sagaId}}\",\n  \"filialId\": \"{{filialId}}\",\n  \"correlationId\": \"{{sagaId}}\",\n  \"items\": [\n    {\n      \"sourceId\": \"{{sku}}\",\n      \"itemType\": \"PART\",\n      \"quantity\": 1\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Billing — orçamento",
+      "item": [
+        {
+          "name": "Consultar orçamento",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{billingBaseUrl}}/orcamentos/{{orcamentoId}}",
+              "host": [
+                "{{billingBaseUrl}}"
+              ],
+              "path": [
+                "orcamentos",
+                "{{orcamentoId}}"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{clienteToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Aprovar orçamento (cliente)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": {
+              "raw": "{{billingBaseUrl}}/orcamentos/{{orcamentoId}}/aprovar",
+              "host": [
+                "{{billingBaseUrl}}"
+              ],
+              "path": [
+                "orcamentos",
+                "{{orcamentoId}}",
+                "aprovar"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{clienteToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Recusar orçamento (cliente) — dispara compensação",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": {
+              "raw": "{{billingBaseUrl}}/orcamentos/{{orcamentoId}}/recusar",
+              "host": [
+                "{{billingBaseUrl}}"
+              ],
+              "path": [
+                "orcamentos",
+                "{{orcamentoId}}",
+                "recusar"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{clienteToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Billing — cobrança e pagamento",
+      "item": [
+        {
+          "name": "Cobrança da OS (QR Mercado Pago)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{billingBaseUrl}}/cobrancas/por-os/{{osId}}",
+              "host": [
+                "{{billingBaseUrl}}"
+              ],
+              "path": [
+                "cobrancas",
+                "por-os",
+                "{{osId}}"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{clienteToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.id || json.chargeId) pm.collectionVariables.set('cobrancaId', json.id || json.chargeId);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Consultar cobrança",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{billingBaseUrl}}/cobrancas/{{cobrancaId}}",
+              "host": [
+                "{{billingBaseUrl}}"
+              ],
+              "path": [
+                "cobrancas",
+                "{{cobrancaId}}"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{clienteToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "description": "O pagamento é confirmado pelo webhook assinado do Mercado Pago (POST /webhooks/mercado-pago, chamado pelo provedor). No kind local, o simulador do Mercado Pago envia esse webhook."
+    },
+    {
+      "name": "6. Execution — reparo",
+      "item": [
+        {
+          "name": "Iniciar reparo",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": {
+              "raw": "{{executionBaseUrl}}/execucoes/{{osId}}/iniciar",
+              "host": [
+                "{{executionBaseUrl}}"
+              ],
+              "path": [
+                "execucoes",
+                "{{osId}}",
+                "iniciar"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{executionToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sagaId\": \"{{sagaId}}\",\n  \"filialId\": \"{{filialId}}\",\n  \"correlationId\": \"{{sagaId}}\",\n  \"executionId\": \"{{executionId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Finalizar reparo (comunica o OS)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": {
+              "raw": "{{executionBaseUrl}}/execucoes/{{osId}}/finalizar",
+              "host": [
+                "{{executionBaseUrl}}"
+              ],
+              "path": [
+                "execucoes",
+                "{{osId}}",
+                "finalizar"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{executionToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sagaId\": \"{{sagaId}}\",\n  \"filialId\": \"{{filialId}}\",\n  \"correlationId\": \"{{sagaId}}\",\n  \"executionId\": \"{{executionId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Registrar falha no reparo — estorno e OS cancelada",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": {
+              "raw": "{{executionBaseUrl}}/execucoes/{{osId}}/falhar",
+              "host": [
+                "{{executionBaseUrl}}"
+              ],
+              "path": [
+                "execucoes",
+                "{{osId}}",
+                "falhar"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{executionToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sagaId\": \"{{sagaId}}\",\n  \"filialId\": \"{{filialId}}\",\n  \"correlationId\": \"{{sagaId}}\",\n  \"reason\": \"REPARO_INVIAVEL\",\n  \"executionId\": \"{{executionId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ],
+      "description": "Antes de iniciar, rode \"Fila de execução da filial\" (pasta 3) depois do pagamento para capturar o executionId da OS."
+    },
+    {
+      "name": "7. OS Service — acompanhamento, entrega e operação da Saga",
+      "item": [
+        {
+          "name": "OS do cliente (JWT de cliente)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{osBaseUrl}}/fase4/cliente/ordens-servico/{{osId}}",
+              "host": [
+                "{{osBaseUrl}}"
+              ],
+              "path": [
+                "fase4",
+                "cliente",
+                "ordens-servico",
+                "{{osId}}"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{clienteToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Histórico do cliente",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{osBaseUrl}}/fase4/cliente/ordens-servico/{{osId}}/historico",
+              "host": [
+                "{{osBaseUrl}}"
+              ],
+              "path": [
+                "fase4",
+                "cliente",
+                "ordens-servico",
+                "{{osId}}",
+                "historico"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{clienteToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Entregar OS",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": {
+              "raw": "{{osBaseUrl}}/fase4/ordens-servico/{{osId}}/entregar",
+              "host": [
+                "{{osBaseUrl}}"
+              ],
+              "path": [
+                "fase4",
+                "ordens-servico",
+                "{{osId}}",
+                "entregar"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Compensar Saga manualmente",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": {
+              "raw": "{{osBaseUrl}}/fase4/ordens-servico/{{sagaId}}/compensar",
+              "host": [
+                "{{osBaseUrl}}"
+              ],
+              "path": [
+                "fase4",
+                "ordens-servico",
+                "{{sagaId}}",
+                "compensar"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"CANCELAMENTO_CLIENTE\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Tempo médio de execução",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{osBaseUrl}}/fase4/relatorios/tempo-medio-execucao",
+              "host": [
+                "{{osBaseUrl}}"
+              ],
+              "path": [
+                "fase4",
+                "relatorios",
+                "tempo-medio-execucao"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Health checks",
+      "item": [
+        {
+          "name": "OS /health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{osBaseUrl}}/health",
+              "host": [
+                "{{osBaseUrl}}"
+              ],
+              "path": [
+                "health"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "Billing /health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{billingBaseUrl}}/health",
+              "host": [
+                "{{billingBaseUrl}}"
+              ],
+              "path": [
+                "health"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "Execution /health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{executionBaseUrl}}/health",
+              "host": [
+                "{{executionBaseUrl}}"
+              ],
+              "path": [
+                "health"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

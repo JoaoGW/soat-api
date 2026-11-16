@@ -31,6 +31,8 @@ import { failureEventValidator } from '../service-bus/RepairEventConsumer';
 import { releaseEventValidator } from '../service-bus/RepairEventConsumer';
 import { chargeCancellationEventValidator } from '../service-bus/ChargeCancellationEventConsumer';
 import { ReceiveChargeCancellation } from './ReceberCancelamentoCobranca';
+import { ReceiveWorkFailedEvent } from './ReceberFalhaExecucao';
+import { workFailedEventValidator } from '../service-bus/RepairEventConsumer';
 
 type Cursor = { receivedAt: Date; messageId: string };
 
@@ -105,6 +107,10 @@ export class SagaReplayWorker implements OnModuleInit, OnApplicationShutdown {
       failureEventValidator(resolve(process.cwd(), 'docs/contracts/messages')),
       new ReceiveChargeCancellation(this.db),
       chargeCancellationEventValidator(
+        resolve(process.cwd(), 'docs/contracts/messages'),
+      ),
+      new ReceiveWorkFailedEvent(this.db),
+      workFailedEventValidator(
         resolve(process.cwd(), 'docs/contracts/messages'),
       ),
     );

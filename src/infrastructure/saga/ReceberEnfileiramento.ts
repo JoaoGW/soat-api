@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client';
+import { sagaDeadlineAt } from './PrazosSaga';
 
 export type WorkEnqueuedEvent = {
   messageId: string;
@@ -34,7 +35,10 @@ type Command = { payload: { data?: Record<string, unknown> } };
 /** Schema and producer identity must be validated by the transport boundary. */
 export class ReceiveWorkEnqueuedEvent {
   constructor(private readonly db: PrismaClient) {}
-  async execute(event: WorkEnqueuedEvent): Promise<'APPLIED' | 'PENDING'> {
+  async execute(
+    event: WorkEnqueuedEvent,
+    now = new Date(),
+  ): Promise<'APPLIED' | 'PENDING'> {
     if (
       !event ||
       event.type !== 'execution.work-enqueued.v1' ||
@@ -52,7 +56,8 @@ export class ReceiveWorkEnqueuedEvent {
         event.data?.paymentId,
       ].every((value) => typeof value === 'string' && value.length > 0) ||
       !Number.isSafeInteger(event.data.quoteVersion) ||
-      event.data.quoteVersion < 1
+      event.data.quoteVersion < 1 ||
+      !Number.isFinite(now.getTime())
     )
       throw new Error('Evento de fila inválido');
     const encoded = JSON.stringify(event);
@@ -108,7 +113,7 @@ export class ReceiveWorkEnqueuedEvent {
         !['PENDING', 'SENT'].includes(operation.status)
       )
         return 'PENDING';
-      await tx.$executeRaw`UPDATE "SagaInstance" SET "status" = 'NA_FILA', "version" = "version" + 1, "updatedAt" = NOW() WHERE "id" = ${event.sagaId}`;
+      await tx.$executeRaw`UPDATE "SagaInstance" SET "status" = 'NA_FILA', "deadlineAt" = ${sagaDeadlineAt('SAGA_QUEUE_DEADLINE_MINUTES', now)}, "version" = "version" + 1, "updatedAt" = NOW() WHERE "id" = ${event.sagaId}`;
       await tx.$executeRaw`UPDATE "SagaOperation" SET "status" = 'SUCCEEDED', "result" = ${encoded}::jsonb, "updatedAt" = NOW() WHERE "operationId" = ${event.operationId}`;
       await tx.$executeRaw`UPDATE "Inbox" SET "status" = 'APPLIED', "appliedAt" = NOW() WHERE "consumer" = ${consumer} AND "messageId" = ${event.messageId}`;
       return 'APPLIED';

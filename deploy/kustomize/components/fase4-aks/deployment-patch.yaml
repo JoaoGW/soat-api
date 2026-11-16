@@ -1,0 +1,42 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: soat-api
+spec:
+  template:
+    spec:
+      containers:
+        - name: api
+          env:
+            - name: SERVICE_BUS_NAMESPACE
+              value: __SERVICE_BUS_NAMESPACE__
+            - name: SERVICE_BUS_CLIENT_ID
+              value: __OS_SERVICE_BUS_CLIENT_ID__
+            - name: SERVICE_BUS_BILLING_QUEUE
+              value: billing.commands
+            - name: SERVICE_BUS_EXECUTION_QUEUE
+              value: execution.commands
+            - name: SERVICE_BUS_EVENT_TOPIC
+              value: soat.domain.events
+            - name: SERVICE_BUS_SAGA_SUBSCRIPTION
+              value: os.saga-events
+            - name: ENABLE_FASE4_REGISTRY
+              value: "true"
+            - name: ENABLE_FASE4_OPEN
+              value: "true"
+            - name: ENABLE_FASE4_COMPENSATION
+              value: "true"
+            - name: ENABLE_FASE4_DELIVERY
+              value: "true"
+            - name: ENABLE_FASE4_RECOVERY
+              value: "true"
+            - name: ENABLE_SAGA_COMMAND_PUBLISHER
+              value: "true"
+            - name: ENABLE_SAGA_EVENT_CONSUMER
+              value: "true"
+            - name: ENABLE_SAGA_REPLAY
+              value: "true"
+            - name: ENABLE_SAGA_DEADLINE_REVIEW
+              value: "true"
+            - name: ENABLE_SAGA_CHARGE_CANCELLATION
+              value: "true"

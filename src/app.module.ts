@@ -84,6 +84,18 @@ import { RepositoryModule } from './modules/repository.module';
 import { CorrelationIdMiddleware } from './interfaces/observability/CorrelationIdMiddleware';
 import { HttpObservabilityInterceptor } from './interfaces/observability/HttpObservabilityInterceptor';
 
+/**
+ * Fase 4: catálogo, estoque e execução pertencem ao Execution Service e
+ * orçamento/pagamento ao Billing Service. As rotas legadas das Fases 1–3
+ * (clientes/veículos/OS/peças/serviços, webhook de orçamento e relatórios
+ * legados) só são registradas com ENABLE_LEGACY_OFICINA=true; por padrão o OS
+ * expõe apenas as rotas /fase4, a autenticação e o health check.
+ * Avaliado depois de ConfigModule.forRoot, que carrega o .env.
+ */
+function legacyOficinaEnabled(): boolean {
+  return process.env.ENABLE_LEGACY_OFICINA === 'true';
+}
+
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -92,18 +104,21 @@ import { HttpObservabilityInterceptor } from './interfaces/observability/HttpObs
     }),
     RepositoryModule,
     AuthModule,
-    PublicoModule,
-    RelatorioModule,
+    ...(legacyOficinaEnabled() ? [PublicoModule, RelatorioModule] : []),
   ],
   controllers: [
     AppController,
-    ClienteController,
-    ClienteIntegracaoController,
-    VeiculoController,
-    ClienteOrdemServicoController,
-    ServicoController,
-    PecaController,
-    OrdemDeServicoController,
+    ...(legacyOficinaEnabled()
+      ? [
+          ClienteController,
+          ClienteIntegracaoController,
+          VeiculoController,
+          ClienteOrdemServicoController,
+          ServicoController,
+          PecaController,
+          OrdemDeServicoController,
+        ]
+      : []),
     OpenOrderController,
     Phase4ClientController,
     Phase4VehicleController,

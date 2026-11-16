@@ -1,7 +1,7 @@
 {
   "info": {
     "_postman_id": "cd7d6a61-0d02-4b0c-90e4-2d5f8f5b5e23",
-    "name": "Sistema Integrado de Oficina - Fases 3 a 7",
+    "name": "Sistema Integrado de Oficina - Legado (Fases 1 a 3, requer ENABLE_LEGACY_OFICINA=true)",
     "description": "Collection das APIs administrativas, autenticação CPF e rotas protegidas de cliente. Execute o login administrativo para JWT_ADMIN; obtenha o JWT_CLIENTE em POST /auth/cpf e preencha clienteToken.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },

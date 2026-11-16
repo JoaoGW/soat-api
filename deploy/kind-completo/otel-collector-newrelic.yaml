@@ -1,0 +1,42 @@
+# Variante usada por scripts/kind/ambiente.sh quando NEW_RELIC_LICENSE_KEY existe:
+# mantém Jaeger e Prometheus locais e encaminha a mesma telemetria ao New Relic
+# (stack de observabilidade da Fase 3).
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318
+      grpc:
+        endpoint: 0.0.0.0:4317
+processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 200
+  batch: {}
+exporters:
+  otlp/jaeger:
+    endpoint: jaeger:4317
+    tls:
+      insecure: true
+  prometheus:
+    endpoint: 0.0.0.0:8889
+    resource_to_telemetry_conversion:
+      enabled: true
+  otlphttp/newrelic:
+    endpoint: https://otlp.nr-data.net:4318
+    headers:
+      api-key: ${env:NEW_RELIC_LICENSE_KEY}
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [otlp/jaeger, otlphttp/newrelic]
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [prometheus, otlphttp/newrelic]
+    logs:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [otlphttp/newrelic]

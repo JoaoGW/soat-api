@@ -1,18 +1,23 @@
 name: BDD distribuído local
+# Roda automaticamente em PR e push (com Billing/Execution/Auth em development,
+# ou nos refs das variáveis SOAT_*_REF) e manualmente com SHAs fixados.
 on:
+  pull_request:
+  push:
+    branches: [main, development]
   workflow_dispatch:
     inputs:
       billing_sha:
         description: SHA completo aprovado de Billing
-        required: true
+        required: false
         type: string
       execution_sha:
         description: SHA completo aprovado de Execution
-        required: true
+        required: false
         type: string
       auth_sha:
         description: SHA completo aprovado da Function Auth
-        required: true
+        required: false
         type: string
       accept_emulator_eula:
         description: Aceitar termos do Service Bus Emulator e SQL Server
@@ -21,8 +26,14 @@ on:
         default: false
 permissions:
   contents: read
+concurrency:
+  group: bdd-distribuido-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   bdd:
+    name: BDD distribuído (Cucumber)
+    # O SQL Server e o Service Bus Emulator exigem o aceite dos termos pelo dono do repositório.
+    if: github.event_name == 'workflow_dispatch' || vars.SOAT_ACCEPT_EULA == 'Y'
     runs-on: ubuntu-latest
     timeout-minutes: 35
     services:
@@ -46,11 +57,13 @@ jobs:
     steps:
       - name: Validar consentimento e SHAs
         env:
+          EVENT: ${{ github.event_name }}
           ACCEPT: ${{ inputs.accept_emulator_eula }}
           BILLING_SHA: ${{ inputs.billing_sha }}
           EXECUTION_SHA: ${{ inputs.execution_sha }}
           AUTH_SHA: ${{ inputs.auth_sha }}
         run: |
+          [[ "$EVENT" != 'workflow_dispatch' ]] && exit 0
           [[ "$ACCEPT" == 'true' ]] || { echo 'Aceite dos emuladores obrigatório'; exit 1; }
           [[ "$BILLING_SHA" =~ ^[0-9a-f]{40}$ && "$EXECUTION_SHA" =~ ^[0-9a-f]{40}$ && "$AUTH_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo 'Informe SHAs completos'; exit 1; }
       - uses: actions/checkout@v4
@@ -59,19 +72,19 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: JoaoGW/soat-billing-service
-          ref: ${{ inputs.billing_sha }}
+          ref: ${{ inputs.billing_sha || vars.SOAT_BILLING_REF || 'development' }}
           token: ${{ secrets.CROSS_REPO_READ_TOKEN || github.token }}
           path: billing
       - uses: actions/checkout@v4
         with:
           repository: JoaoGW/soat-execution-service
-          ref: ${{ inputs.execution_sha }}
+          ref: ${{ inputs.execution_sha || vars.SOAT_EXECUTION_REF || 'development' }}
           token: ${{ secrets.CROSS_REPO_READ_TOKEN || github.token }}
           path: execution
       - uses: actions/checkout@v4
         with:
           repository: JoaoGW/soat-auth-function
-          ref: ${{ inputs.auth_sha }}
+          ref: ${{ inputs.auth_sha || vars.SOAT_AUTH_REF || 'development' }}
           token: ${{ secrets.CROSS_REPO_READ_TOKEN || github.token }}
           path: auth
       - uses: actions/setup-node@v4
@@ -83,10 +96,13 @@ jobs:
           EXECUTION_SHA: ${{ inputs.execution_sha }}
           AUTH_SHA: ${{ inputs.auth_sha }}
         run: |
-          [[ "$(git -C billing rev-parse HEAD)" == "$BILLING_SHA" ]]
-          [[ "$(git -C execution rev-parse HEAD)" == "$EXECUTION_SHA" ]]
-          [[ "$(git -C auth rev-parse HEAD)" == "$AUTH_SHA" ]]
+          if [[ -n "$BILLING_SHA$EXECUTION_SHA$AUTH_SHA" ]]; then
+            [[ "$(git -C billing rev-parse HEAD)" == "$BILLING_SHA" ]]
+            [[ "$(git -C execution rev-parse HEAD)" == "$EXECUTION_SHA" ]]
+            [[ "$(git -C auth rev-parse HEAD)" == "$AUTH_SHA" ]]
+          fi
           printf 'OS=%s\nBilling=%s\nExecution=%s\nAuth=%s\n' "$(git -C os rev-parse HEAD)" "$(git -C billing rev-parse HEAD)" "$(git -C execution rev-parse HEAD)" "$(git -C auth rev-parse HEAD)" > "$RUNNER_TEMP/versions.txt"
+          { echo '### Versões avaliadas no BDD'; sed 's/^/- /' "$RUNNER_TEMP/versions.txt"; } >> "$GITHUB_STEP_SUMMARY"
       - name: Instalar e compilar serviços
         run: |
           npm ci --prefix os

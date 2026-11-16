@@ -69,19 +69,34 @@ jobs:
       - name: Falha após pagamento e compensação da Saga
         working-directory: soat-api
         run: CENARIO=compensacao scripts/kind/ambiente.sh jornada | tee "$RUNNER_TEMP/compensacao.txt"
+      - name: Rastreamento distribuído no Jaeger do cluster
+        working-directory: soat-api
+        run: scripts/kind/ambiente.sh traces | tee "$RUNNER_TEMP/traces.txt"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: soat-api/package-lock.json
+      - name: Falha na execução, estorno e OS cancelada (BDD @kind)
+        working-directory: soat-api
+        run: |
+          npm ci --no-audit --no-fund
+          npm run test:bdd-kind -- --format "json:$RUNNER_TEMP/bdd-kind.json" | tee "$RUNNER_TEMP/falha-execucao.txt"
       - name: Publicar evidências
         if: always()
         run: |
           {
             echo '### Jornada completa'; echo '```'; cat "$RUNNER_TEMP/jornada.txt" 2>/dev/null || true; echo '```'
             echo '### Compensação'; echo '```'; cat "$RUNNER_TEMP/compensacao.txt" 2>/dev/null || true; echo '```'
+            echo '### Falha na execução (BDD @kind)'; echo '```'; cat "$RUNNER_TEMP/falha-execucao.txt" 2>/dev/null || true; echo '```'
+            echo '### Rastreamento distribuído (Jaeger)'; echo '```'; cat "$RUNNER_TEMP/traces.txt" 2>/dev/null || true; echo '```'
             echo '### Recursos'; echo '```'; kubectl -n soat-local get deployments,pods,jobs,services -o wide 2>/dev/null || true; echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Diagnóstico
         if: failure()
         run: |
           kubectl -n soat-local get all,jobs -o wide || true
-          for app in soat-api soat-billing-service soat-execution-service mercado-pago-simulado; do
+          for app in soat-api soat-billing-service soat-execution-service mercado-pago-simulado otel-collector jaeger; do
             echo "::group::$app"; kubectl -n soat-local logs deployment/$app --tail=200 || true; echo '::endgroup::'
           done
           docker logs soat-servicebus --tail=100 || true
