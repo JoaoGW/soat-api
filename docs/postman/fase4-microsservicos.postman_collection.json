@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "e9f120da-c6af-4c63-b133-2730e28e98f3",
     "name": "SOAT Fase 4 — Microsserviços (OS, Billing, Execution)",
-    "description": "Fluxo completo de uma OS pelos três microsserviços da Fase 4. Execute as pastas em ordem: 1) autenticação, 2) cadastros e abertura no OS, 3) diagnóstico no Execution, 4) aprovação do orçamento no Billing, 5) pagamento (webhook Mercado Pago ou simulador do kind), 6) execução, 7) acompanhamento. As chamadas entre serviços acontecem pela Saga (Azure Service Bus); esta collection só usa as APIs HTTP públicas. No ambiente kind local, as URLs são as portas expostas por `scripts/kind/ambiente.sh portas`.",
+    "description": "Fluxo completo de uma OS pelos três microsserviços da Fase 4. Execute as pastas em ordem: 1) autenticação, 2) cadastros e abertura no OS, 3) diagnóstico no Execution, 4) aprovação do orçamento no Billing, 5) pagamento (Mercado Pago de teste ou simulador do kind), 6) execução, 7) acompanhamento. As chamadas entre serviços acontecem pela Saga (Azure Service Bus); esta collection só usa as APIs HTTP públicas. No ambiente kind local, as URLs são as portas expostas por `scripts/kind/ambiente.sh portas`.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -73,6 +73,22 @@
     {
       "key": "executionId",
       "value": ""
+    },
+    {
+      "key": "mpSimuladorUrl",
+      "value": "http://localhost:3004"
+    },
+    {
+      "key": "mailpitUrl",
+      "value": "http://localhost:8025"
+    },
+    {
+      "key": "providerOrderId",
+      "value": ""
+    },
+    {
+      "key": "orcamentoVersao",
+      "value": "1"
     }
   ],
   "item": [
@@ -671,6 +687,34 @@
       "name": "4. Billing — orçamento",
       "item": [
         {
+          "name": "E-mail do orçamento recebido (Mailpit, kind)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{mailpitUrl}}/api/v1/messages?limit=10",
+              "host": [
+                "{{mailpitUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "messages"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "O Billing envia o orçamento para aprovação por e-mail. No kind, os e-mails ficam no Mailpit (UI em {{mailpitUrl}})."
+          }
+        },
+        {
           "name": "Consultar orçamento",
           "request": {
             "method": "GET",
@@ -695,7 +739,19 @@
                 }
               ]
             }
-          }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.version) pm.collectionVariables.set('orcamentoVersao', String(json.version));"
+                ]
+              }
+            }
+          ]
         },
         {
           "name": "Aprovar orçamento (cliente)",
@@ -705,6 +761,10 @@
               {
                 "key": "Idempotency-Key",
                 "value": "{{$guid}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
               }
             ],
             "url": {
@@ -727,6 +787,15 @@
                   "type": "string"
                 }
               ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"versao\": {{orcamentoVersao}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             }
           }
         },
@@ -738,6 +807,10 @@
               {
                 "key": "Idempotency-Key",
                 "value": "{{$guid}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
               }
             ],
             "url": {
@@ -760,6 +833,15 @@
                   "type": "string"
                 }
               ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"versao\": {{orcamentoVersao}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             }
           }
         }
@@ -834,9 +916,66 @@
               ]
             }
           }
+        },
+        {
+          "name": "Simulador: localizar a order da cobrança",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{mpSimuladorUrl}}/simulador/ordens",
+              "host": [
+                "{{mpSimuladorUrl}}"
+              ],
+              "path": [
+                "simulador",
+                "ordens"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "Somente no kind sem credenciais do Mercado Pago: o simulador da Orders API guarda a order criada pelo Billing."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const orders = pm.response.json();",
+                  "const charge = pm.collectionVariables.get('cobrancaId');",
+                  "const order = orders.find((item) => item.external_reference === charge) || orders[0];",
+                  "if (order) pm.collectionVariables.set('providerOrderId', order.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Simulador: comprador paga o QR (webhook assinado ao Billing)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{mpSimuladorUrl}}/simulador/pagamentos/{{providerOrderId}}",
+              "host": [
+                "{{mpSimuladorUrl}}"
+              ],
+              "path": [
+                "simulador",
+                "pagamentos",
+                "{{providerOrderId}}"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "Aprova o pagamento no simulador, que envia o webhook assinado ao Billing; o Billing confirma o pagamento e a OS passa a PAGAMENTO_CONFIRMADO. Com credenciais de teste, pague o QR com o comprador de teste do Mercado Pago."
+          }
         }
       ],
-      "description": "O pagamento é confirmado pelo webhook assinado do Mercado Pago (POST /webhooks/mercado-pago, chamado pelo provedor). No kind local, o simulador do Mercado Pago envia esse webhook."
+      "description": "Com Mercado Pago de teste, o pagamento é feito no app com o comprador de teste e o webhook assinado chega ao Billing (POST /webhooks/mercado-pago). No kind sem credenciais, use os dois passos do simulador abaixo."
     },
     {
       "name": "6. Execution — reparo",

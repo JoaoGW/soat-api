@@ -173,6 +173,9 @@ export class ReceivePaymentEvent {
       await tx.$executeRaw`INSERT INTO "SagaOperation" ("operationId", "sagaId", "step", "businessAttempt", "commandType", "status", "updatedAt") VALUES (${operationId}, ${saga.id}, 'ENQUEUE_WORK', 1, ${type}, 'PENDING', NOW())`;
       await tx.$executeRaw`INSERT INTO "Outbox" ("messageId", "type", "payload") VALUES (${messageId}, ${type}, ${JSON.stringify(payload)}::jsonb)`;
       await tx.$executeRaw`UPDATE "SagaInstance" SET "status" = 'FILA_PENDENTE', "executionId" = ${executionId}, "version" = "version" + 1, "updatedAt" = NOW() WHERE "id" = ${saga.id}`;
+      // Billing confirmou o pagamento: a OS reflete o fato antes do envio à execução.
+      await tx.$executeRaw`UPDATE "OrdemDeServico" SET "status" = 'PAGAMENTO_CONFIRMADO', "version" = "version" + 1, "updatedAt" = NOW() WHERE "id" = ${event.osId}`;
+      await tx.$executeRaw`INSERT INTO "HistoricoStatusOS" ("id", "osId", "status", "ocorridoEm") VALUES (${randomUUID()}, ${event.osId}, 'PAGAMENTO_CONFIRMADO', ${new Date(event.data.paidAt)})`;
       await tx.$executeRaw`UPDATE "Inbox" SET "status" = 'APPLIED', "appliedAt" = NOW() WHERE "consumer" = ${consumer} AND "messageId" = ${event.messageId}`;
       return 'APPLIED';
     });

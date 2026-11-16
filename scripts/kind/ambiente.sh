@@ -208,7 +208,7 @@ deploy() {
       k label --local -f - app.kubernetes.io/component=observability -o yaml | k apply -f - >/dev/null
   fi
   k rollout restart deployment/otel-collector >/dev/null
-  k rollout status deployment/otel-collector deployment/jaeger deployment/prometheus deployment/grafana --timeout=300s
+  k rollout status deployment/otel-collector deployment/jaeger deployment/prometheus deployment/grafana deployment/mailpit --timeout=300s
   k delete job -l app.kubernetes.io/component=migration --ignore-not-found >/dev/null
   k apply -f "$rendered" -l app.kubernetes.io/component=migration
   for job in os-migrate-legacy os-migrate-saga billing-migrate execution-cosmos-init; do wait_job "$job"; done
@@ -254,7 +254,7 @@ forward_observability() {
 
 forward_all() {
   forward service/soat-api=3001:80 service/soat-billing-service=3002:80 \
-    service/soat-execution-service=3003:80 service/mercado-pago-simulado=3004:8080
+    service/soat-execution-service=3003:80 service/mercado-pago-simulado=3004:8080 service/mailpit=8025:8025
 }
 
 case "${1:-}" in
@@ -275,7 +275,7 @@ EOF
     ;;
   portas)
     forward_all; forward_observability
-    echo 'OS :3001 | Billing :3002 | Execution :3003 | Mercado Pago simulado :3004'
+    echo 'OS :3001 | Billing :3002 | Execution :3003 | Mercado Pago simulado :3004 | E-mails (Mailpit) http://localhost:8025'
     echo 'Jaeger http://localhost:16686 | Grafana http://localhost:3005 | Prometheus http://localhost:9090 (Ctrl+C encerra)'
     wait
     ;;
@@ -291,7 +291,7 @@ EOF
     ;;
   jornada)
     need node; load_local_env; forward_all
-    OS_URL=http://localhost:3001 BILLING_URL=http://localhost:3002 EXECUTION_URL=http://localhost:3003 \
+    OS_URL=http://localhost:3001 BILLING_URL=http://localhost:3002 EXECUTION_URL=http://localhost:3003 MAILPIT_URL=http://localhost:8025 \
       MP_SIMULADO_URL="$( [[ -n "${MERCADO_PAGO_ACCESS_TOKEN:-}" ]] || echo http://localhost:3004 )" \
       ADMIN_USERNAME=admin ADMIN_PASSWORD="$(cat "$STATE/admin-password")" JWT_CLIENT_SECRET="$(cat "$STATE/jwt-client-secret")" \
       node "$ROOT/scripts/kind/jornada.cjs"

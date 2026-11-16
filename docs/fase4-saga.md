@@ -71,13 +71,20 @@ stateDiagram-v2
   LIBERACAO_PENDENTE --> COMPENSADA: parts-released
 ```
 
+Status da OS ao longo da jornada feliz (tabela `HistoricoStatusOS`, consultado em
+`GET /fase4/ordens-servico/:id/historico`): `RECEBIDA → EM_DIAGNOSTICO →
+AGUARDANDO_APROVACAO → APROVADA → PAGAMENTO_CONFIRMADO → EM_EXECUCAO →
+FINALIZADA → ENTREGUE`. A confirmação do pagamento pelo Billing
+(`billing.payment-confirmed.v1`) atualiza a OS para `PAGAMENTO_CONFIRMADO`.
+
 | Estado | OS | Próximo fato esperado | Compensação |
 |---|---|---|---|
 | DIAGNOSTICO_PENDENTE | RECEBIDA / EM_DIAGNOSTICO | diagnóstico de Execution | cancel-work |
 | ORCAMENTO_PENDENTE | EM_DIAGNOSTICO | orçamento do Billing | cancel-work |
-| AGUARDANDO_APROVACAO | AGUARDANDO_APROVACAO | decisão do cliente | cancel-work |
-| RESERVA_PENDENTE / COBRANCA_PENDENTE / AGUARDANDO_PAGAMENTO / FILA_PENDENTE | — | reserva, cobrança, pagamento, fila | cancel-work, depois estorno/cancelamento de cobrança e liberação |
-| NA_FILA | — | início do reparo | cancel-work, estorno e liberação de peças |
+| AGUARDANDO_APROVACAO | AGUARDANDO_APROVACAO (recusa → ORCAMENTO_RECUSADO) | decisão do cliente | cancel-work |
+| RESERVA_PENDENTE / COBRANCA_PENDENTE / AGUARDANDO_PAGAMENTO | APROVADA | reserva, cobrança, pagamento | cancel-work, depois cancelamento de cobrança e liberação |
+| FILA_PENDENTE | PAGAMENTO_CONFIRMADO | confirmação da fila | cancel-work, estorno e liberação |
+| NA_FILA | PAGAMENTO_CONFIRMADO | início do reparo | cancel-work, estorno e liberação de peças |
 | EM_EXECUCAO | EM_EXECUCAO | conclusão ou falha | sem rollback automático; falha declarada → estorno |
 | REEMBOLSO_PENDENTE | — / FALHA_EXECUCAO | payment-refunded | — |
 | COMPENSADA | CANCELADA | — | concluída |
