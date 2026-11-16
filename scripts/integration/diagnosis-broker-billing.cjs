@@ -46,6 +46,9 @@ async function main() {
   const consumer = new ServiceBusCommandConsumer(new GenerateQuoteService(billing), createQuoteCommandValidator(path.join(billingDir, 'docs/contracts/messages')));
   const outbound = { messageId: payload.messageId, subject: payload.type, contentType: 'application/json', body: payload, applicationProperties: { signature: signer.sign(payload) } };
   await sender.sendMessages(outbound); await sender.sendMessages(outbound);
+  // O teste publica o comando diretamente; marcá-lo como enviado evita que o
+  // publicador da outbox o reenvie nos cenários seguintes do mesmo banco.
+  await os.$executeRaw`UPDATE "Outbox" SET "status" = 'SENT', "publishedAt" = NOW() WHERE "messageId" = ${payload.messageId} AND "status" = 'PENDING'`;
   for (let i = 0; i < 2; i++) {
     const messages = await receiver.receiveMessages(1, { maxWaitTimeInMs: 15000 });
     assert.equal(messages.length, 1, 'broker não entregou mensagem');
