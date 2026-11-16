@@ -8,5 +8,8 @@ resources:
   - hpa.yaml
   - pdb.yaml
 
+components:
+  - ../../components/fase4-aks
+
 patches:
   - path: deployment-patch.yaml

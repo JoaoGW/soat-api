@@ -5,3 +5,4 @@ namespace: prod
 
 resources:
   - ../../base
+  - job-saga.yaml

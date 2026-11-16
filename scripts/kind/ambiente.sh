@@ -251,6 +251,7 @@ case "${1:-}" in
 Ambiente pronto. Próximos passos:
   scripts/kind/ambiente.sh jornada              # fluxo completo (OS, Billing, Execution e Saga)
   CENARIO=compensacao scripts/kind/ambiente.sh jornada   # falha após pagamento e compensação
+  CENARIO=falha-execucao scripts/kind/ambiente.sh jornada # falha no reparo: estorno e OS cancelada
   scripts/kind/ambiente.sh tunel                # URL HTTPS pública do webhook (Mercado Pago de teste)
 Swagger do OS com 'portas' em execução: http://localhost:3001/docs
 EOF

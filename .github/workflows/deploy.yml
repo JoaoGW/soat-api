@@ -142,6 +142,8 @@ jobs:
           KEY_VAULT_NAME: ${{ vars.KEY_VAULT_NAME }}
           AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
           API_WORKLOAD_CLIENT_ID: ${{ vars.API_WORKLOAD_CLIENT_ID }}
+          SERVICE_BUS_NAMESPACE: ${{ vars.SERVICE_BUS_NAMESPACE }}
+          OS_SERVICE_BUS_CLIENT_ID: ${{ vars.OS_SERVICE_BUS_CLIENT_ID }}
           APP_VERSION: ${{ needs.authorize.outputs.sha }}
         run: ./scripts/deploy-api.sh migration "$ENVIRONMENT" "$IMAGE"
       - name: Aplicar Deployment da API
@@ -152,6 +154,8 @@ jobs:
           KEY_VAULT_NAME: ${{ vars.KEY_VAULT_NAME }}
           AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
           API_WORKLOAD_CLIENT_ID: ${{ vars.API_WORKLOAD_CLIENT_ID }}
+          SERVICE_BUS_NAMESPACE: ${{ vars.SERVICE_BUS_NAMESPACE }}
+          OS_SERVICE_BUS_CLIENT_ID: ${{ vars.OS_SERVICE_BUS_CLIENT_ID }}
           APP_VERSION: ${{ needs.authorize.outputs.sha }}
         run: ./scripts/deploy-api.sh application "$ENVIRONMENT" "$IMAGE"
 
@@ -217,6 +221,8 @@ jobs:
           KEY_VAULT_NAME: ${{ vars.KEY_VAULT_NAME }}
           AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
           API_WORKLOAD_CLIENT_ID: ${{ vars.API_WORKLOAD_CLIENT_ID }}
+          SERVICE_BUS_NAMESPACE: ${{ vars.SERVICE_BUS_NAMESPACE }}
+          OS_SERVICE_BUS_CLIENT_ID: ${{ vars.OS_SERVICE_BUS_CLIENT_ID }}
           APP_VERSION: ${{ needs.authorize.outputs.sha }}
         run: ./scripts/deploy-api.sh migration "$ENVIRONMENT" "$IMAGE"
       - name: Aplicar Deployment da API
@@ -227,5 +233,7 @@ jobs:
           KEY_VAULT_NAME: ${{ vars.KEY_VAULT_NAME }}
           AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
           API_WORKLOAD_CLIENT_ID: ${{ vars.API_WORKLOAD_CLIENT_ID }}
+          SERVICE_BUS_NAMESPACE: ${{ vars.SERVICE_BUS_NAMESPACE }}
+          OS_SERVICE_BUS_CLIENT_ID: ${{ vars.OS_SERVICE_BUS_CLIENT_ID }}
           APP_VERSION: ${{ needs.authorize.outputs.sha }}
         run: ./scripts/deploy-api.sh application "$ENVIRONMENT" "$IMAGE"

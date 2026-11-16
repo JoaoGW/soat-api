@@ -18,10 +18,11 @@ describe('publicador de comandos da Saga', () => {
   const execution = { sendMessages: jest.fn(), close: jest.fn() };
   const bus = { createSender: jest.fn(), close: jest.fn() };
   const db = { $disconnect: jest.fn() };
-  const dispatcher = { execute: jest.fn() };
+  const dispatcher = { drain: jest.fn() };
   beforeEach(() => {
     jest.clearAllMocks();
     jest.useFakeTimers();
+    dispatcher.drain.mockResolvedValue({ processed: 0, drained: true });
     process.env = {
       ...original,
       ENABLE_SAGA_COMMAND_PUBLISHER: 'true',
@@ -50,6 +51,26 @@ describe('publicador de comandos da Saga', () => {
   afterEach(() => {
     process.env = original;
     jest.useRealTimers();
+  });
+  it('esvazia a outbox em lotes e só aguarda quando não há trabalho', async () => {
+    dispatcher.drain
+      .mockResolvedValueOnce({ processed: 20, drained: false })
+      .mockRejectedValueOnce(new Error('db'))
+      .mockResolvedValue({ processed: 1, drained: true });
+    const worker = new SagaCommandWorker();
+    worker.onModuleInit();
+    await jest.advanceTimersByTimeAsync(0);
+    expect(dispatcher.drain).toHaveBeenCalledTimes(2);
+    expect(dispatcher.drain).toHaveBeenCalledWith(20);
+    await jest.advanceTimersByTimeAsync(999);
+    expect(dispatcher.drain).toHaveBeenCalledTimes(2);
+    await jest.advanceTimersByTimeAsync(1);
+    expect(dispatcher.drain).toHaveBeenCalledTimes(3);
+    await jest.advanceTimersByTimeAsync(999);
+    expect(dispatcher.drain).toHaveBeenCalledTimes(3);
+    await worker.onApplicationShutdown();
+    await jest.advanceTimersByTimeAsync(5000);
+    expect(dispatcher.drain).toHaveBeenCalledTimes(3);
   });
   it('recusa configuração incompleta e filas iguais', () => {
     process.env.SERVICE_BUS_EXECUTION_QUEUE = 'billing';

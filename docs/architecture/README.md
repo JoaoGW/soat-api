@@ -1,5 +1,71 @@
 # Decisões de arquitetura - Fases 3 a 7
 
+## Arquitetura final da Fase 4 (microsserviços)
+
+A Fase 4 separa a oficina em três microsserviços independentes, cada um com
+repositório, pipeline, imagem, manifestos Kubernetes e banco próprios. A Saga é
+**orquestrada** pelo OS Service (justificativa em
+[`docs/adr/0001-fronteiras-e-saga.md`](../adr/0001-fronteiras-e-saga.md) e
+detalhes em [`docs/fase4-saga.md`](../fase4-saga.md)).
+
+```mermaid
+flowchart LR
+    CLI[Cliente / Oficina] -->|HTTPS + JWT| KONG[Kong / Ingress]
+    AUTH[soat-auth-function\nCPF → JWT de cliente] -->|REST /fase4/internal| OS
+    KONG --> OS[soat-api\nOS Service\norquestrador da Saga]
+    KONG --> BILL[soat-billing-service\nOrçamento e pagamento]
+    KONG --> EXEC[soat-execution-service\nDiagnóstico, estoque e reparo]
+
+    OS --> OSDB[(PostgreSQL\nos_saga)]
+    BILL --> BDB[(PostgreSQL\nbilling)]
+    EXEC --> EDB[(Cosmos DB NoSQL\nexecution / operations)]
+
+    OS -->|comandos| QB[[fila billing.commands]]
+    OS -->|comandos| QE[[fila execution.commands]]
+    QB --> BILL
+    QE --> EXEC
+    BILL -->|eventos| T{{tópico soat.domain.events}}
+    EXEC -->|eventos| T
+    OS -->|eventos| T
+    T -->|subscription os.saga-events| OS
+    T -->|subscription billing.evidence| BILL
+
+    BILL <-->|Orders API + webhook HMAC| MP[Mercado Pago]
+    OS -. OTLP .-> NR[New Relic\ntraces e métricas]
+    BILL -. OTLP .-> NR
+    EXEC -. OTLP .-> NR
+```
+
+| Serviço | Responsabilidade | Banco | Comunicação |
+| --- | --- | --- | --- |
+| OS Service (`soat-api`) | Abertura da OS, cadastros, status e histórico, orquestração da Saga e compensações | PostgreSQL `os_saga` | REST público; publica comandos e consome eventos no Service Bus |
+| Billing (`soat-billing-service`) | Orçamento, aprovação/recusa, cobrança Mercado Pago, confirmação, estorno e cancelamento | PostgreSQL `billing` | REST público + webhook Mercado Pago; consome `billing.commands` e evidências; publica eventos |
+| Execution (`soat-execution-service`) | Diagnóstico, catálogo, estoque, fila de execução, reparo, falha e liberação de peças | Cosmos DB (NoSQL) | REST operacional; consome `execution.commands`; publica eventos |
+
+Regras: nenhum serviço conhece a string de conexão do banco de outro; toda
+mensagem é assinada (Ed25519), validada por JSON Schema
+(`docs/contracts/messages`) e processada com inbox/outbox idempotentes; o
+`traceparent` W3C viaja no envelope e nas propriedades da mensagem, de modo que
+a mesma OS aparece como um único trace distribuído no New Relic.
+
+### Ambientes Kubernetes
+
+- **kind (ativo):** cada CI implanta o próprio serviço em um cluster kind
+  efêmero; o workflow `Fluxo completo em Kubernetes` sobe os três serviços,
+  bancos e emuladores (Service Bus e Cosmos) e executa a jornada completa e a
+  compensação; o workflow `BDD distribuído local` executa os cenários Cucumber.
+- **AKS (atrás da trava de custo):** manifestos `deploy/kustomize/overlays/{hml,prod}`
+  com o componente `components/fase4-aks` (Service Bus por Workload Identity,
+  banco da Saga e migrations dos dois schemas). A infraestrutura correspondente
+  está em `soat-aks-infra` (Service Bus e identidades), `soat-postgres-infra`
+  (bancos `os_saga` e `billing`) e `soat-execution-service/infra` (Cosmos DB).
+  A assinatura Azure da entrega está desativada, então o apply fica bloqueado
+  por `TF_APPLY_ENABLED`/`HML_DEPLOY_ENABLED`.
+
+---
+
+## Histórico: Fase 3
+
 Este diretório preserva a trilha de decisão arquitetural da Fase 3 do Tech
 Challenge. Ele separa dois artefatos com finalidades distintas:
 

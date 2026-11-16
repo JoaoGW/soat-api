@@ -21,6 +21,7 @@ describe('ServiceBusConnection', () => {
       'AZURE_TENANT_ID',
       'AZURE_CLIENT_ID',
       'AZURE_FEDERATED_TOKEN_FILE',
+      'SERVICE_BUS_CLIENT_ID',
     ])
       delete process.env[name];
   });
@@ -43,6 +44,15 @@ describe('ServiceBusConnection', () => {
       'soat.servicebus.windows.net',
       expect.any(WorkloadIdentityCredential),
     );
+    expect(WorkloadIdentityCredential).toHaveBeenCalledWith(undefined);
+  });
+
+  it('usa a identidade de mensageria indicada por SERVICE_BUS_CLIENT_ID', () => {
+    process.env.SERVICE_BUS_CLIENT_ID = 'servicebus-client';
+    createServiceBusClient('soat.servicebus.windows.net');
+    expect(WorkloadIdentityCredential).toHaveBeenCalledWith({
+      clientId: 'servicebus-client',
+    });
   });
 
   it('aceita somente o emulador quando a trava local está habilitada', () => {

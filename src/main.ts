@@ -17,11 +17,11 @@ async function bootstrap() {
   );
 
   const config = new DocumentBuilder()
-    .setTitle('Sistema Integrado de Oficina')
+    .setTitle('OS Service — Sistema Integrado de Oficina')
     .setDescription(
-      'API REST para gestao de ordens de servico, clientes, veiculos, servicos e pecas de uma oficina mecanica.',
+      'OS Service da Fase 4: abertura da ordem de serviço, cadastros de clientes e veículos, consulta de status e histórico e orquestração da Saga (Billing e Execution via Azure Service Bus). As rotas legadas das Fases 1–3 só aparecem com ENABLE_LEGACY_OFICINA=true.',
     )
-    .setVersion('1.0')
+    .setVersion('4.0')
     .addBearerAuth(
       {
         type: 'http',

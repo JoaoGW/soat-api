@@ -121,6 +121,11 @@ add(
   new (get('saga/ReceberReembolso').ReceiveRefundEvent)(db),
 );
 add(
+  ['execution.work-failed.v1'],
+  multi.workFailedEventValidator(dir),
+  new (get('saga/ReceberFalhaExecucao').ReceiveWorkFailedEvent)(db),
+);
+add(
   ['execution.parts-released.v1'],
   multi.releaseEventValidator(dir),
   new (get('saga/ReceberLiberacao').ReceiveReleaseEvent)(db),
