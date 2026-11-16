@@ -14,6 +14,7 @@ resources:
   - os.yaml
   - billing.yaml
   - execution.yaml
+  - observabilidade.yaml
 
 configMapGenerator:
   - name: mercado-pago-simulado
@@ -25,6 +26,37 @@ configMapGenerator:
     options:
       labels:
         app.kubernetes.io/component: database
+
+  - name: otel-collector
+    files:
+      - config.yaml=otel-collector.yaml
+    options:
+      labels:
+        app.kubernetes.io/component: observability
+  - name: prometheus
+    files:
+      - prometheus.yml
+    options:
+      labels:
+        app.kubernetes.io/component: observability
+  - name: grafana-datasources
+    files:
+      - datasources.yaml=grafana-datasources.yaml
+    options:
+      labels:
+        app.kubernetes.io/component: observability
+  - name: grafana-dashboards-provider
+    files:
+      - provider.yaml=grafana-dashboards-provider.yaml
+    options:
+      labels:
+        app.kubernetes.io/component: observability
+  - name: grafana-dashboards
+    files:
+      - soat-fase4.json=grafana-dashboard-soat.json
+    options:
+      labels:
+        app.kubernetes.io/component: observability
 
 generatorOptions:
   disableNameSuffixHash: true

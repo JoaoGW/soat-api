@@ -1,0 +1,7 @@
+apiVersion: 1
+providers:
+  - name: soat
+    folder: SOAT
+    type: file
+    options:
+      path: /var/lib/grafana/dashboards

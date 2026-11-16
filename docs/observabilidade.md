@@ -1,5 +1,11 @@
 # Observabilidade
 
+Na Fase 4 a mesma instrumentação OpenTelemetry da Fase 3 é reaproveitada nos
+três microsserviços. No ambiente Kubernetes em uso (kind) a telemetria vai a um
+OpenTelemetry Collector dentro do cluster, que alimenta Jaeger, Prometheus e
+Grafana sem custo e, com `NEW_RELIC_LICENSE_KEY`, também o New Relic. Detalhes
+e comandos em [`ambiente-kind.md`](ambiente-kind.md#observabilidade-no-cluster-sem-custo).
+
 ## Sinais e segurança
 
 A API envia traces, métricas e logs OpenTelemetry diretamente ao New Relic por OTLP/HTTP. A chave `NEW_RELIC_LICENSE_KEY` permanece no Key Vault e nunca é versionada. Consultas PostgreSQL, URL completa e query string são substituídas por `[redacted]` antes da exportação. Corpos, CPF, documentos, tokens, senhas e cookies não são registrados.

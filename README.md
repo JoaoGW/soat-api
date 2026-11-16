@@ -332,7 +332,12 @@ substituindo `sha-not-set`, `__ENVIRONMENT__` e `__APP_VERSION__`.
 ## Observabilidade
 
 Traces, métricas e logs OpenTelemetry são exportados ao New Relic, reutilizando
-a stack da Fase 3 (`OBSERVABILITY_ENABLED=true` e `NEW_RELIC_LICENSE_KEY`). O
+a stack da Fase 3 (`OBSERVABILITY_ENABLED=true` e `NEW_RELIC_LICENSE_KEY`). No
+ambiente kind, os três serviços enviam a telemetria a um OpenTelemetry
+Collector do cluster, com Jaeger, Prometheus e Grafana (painel **SOAT Fase 4**)
+sem custo; o Collector encaminha ao New Relic quando a chave existe. O workflow
+"Fluxo completo em Kubernetes" confirma no Jaeger um único trace atravessando
+OS, Billing e Execution (`scripts/kind/ambiente.sh traces`). O
 contexto W3C é propagado pelas mensagens do Service Bus, de modo que a mesma OS
 pode ser rastreada entre OS, Billing e Execution. Detalhes em
 [`docs/observabilidade.md`](docs/observabilidade.md).

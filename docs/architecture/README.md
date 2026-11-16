@@ -31,9 +31,12 @@ flowchart LR
     T -->|subscription billing.evidence| BILL
 
     BILL <-->|Orders API + webhook HMAC| MP[Mercado Pago]
-    OS -. OTLP .-> NR[New Relic\ntraces e métricas]
-    BILL -. OTLP .-> NR
-    EXEC -. OTLP .-> NR
+    OS -. OTLP .-> OTEL[OpenTelemetry Collector]
+    BILL -. OTLP .-> OTEL
+    EXEC -. OTLP .-> OTEL
+    OTEL --> JG[Jaeger\ntraces]
+    OTEL --> PR[Prometheus + Grafana\nmétricas]
+    OTEL -. com chave .-> NR[New Relic]
 ```
 
 | Serviço | Responsabilidade | Banco | Comunicação |
@@ -50,10 +53,14 @@ a mesma OS aparece como um único trace distribuído no New Relic.
 
 ### Ambientes Kubernetes
 
-- **kind (ativo):** cada CI implanta o próprio serviço em um cluster kind
-  efêmero; o workflow `Fluxo completo em Kubernetes` sobe os três serviços,
-  bancos e emuladores (Service Bus e Cosmos) e executa a jornada completa e a
-  compensação; o workflow `BDD distribuído local` executa os cenários Cucumber.
+- **kind (ambiente oficial da entrega, sem custo):** cada CI implanta o
+  próprio serviço em um cluster kind efêmero a cada PR e push; o workflow
+  `Fluxo completo em Kubernetes` sobe os três serviços, bancos, emuladores
+  (Service Bus e Cosmos) e a observabilidade (OpenTelemetry Collector, Jaeger,
+  Prometheus e Grafana), executa a jornada completa, a compensação e a falha na
+  execução e confirma o trace distribuído; o workflow `BDD distribuído local`
+  executa os cenários Cucumber. O mesmo ambiente roda localmente com
+  `scripts/kind/ambiente.sh` para a demonstração.
 - **AKS (atrás da trava de custo):** manifestos `deploy/kustomize/overlays/{hml,prod}`
   com o componente `components/fase4-aks` (Service Bus por Workload Identity,
   banco da Saga e migrations dos dois schemas). A infraestrutura correspondente
